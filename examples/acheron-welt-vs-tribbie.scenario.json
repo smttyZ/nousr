@@ -1,0 +1,146 @@
+{
+  "$schema": "../schema/scenario.schema.json",
+  "format": "nousr-scenario",
+  "version": 1,
+  "game_version": "4.7",
+  "name": "Acheron E1 + Affinitive Eidolon: Welt vs Tribbie in the third slot",
+  "notes": "The first comparison in CLAUDE.md's reference table. No account file, so every member runs on standard relics. Teammate eidolons that CLAUDE.md does not state are written as 0 and are placeholders. The policy quantities (slashed_dream and so on) are illustrative: the real names come from the kits in step 6.",
+
+  "battle": {
+    "mode": "moc",
+    "cycles": 5,
+    "period": "moc-2026-11-survival-of-the-fittest",
+    "start": { "energy": 0.5, "skill_points": 3, "techniques": true }
+  },
+
+  "enemies": {
+    "profile": "generic-moc",
+    "counts": [1, 3, 5],
+    "weaknesses": "all"
+  },
+
+  "teams": [
+    {
+      "id": "sw_welt_dhpt",
+      "name": "Acheron / Silver Wolf / Welt / Dan Heng PT",
+      "members": [
+        {
+          "key": "acheron",
+          "character": "1308",
+          "eidolon": 1,
+          "affinitive_eidolon": true,
+          "light_cone": { "id": "23024", "superimposition": 1 },
+          "relics": "standard",
+          "notes": "Along the Passing Shore S1"
+        },
+        {
+          "key": "silver_wolf",
+          "character": "1006",
+          "ability_version": 1,
+          "eidolon": 0,
+          "light_cone": { "id": "21001", "superimposition": 5 },
+          "relics": "standard",
+          "notes": "Good Night and Sleep Well S5"
+        },
+        {
+          "key": "welt",
+          "character": "1004",
+          "ability_version": 1,
+          "eidolon": 0,
+          "light_cone": { "id": "23004", "superimposition": 1 },
+          "relics": "standard",
+          "notes": "In the Name of the World S1"
+        },
+        {
+          "key": "dan_heng",
+          "character": "1414",
+          "eidolon": 0,
+          "light_cone": { "id": "24002", "superimposition": 5 },
+          "relics": "standard",
+          "notes": "Texture of Memories S5"
+        }
+      ],
+      "policy": [
+        { "unit": "acheron", "use": "ultimate" },
+        { "unit": "silver_wolf", "use": "ultimate" },
+        { "unit": "welt", "use": "ultimate" },
+        { "unit": "dan_heng", "use": "ultimate" },
+
+        { "unit": "acheron", "use": "skill", "when": [{ "what": "team.skill_points", "min": 1 }] },
+        { "unit": "acheron", "use": "basic" },
+
+        {
+          "unit": "silver_wolf",
+          "use": "skill",
+          "when": [
+            { "what": "team.skill_points", "min": 2 },
+            { "what": "acheron.slashed_dream", "max": 8 }
+          ],
+          "notes": "Leave a point for Acheron, and stop feeding stacks once her Ultimate is ready."
+        },
+        { "unit": "silver_wolf", "use": "basic" },
+
+        { "unit": "welt", "use": "skill", "when": [{ "what": "team.skill_points", "min": 2 }] },
+        { "unit": "welt", "use": "basic" },
+
+        { "unit": "dan_heng", "use": "skill", "target": "acheron", "when": [{ "what": "dan_heng.bondmate_set", "is": false }] },
+        { "unit": "dan_heng", "use": "basic" }
+      ]
+    },
+    {
+      "id": "sw_tribbie_dhpt",
+      "name": "Acheron / Silver Wolf / Tribbie E1 / Dan Heng PT",
+      "members": [
+        {
+          "key": "acheron",
+          "character": "1308",
+          "eidolon": 1,
+          "affinitive_eidolon": true,
+          "light_cone": { "id": "23024", "superimposition": 1 },
+          "relics": "standard"
+        },
+        {
+          "key": "silver_wolf",
+          "character": "1006",
+          "ability_version": 1,
+          "eidolon": 0,
+          "light_cone": { "id": "21001", "superimposition": 5 },
+          "relics": "standard"
+        },
+        {
+          "key": "tribbie",
+          "character": "1403",
+          "eidolon": 1,
+          "light_cone": { "id": "21018", "superimposition": 3 },
+          "relics": "standard",
+          "notes": "Dance! Dance! Dance! S3"
+        },
+        {
+          "key": "dan_heng",
+          "character": "1414",
+          "eidolon": 0,
+          "light_cone": { "id": "24002", "superimposition": 5 },
+          "relics": "standard"
+        }
+      ],
+      "policy": [
+        { "unit": "tribbie", "use": "ultimate" },
+        { "unit": "acheron", "use": "ultimate" },
+        { "unit": "silver_wolf", "use": "ultimate" },
+        { "unit": "dan_heng", "use": "ultimate" },
+
+        { "unit": "acheron", "use": "skill", "when": [{ "what": "team.skill_points", "min": 1 }] },
+        { "unit": "acheron", "use": "basic" },
+
+        { "unit": "silver_wolf", "use": "skill", "when": [{ "what": "team.skill_points", "min": 2 }] },
+        { "unit": "silver_wolf", "use": "basic" },
+
+        { "unit": "tribbie", "use": "skill", "when": [{ "what": "tribbie.numinosity_active", "is": false }] },
+        { "unit": "tribbie", "use": "basic" },
+
+        { "unit": "dan_heng", "use": "skill", "target": "acheron", "when": [{ "what": "dan_heng.bondmate_set", "is": false }] },
+        { "unit": "dan_heng", "use": "basic" }
+      ]
+    }
+  ]
+}

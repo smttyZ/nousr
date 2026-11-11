@@ -1,0 +1,4 @@
+[submodule "vendor/hsr-optimizer"]
+	path = vendor/hsr-optimizer
+	url = https://github.com/fribbels/hsr-optimizer.git
+	shallow = true

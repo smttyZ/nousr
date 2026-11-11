@@ -1,6 +1,7 @@
 # NouSR — design
 
-Status: pre-code. Pinned target: Honkai: Star Rail 4.7.
+Status: build order steps 1–4 done (setup, timeline engine, damage kernel adapter, scenario format).
+Pinned target: Honkai: Star Rail 4.7.
 
 NouSR (`nousr`) is a deterministic, action-value timeline simulator for Honkai: Star Rail teams.
 It answers questions a per-action damage calculator can't: what a team does over N cycles of
@@ -61,8 +62,25 @@ scenario.json + account.json (HSR-Scanner v4)
 (equipped character ID). This is the de facto format: Fribbels imports it, and the output is loosely based
 on Genshin's GOOD format. A **standard-relics mode** reuses Fribbels' benchmark builds when no scan is given.
 
-**Scenario — NouSR JSON (draft):** teams, eidolon and light cone overrides, per-team priority scripts,
-enemy setup, cycle count, MoC period modifiers.
+**Scenario — NouSR JSON, version 1.** The format is defined by `schema/scenario.schema.json` (JSON Schema
+2020-12) and enforced from that file with Ajv, so the published schema and the loader cannot disagree.
+`examples/` holds a worked scenario.
+
+### Scenario format decisions (Smitty, 2026-11-11)
+
+| # | Topic | Decision |
+|---|---|---|
+| S1 | Teams per file | Many teams under one shared `battle` and `enemies` block, so teams in a file are always compared under the same conditions |
+| S2 | Buffed (Nova Flare) kits | `character` is the game id (`"1006"`) plus `ability_version` (0 = original, 1 = buffed), the scanner's own field. The kernel adapter maps this to Fribbels' `1006b1` ids |
+| S3 | Relics per member | `"equipped"` (from the scan), `"standard"` (Fribbels' benchmark build), or an explicit list of scan `_uid`s or v4 relic objects |
+| S4 | Action policy | An ordered rule list per team; the first rule that applies is taken. Conditions are structured (`what` with `min` / `max` / `is`). A turn where no rule applies is an error, never a silent basic attack |
+| S5 | Enemy weaknesses | `"all"` by default (every team hits a weakness); an explicit element list models a specific stage |
+| S6 | Do enemies die | No. A fixed window of `cycles`; enemies are damage sponges and the result is damage per cycle. Enemy HP in a profile is not used in v1 |
+| S7 | Strictness | Unknown keys are rejected. Every level has a free-text `notes` field the simulator ignores |
+| S8 | Identity | `format: "nousr-scenario"`, integer `version`, `game_version`. The schema `$id` is a placeholder URN until a publication address is chosen |
+| S9 | Multi-target damage | Fribbels computes an action against the primary target only. Each kit action declares its parts as single / blast / AoE / bounce with their scaling; NouSR asks the kernel per part and multiplies by the enemies hit |
+
+Consequence of S6 to keep in mind: effects that trigger on a kill, overkill, and wave changes are not modelled.
 
 ## Known approximations (documented on purpose)
 
@@ -70,6 +88,21 @@ enemy setup, cycle count, MoC period modifiers.
   expected-value state. The average over real fights can differ (a threshold on an average is not the average
   of thresholds). If in-game results disagree, fix the model and log it here.
 - **Debuffs always land.** Effect Hit Rate keeps its stat value but never fails a roll.
+
+## Open questions
+
+Timeline rules the sources do not settle. Each is implemented one way in `src/engine/timeline.ts` (see the
+header comment there) and is a one-line change. Not yet confirmed by Smitty.
+
+- **A turn exactly on a cycle boundary** counts in the cycle that is ending. Game8's breakpoint chart and
+  stephenli.ca need this; a Reddit breakpoint post listing 120.1 / 160.1 / 200.1 implies the opposite.
+- **Equal action value.** A unit advanced to 0 goes first, the most recently advanced first (KQM speed
+  guide); otherwise party order. Ally-versus-enemy ties have no source.
+- **Gauge refill timing.** The gauge refills after turn start and before the action, so an advance at turn
+  start is wasted and one during the action shortens the next turn.
+- **Self-applied turn-end buffs** do not count the turn they were applied in, unless the kit says otherwise.
+- **Scan precision.** Fribbels treats HSR-Scanner SPD as unverified and Reliquary Archiver SPD as verified.
+  Both write the v4 shape and both are accepted; SPD decimals decide breakpoints.
 
 ## Period modules
 
@@ -83,6 +116,34 @@ JSON, modelled on hsr-simulator's format: level, HP, ATK, DEF, SPD, toughness, R
 attack list (multiplier × ATK, target type single/blast/bounce, debuffs, energy given, priority).
 v1 ships one generic MoC-level profile. Real stage bosses (summons, phases) are roadmap items that reuse
 the same schema plus a behaviour module where needed. Enemy stats source: the Dimbreath datamine used by Fribbels.
+
+### Step 5 inputs (researched 2026-11-11, nothing built yet)
+
+Sourced:
+
+- **Base aggro:** Hunt / Erudition 3; Harmony / Nihility / Abundance / Remembrance 4; Destruction 5;
+  Preservation 6. Aggro = base × (1 + modifier); chance to be hit = own aggro ÷ team total. Each memosprite
+  has its own base aggro. ([HoYoLAB 3.0 mechanics guide](https://www.hoyolab.com/article/36700608),
+  [KQM beginner guide](https://hsr.keqingmains.com/misc/beginner-guide))
+- **Damage taken:** DEF multiplier = 1 − DEF ÷ (DEF + 200 + 10 × attacker level).
+  ([Prydwen damage formula](https://www.prydwen.gg/star-rail/guides/damage-formula))
+- **Enemy level:** 95, Fribbels' default (`vendor/hsr-optimizer/src/lib/optimization/defaultForm.ts`).
+  Enemy DEF = 200 + 10 × level (HoYoLAB guide above).
+- **Enemy SPD tiers:** 110 basic, 132 most elites and bosses, 158 many, 190 some.
+  ([HoYoLAB](https://www.hoyolab.com/article/33674443), written for level 90)
+- **Profile format reference:** hsr-simulator's `data/enemies/*.json`: level, HP, ATK, DEF, SPD, toughness,
+  RES per element, and attacks with multiplier, target type (single / blast / bounce), hits, priority,
+  debuffs, energy given. Its two files are test dummies, not real stage numbers.
+
+No source found yet: enemy ATK at level 95, enemy attack multipliers, energy gained per hit taken, and
+memosprite base aggro values. Fribbels' `game_data.json` has no enemy data.
+
+Smitty's calls before building: enemy SPD (132 or 158), the attack pattern (single-target only, or with a
+periodic AoE), the unsourced numbers above, and the shape of the enemy profile file (it needs its own schema).
+
+For step 7, the current period's rule text (Game8, read 2026-11-11): an ally gains 5 Punchlines on using
+their Ultimate; at the start of each cycle Aha takes an extra turn counted at a fixed 20 Punchlines, which
+does not consume Punchlines. Runs 2026-11-02 to 2026-12-14.
 
 ## Castorice / HP loss
 
@@ -116,3 +177,5 @@ Robin Summeretto, Cyrene, Hyacine, Dan Heng • Permansor Terrae, Fu Xuan (+ Jia
 - [kel-z/HSR-Scanner](https://github.com/kel-z/HSR-Scanner) — build JSON format
 - [tingyumian662/hsr-simulator](https://github.com/tingyumian662/hsr-simulator) — MIT, reference/validation
 - [simimpact/srsim](https://github.com/simimpact/srsim) — architecture reference only (no license, no code used)
+
+Dependencies: TypeScript, Vitest and @types/node (development only), Ajv (MIT, scenario validation).

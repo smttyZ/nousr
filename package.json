@@ -1,0 +1,22 @@
+{
+  "name": "nousr",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Deterministic action-value timeline simulator for Honkai: Star Rail teams",
+  "type": "module",
+  "scripts": {
+    "setup": "git submodule update --init && npm ci --prefix vendor/hsr-optimizer --no-audit --no-fund && npm run update-resources --prefix vendor/hsr-optimizer",
+    "test": "vitest --no-watch",
+    "test:watch": "vitest",
+    "test:fribbels": "cd vendor/hsr-optimizer && npx vitest --no-watch --pool=forks --config ../../vitest.fribbels.config.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.fribbels.json"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.12"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0"
+  }
+}

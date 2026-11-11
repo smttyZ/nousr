@@ -1,0 +1,30 @@
+{
+  // Type-checks the one directory that imports Fribbels. Importing its sources pulls them into the
+  // compile, so the options here mirror vendor/hsr-optimizer/tsconfig.json rather than NouSR's own.
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["ESNext", "DOM", "DOM.Iterable", "webworker"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noFallthroughCasesInSwitch": true,
+    "paths": {
+      "*": ["./vendor/hsr-optimizer/src/*"]
+    },
+    "typeRoots": ["./vendor/hsr-optimizer/node_modules/@types", "./vendor/hsr-optimizer/node_modules"],
+    "types": ["@webgpu/types"]
+  },
+  "include": [
+    "src/kernel/fribbels",
+    // Fribbels' global declarations (import.meta.glob, window fields, i18next typing).
+    "vendor/hsr-optimizer/src/types/vite-env.ts",
+    "vendor/hsr-optimizer/src/types/window.ts",
+    "vendor/hsr-optimizer/src/types/i18next.ts",
+    "vendor/hsr-optimizer/src/types/mathml.d.ts"
+  ]
+}

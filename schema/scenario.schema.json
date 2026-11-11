@@ -1,0 +1,302 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:nousr:schema:scenario:1",
+  "title": "NouSR scenario",
+  "description": "One scenario = one set of battle conditions and one or more teams that are each simulated under exactly those conditions, so their results are on one scale. Keys are snake_case to match the HSR-Scanner v4 build format this file sits beside.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "version", "game_version", "battle", "enemies", "teams"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional pointer to this schema, for editor completion."
+    },
+    "format": {
+      "const": "nousr-scenario",
+      "description": "Identifies the file type, the way HSR-Scanner files carry \"source\"."
+    },
+    "version": {
+      "const": 1,
+      "description": "Version of this schema. Goes up only on a breaking change."
+    },
+    "game_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "Game version the scenario was written for, e.g. \"4.7\". The simulator refuses a scenario whose game version it does not model."
+    },
+    "name": { "type": "string" },
+    "notes": { "$ref": "#/$defs/notes" },
+    "account": {
+      "description": "Where builds come from. Either a path to an HSR-Scanner v4 JSON file, relative to this scenario file, or that JSON inline (which makes the scenario self-contained and shareable). Leave out to run every member on standard relics.",
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        { "$ref": "#/$defs/scan_v4" }
+      ]
+    },
+    "battle": { "$ref": "#/$defs/battle" },
+    "enemies": { "$ref": "#/$defs/enemies" },
+    "teams": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/team" },
+      "description": "Each team is simulated separately under the same battle and enemies. Team ids must be unique."
+    }
+  },
+
+  "$defs": {
+    "notes": {
+      "type": "string",
+      "description": "Free text for people. The simulator ignores it."
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "A short name chosen by the author: lower-case letters, digits and underscores."
+    },
+    "element": {
+      "enum": ["Physical", "Fire", "Ice", "Lightning", "Wind", "Quantum", "Imaginary"]
+    },
+
+    "scan_v4": {
+      "type": "object",
+      "description": "An HSR-Scanner v4 export (https://github.com/kel-z/HSR-Scanner). Reliquary Archiver writes the same shape. Only the parts NouSR reads are checked here.",
+      "required": ["source", "version", "characters", "light_cones", "relics"],
+      "properties": {
+        "source": { "type": "string" },
+        "build": { "type": "string" },
+        "version": { "const": 4 },
+        "characters": { "type": "array" },
+        "light_cones": { "type": "array" },
+        "relics": { "type": "array", "items": { "$ref": "#/$defs/relic_v4" } }
+      }
+    },
+    "relic_v4": {
+      "type": "object",
+      "description": "One relic exactly as HSR-Scanner v4 writes it.",
+      "required": ["set_id", "slot", "rarity", "level", "mainstat", "substats"],
+      "properties": {
+        "set_id": { "type": "string" },
+        "name": { "type": "string" },
+        "slot": { "enum": ["Head", "Hands", "Body", "Feet", "Planar Sphere", "Link Rope"] },
+        "rarity": { "type": "integer", "minimum": 2, "maximum": 5 },
+        "level": { "type": "integer", "minimum": 0, "maximum": 15 },
+        "mainstat": { "type": "string" },
+        "substats": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "required": ["key", "value"],
+            "properties": {
+              "key": { "type": "string" },
+              "value": { "type": "number" }
+            }
+          }
+        },
+        "location": { "type": "string" },
+        "_uid": { "type": "string" }
+      }
+    },
+
+    "battle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "cycles"],
+      "properties": {
+        "mode": {
+          "enum": ["moc"],
+          "description": "Game mode. Sets the cycle lengths: Memory of Chaos is 150 AV for the first cycle, then 100. Other modes are on the roadmap."
+        },
+        "cycles": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How many cycles to simulate."
+        },
+        "period": {
+          "type": ["string", "null"],
+          "description": "Id of the period module (Memory Turbulence) to apply, e.g. \"moc-2026-11-survival-of-the-fittest\". null or absent = none."
+        },
+        "start": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Starting state. Defaults are the Memory of Chaos defaults from DESIGN.md decision 6.",
+          "properties": {
+            "energy": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.5,
+              "description": "Starting energy as a share of each character's maximum."
+            },
+            "skill_points": { "type": "integer", "minimum": 0, "default": 3 },
+            "techniques": {
+              "type": "boolean",
+              "default": true,
+              "description": "Whether every member's technique is used before the battle."
+            }
+          }
+        },
+        "notes": { "$ref": "#/$defs/notes" }
+      }
+    },
+
+    "enemies": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile", "counts"],
+      "properties": {
+        "profile": {
+          "type": "string",
+          "description": "Id of an enemy profile. v1 ships one: \"generic-moc\"."
+        },
+        "counts": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "integer", "minimum": 1, "maximum": 5 },
+          "description": "Number of enemies on the field. Each value is its own run with its own results, e.g. [1, 3, 5]."
+        },
+        "weaknesses": {
+          "description": "Which elements the enemies are weak to. \"all\" makes every team hit a weakness, which keeps teams of different elements comparable; a list models a specific stage.",
+          "oneOf": [
+            { "const": "all" },
+            { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/element" } }
+          ],
+          "default": "all"
+        },
+        "notes": { "$ref": "#/$defs/notes" }
+      }
+    },
+
+    "team": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "members", "policy"],
+      "properties": {
+        "id": { "$ref": "#/$defs/slug" },
+        "name": { "type": "string" },
+        "notes": { "$ref": "#/$defs/notes" },
+        "members": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": { "$ref": "#/$defs/member" },
+          "description": "In party order, left to right. Member keys must be unique within the team."
+        },
+        "policy": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/rule" },
+          "description": "The team's priority script. Whenever someone can act, the list is read top to bottom and the first rule that applies is taken. A rule applies when its unit can use that action right now and every entry in \"when\" holds. Ultimate rules are checked between any two actions; basic and skill rules only on that unit's own turn. A turn on which no rule applies is an error, so every unit needs an unconditional fallback."
+        }
+      }
+    },
+
+    "member": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "character"],
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/slug",
+          "description": "How policy rules refer to this member, e.g. \"acheron\"."
+        },
+        "character": {
+          "type": "string",
+          "pattern": "^[0-9]{4}$",
+          "description": "Game character id as a string, as in HSR-Scanner, e.g. \"1308\" for Acheron."
+        },
+        "ability_version": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Same field as HSR-Scanner v4. 0 = the original kit, 1 = the buffed (Nova Flare) kit. If absent: taken from the account scan, else the newest version."
+        },
+        "eidolon": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 6,
+          "description": "Overrides the account scan. Required when there is no account."
+        },
+        "affinitive_eidolon": {
+          "type": "boolean",
+          "default": false,
+          "description": "The scan format has no field for this, so it is always set here."
+        },
+        "light_cone": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "superimposition"],
+          "description": "Overrides the account scan. Required when there is no account.",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[0-9]{5}$",
+              "description": "Game light cone id as a string, e.g. \"23024\"."
+            },
+            "superimposition": { "type": "integer", "minimum": 1, "maximum": 5 }
+          }
+        },
+        "relics": {
+          "description": "\"equipped\": the relics the account scan shows on this character. \"standard\": Fribbels' benchmark build for this character. A list: exactly these relics, each given either as the \"_uid\" of a relic in the account scan or as a full HSR-Scanner v4 relic object. Default: \"equipped\" when there is an account, otherwise \"standard\".",
+          "oneOf": [
+            { "enum": ["equipped", "standard"] },
+            {
+              "type": "array",
+              "maxItems": 6,
+              "items": {
+                "oneOf": [
+                  { "type": "string", "minLength": 1 },
+                  { "$ref": "#/$defs/relic_v4" }
+                ]
+              }
+            }
+          ]
+        },
+        "notes": { "$ref": "#/$defs/notes" }
+      }
+    },
+
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unit", "use"],
+      "properties": {
+        "unit": {
+          "$ref": "#/$defs/slug",
+          "description": "Key of the member this rule is for."
+        },
+        "use": {
+          "type": "string",
+          "description": "The action. \"basic\", \"skill\" and \"ultimate\" exist for everyone; a kit may add its own (for example an enhanced basic). The simulator rejects a name the unit's kit does not have."
+        },
+        "target": {
+          "type": "string",
+          "description": "Who the action is aimed at, where the kit needs one: a member key for an ally-targeted action. Enemy-targeted actions always aim at the primary target."
+        },
+        "when": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/condition" },
+          "description": "All must hold. Absent or empty = always."
+        },
+        "notes": { "$ref": "#/$defs/notes" }
+      }
+    },
+
+    "condition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["what"],
+      "minProperties": 2,
+      "properties": {
+        "what": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+          "description": "A quantity in the live state, as a dotted path. \"team.skill_points\", \"battle.cycle\", or \"<member key>.<quantity>\" such as \"acheron.slashed_dream\". Each kit publishes the quantities it has; the simulator rejects a path it does not know."
+        },
+        "min": { "type": "number", "description": "Holds when the quantity is at least this." },
+        "max": { "type": "number", "description": "Holds when the quantity is at most this." },
+        "is": { "type": "boolean", "description": "For yes/no quantities such as \"welt.ultimate_ready\"." }
+      }
+    }
+  }
+}

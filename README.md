@@ -25,7 +25,9 @@ npm run test:fribbels -- src/lib/simulations/tests/statSim   # run some of Fribb
 - `schema/scenario.schema.json` is the scenario format (version 1), with an example under `examples/`.
 - `schema/enemy-profile.schema.json` is the enemy profile format (version 1); `data/enemies/` holds the profiles
   and `src/enemy` loads them.
-- `src/battle` is the allied side's HP, shields, energy and aggro, and the enemy turns that hit it.
+- `src/battle` is the allied side's HP, shields, energy and aggro, the enemy turns that hit it, and the
+  battle runner that plays a team's policy against the enemies.
+- `src/kits` holds the character kits. So far: Acheron.
 - `tools/gamedata` reads the game's own data tables: `fetch.mjs` downloads them into `.gamedata/`
   (git-ignored, about 110 MB, needs the GitHub CLI), `moc-enemies.mjs` prints the enemy and aggro numbers
   DESIGN.md cites, and `kit-text.mjs <characterId>` prints a character's in-game kit text.

@@ -17,7 +17,7 @@
       "*": ["./vendor/hsr-optimizer/src/*"]
     },
     "typeRoots": ["./vendor/hsr-optimizer/node_modules/@types", "./vendor/hsr-optimizer/node_modules"],
-    "types": ["@webgpu/types"]
+    "types": ["@webgpu/types", "node"]
   },
   "include": [
     "src/kernel/fribbels",

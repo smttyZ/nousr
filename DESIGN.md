@@ -192,7 +192,7 @@ For step 7, the current period's rule text (Game8, read 2026-11-11): an ally gai
 their Ultimate; at the start of each cycle Aha takes an extra turn counted at a fixed 20 Punchlines, which
 does not consume Punchlines. Runs 2026-11-02 to 2026-12-14.
 
-## Step 6 notes (2026-11-12, nothing built yet)
+## Step 6 notes (2026-11-12, in progress)
 
 **Kit text source.** `node tools/gamedata/kit-text.mjs <characterId>` prints a character's in-game English
 text from the 4.7.0 game data: abilities with their numbers at the relevant levels, traces, eidolons and the
@@ -214,25 +214,45 @@ Affinitive Eidolon. This is the text kits are transcribed from. Game text is not
   or ×1.60). Thunder Core (+30% DMG per Rainblade that hits a knotted target, 3 stacks, 3 turns; Stygian Resurge
   adds 6 hits of 25% on random enemies, counted as Ultimate DMG).
 - E1 +18% CRIT Rate against debuffed enemies. E2 The Abyss needs one fewer Nihility ally; at her turn start
-  +1 Slashed Dream and 1 knot on the enemy with the most. E4 enemies take 8% more Ultimate DMG. E6 +20% RES PEN
-  for Ultimate DMG; Basic and Skill count as Ultimate DMG.
+  +1 Slashed Dream and 1 knot on the enemy with the most. E4 enemies entering combat are inflicted with 8% more
+  Ultimate DMG taken; this is a debuff on every enemy, so from E4 her E1 is always active. E6 +20% RES PEN for
+  Ultimate DMG; Basic and Skill count as Ultimate DMG.
 - Affinitive Eidolon: after a teammate attacks an enemy that has Crimson Knot, a follow-up of 300% to all
   enemies then 6 hits of 80% on random enemies, +1 Slashed Dream and 1 knot on the enemy with the most. Counts
   as Ultimate DMG, The Abyss applies, at most once per turn, resetting at the start of Acheron's turn.
 
-**Modelling questions to put to Smitty before building** (with what prior work does):
+**Step 6 decisions (Smitty, 2026-11-12):**
 
-1. *Is debuff state kept per enemy?* srsim and hsr-simulator both keep statuses on each enemy; Fribbels has one
-   enemy with global switches. Per enemy is needed for single-target debuffs to boost only their target in the
-   3- and 5-enemy runs, and costs one kernel call per distinct enemy state.
-2. *Stacks placed on "a random enemy"* (Acheron's opening 5 Crimson Knots). Splitting them evenly as expected
-   values leaves the primary target with a third of them; putting them on the primary target matches what a
-   player does (they then aim at the knotted enemy, and the enemies are identical). Random damage hits (Thunder
-   Core, the Affinitive Eidolon's bounces) split evenly either way, as Fribbels does.
-3. *Which enemy is the primary target.* The middle one makes a blast hit 3 of 3 or 3 of 5; an end one hits 2.
+| # | Topic | Decision |
+|---|---|---|
+| K1 | Debuffs and marks | Kept per enemy, as in the game (and as srsim and hsr-simulator do). They are modifiers on the enemy's timeline unit |
+| K2 | Stacks placed on "a random enemy" | Go on the primary target. A player aims at the enemy that got them and the generic enemies are identical, so this reproduces real play. Random *damage* hits (Thunder Core, the Affinitive Eidolon's bounces) still split evenly across enemies, as Fribbels does |
+| K3 | Primary target | The middle enemy, with the others at its sides. A blast hits 3 of 3 or 3 of 5 |
 
-**Still to build for step 6:** the battle runner (policy rules, skill points, Ultimate windows), the kit
-interface with per-action hit shapes (S9), and wiring ally HP, DEF and Energy Regeneration Rate from the kernel.
+**Open, for an in-game check:** does Thunder Core's +30% apply to the Rainblade that grants it? Implemented as
+"from the next hit on", so the first Rainblade is unbuffed and its Crimson Knot detonation is buffed. Fribbels
+assumes all three stacks for the whole Ultimate.
+
+**Not modelled yet:** the 200% ATK hit of Acheron's technique (Fribbels has no number for technique damage);
+the technique's Quadrivalent Ascendance stack is modelled.
+
+**Built so far for step 6:**
+
+- `src/battle/battle.ts`, the battle runner. It opens an Ultimate window between any two actions and before
+  the first turn, takes the first applicable policy rule on an ally's turn, and stops with an error when none
+  applies. A kit declares what each attack hits (single / blast / AoE / bounce with ATK multiples); the runner
+  asks the kernel for the attacker's damage against each enemy's own state and scales it. Fribbels' damage is
+  proportional to the ATK multiple, checked against Fribbels itself in
+  `src/kernel/fribbels/acheron.integration.test.ts`.
+- `src/kits/kit.ts`, the kit interface, and `src/kits/acheron.ts`, Acheron E0 to E6 with the Affinitive Eidolon.
+
+**Still missing before a scenario file can be run end to end:**
+
+- Turning a loaded scenario into a battle: each member's HP, DEF, SPD and Energy Regeneration Rate from the
+  kernel, `"standard"` and scanned relics as a kernel build, and `ability_version` mapped to Fribbels' ids.
+- Light cones and relic sets as kits. This matters for Acheron: Along the Passing Shore puts a debuff on what
+  she hits, which feeds her own talent, so her stack rate is understated until it exists.
+- The other characters, and a results report.
 
 ## Castorice / HP loss
 

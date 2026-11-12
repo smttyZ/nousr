@@ -45,6 +45,30 @@ export interface EngineEvents {
   energyGained: { unit: UnitId, amount: number }
   unitDowned: { unit: UnitId, at: number }
 
+  // ---- ally actions (src/battle/battle.ts)
+  /**
+   * An ally finished a Basic ATK, Skill, Ultimate or follow-up. `enemiesHit` lists the enemies it
+   * damaged and `debuffed` the enemies it put a debuff on. `serial` numbers actions from 1.
+   */
+  actionUsed: {
+    actor: UnitId
+    action: string
+    kind: 'basic' | 'skill' | 'ultimate' | 'followUp'
+    serial: number
+    enemiesHit: UnitId[]
+    debuffed: UnitId[]
+  }
+  /** One enemy's damage from one part of an attack. `scaling` is the ATK multiple that produced it. */
+  damageDealt: {
+    attacker: UnitId
+    enemy: UnitId
+    ability: string
+    scaling: number
+    damage: number
+    at: number
+    cycle: number
+  }
+
   // ---- enemy turns (src/battle/enemies.ts)
   enemyAttack: { enemy: UnitId, attack: string }
   /**

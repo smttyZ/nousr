@@ -28,6 +28,8 @@ export interface ModifierSpec {
   spdFlat?: number
   /** Stack count, for kits to read back. The engine does not multiply anything by it. */
   stacks?: number
+  /** True for a debuff, which effects such as "against debuffed enemies" look for. Default false. */
+  debuff?: boolean
   /** Leave out for a modifier that stays until something removes it. */
   duration?: TurnDuration
 }
@@ -39,6 +41,7 @@ export interface Modifier {
   readonly spdPct: number
   readonly spdFlat: number
   readonly stacks: number
+  readonly debuff: boolean
   readonly duration: Required<TurnDuration> | undefined
   /** Turns left, or undefined for a modifier with no duration. */
   turnsLeft: number | undefined
@@ -74,6 +77,7 @@ export class ModifierStore {
       spdPct: spec.spdPct ?? 0,
       spdFlat: spec.spdFlat ?? 0,
       stacks: spec.stacks ?? 1,
+      debuff: spec.debuff ?? false,
       duration: d && {
         turns: d.turns,
         tick: d.tick,

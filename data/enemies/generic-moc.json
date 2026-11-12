@@ -1,0 +1,18 @@
+{
+  "$schema": "../../schema/enemy-profile.schema.json",
+  "format": "nousr-enemy-profile",
+  "version": 1,
+  "id": "generic-moc",
+  "name": "Generic Memory of Chaos floor 12 enemy",
+  "notes": "Numbers from the game data (DimbreathBot/TurnBasedGameData at fe15a954eb, 4.7.0), computed 2026-11-12. Re-run with tools/gamedata/moc-enemies.mjs. ATK 625.5 is what every floor 12 enemy has at level 95 in the current period and the two before it (base 18 x level ratio 34.75065); older periods were 656.8 and 688.1. SPD 158.4 is the median floor 12 elite and boss over the last 8 Memory of Chaos periods (base 120 x 1.32). Toughness 360 is Fribbels' default and sits inside the floor 12 elite range (300 to 480). RES 0.2 is the standard non-weak value. Attack multipliers and energy are typical values for floor 12 single-target and AoE skills; the single, single, AoE order is Smitty's decision (2026-11-12), not taken from any one enemy.",
+  "level": 95,
+  "atk": 625.5,
+  "spd": 158.4,
+  "toughness": 360,
+  "res": 0.2,
+  "attacks": [
+    { "id": "strike", "name": "Single-target attack", "target": "single", "multiplier": 2.5, "energy": 10 },
+    { "id": "sweep", "name": "AoE attack", "target": "aoe", "multiplier": 3.0, "energy": 10 }
+  ],
+  "pattern": ["strike", "strike", "sweep"]
+}

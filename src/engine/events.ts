@@ -32,6 +32,26 @@ export interface EngineEvents {
   gaugeChanged: { unit: UnitId, before: number, after: number, cause: 'advance' | 'delay' }
   modifierApplied: { modifier: Modifier, previous: Modifier | undefined }
   modifierRemoved: { modifier: Modifier, reason: 'expired' | 'removed' | 'unitRemoved' }
+
+  // ---- HP, shields, energy (src/battle/party.ts). Amounts are expected values and can be fractional.
+  /**
+   * HP actually lost, after shields. `cause` is 'damage' for a hit and 'consume' for HP a unit
+   * spends itself. `source` is who caused it.
+   */
+  hpLost: { unit: UnitId, amount: number, cause: 'damage' | 'consume', source: UnitId }
+  /** `amount` is HP actually restored; `overheal` is the part that did not fit under max HP. */
+  healed: { unit: UnitId, amount: number, overheal: number, source: UnitId }
+  /** `amount` is energy actually added, after Energy Regeneration Rate and the cap. */
+  energyGained: { unit: UnitId, amount: number }
+  unitDowned: { unit: UnitId, at: number }
+
+  // ---- enemy turns (src/battle/enemies.ts)
+  enemyAttack: { enemy: UnitId, attack: string }
+  /**
+   * One ally's share of an enemy attack. `hits` is the expected number of times it was hit:
+   * for a single-target attack that is its chance of being the target.
+   */
+  allyHit: { unit: UnitId, enemy: UnitId, attack: string, hits: number, damage: number }
 }
 
 export type Handler<P> = (payload: P) => void

@@ -23,5 +23,11 @@ npm run test:fribbels -- src/lib/simulations/tests/statSim   # run some of Fribb
 - `src/engine` is the timeline: action gauge, cycles, events, timed modifiers.
 - `src/kernel` is the damage kernel boundary. Only `src/kernel/fribbels` imports Fribbels.
 - `schema/scenario.schema.json` is the scenario format (version 1), with an example under `examples/`.
+- `schema/enemy-profile.schema.json` is the enemy profile format (version 1); `data/enemies/` holds the profiles
+  and `src/enemy` loads them.
+- `src/battle` is the allied side's HP, shields, energy and aggro, and the enemy turns that hit it.
+- `tools/gamedata` reads the game's own data tables: `fetch.mjs` downloads them into `.gamedata/`
+  (git-ignored, about 110 MB, needs the GitHub CLI), `moc-enemies.mjs` prints the enemy and aggro numbers
+  DESIGN.md cites, and `kit-text.mjs <characterId>` prints a character's in-game kit text.
 - `src/scenario` loads a scenario: it checks the file against that schema, then resolves each member's
   eidolon, light cone and relics against the account scan.

@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:nousr:schema:enemy-profile:1",
+  "title": "NouSR enemy profile",
+  "description": "One kind of enemy: its stats at a fixed level and what it does on its turns. A scenario picks a profile by id and says how many copies are on the field. The layout follows hsr-simulator's enemy files (MIT), with snake_case keys like the scenario format.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "version", "id", "level", "atk", "spd", "toughness", "res", "attacks", "pattern"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "format": { "const": "nousr-enemy-profile" },
+    "version": { "const": 1 },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "What a scenario's enemies.profile refers to, e.g. \"generic-moc\"."
+    },
+    "name": { "type": "string" },
+    "notes": { "type": "string", "description": "Free text for people, e.g. where the numbers come from. The simulator ignores it." },
+    "level": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Enemy level. Sets the enemy's DEF (200 + 10 x level) and the level term in the damage allies take."
+    },
+    "atk": { "type": "number", "exclusiveMinimum": 0, "description": "ATK at this level, after all of the game's scaling." },
+    "spd": { "type": "number", "exclusiveMinimum": 0, "description": "SPD at this level, after all of the game's scaling." },
+    "hp": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "HP at this level. Not used in version 1 of the simulator, where enemies do not die; kept so real stage enemies can be described."
+    },
+    "toughness": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Maximum toughness in the game's internal units (the in-game bar value times 3; a 120 bar is 360)."
+    },
+    "res": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Damage RES to an element the enemy is not weak to, as a fraction. RES to a weakness element is 0."
+    },
+    "attacks": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/attack" },
+      "description": "Everything this enemy can do. Attack ids must be unique."
+    },
+    "pattern": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" },
+      "description": "Attack ids in the order the enemy uses them, one per turn, repeating from the start when it runs out."
+    }
+  },
+  "$defs": {
+    "attack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "target", "multiplier", "energy"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "name": { "type": "string" },
+        "target": {
+          "enum": ["single", "blast", "aoe", "bounce"],
+          "description": "single: one ally, chosen by aggro. blast: one ally chosen by aggro plus the allies next to it. aoe: every ally. bounce: several hits, each on an ally chosen by aggro."
+        },
+        "multiplier": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Damage as a multiple of the enemy's ATK: 2.5 is 250% ATK. For blast this is the main target; for bounce it is each hit."
+        },
+        "adjacent_multiplier": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Blast only, and required for blast: damage to the allies next to the main target."
+        },
+        "hits": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Bounce only, and required for bounce: number of hits."
+        },
+        "energy": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Energy an ally gains each time this attack hits it, before that ally's Energy Regeneration Rate."
+        }
+      }
+    }
+  }
+}

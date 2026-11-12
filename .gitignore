@@ -3,3 +3,6 @@ dist/
 coverage/
 *.tsbuildinfo
 .vite/
+
+# game data tables downloaded by tools/gamedata/fetch.mjs
+.gamedata/

@@ -42,6 +42,10 @@ scenario.json + account.json (HSR-Scanner v4)
 
 ## Decisions (Smitty, 2026-11-10)
 
+Key to decision numbers: plain numbers are the first design decisions (below); **S** the scenario format (step 4);
+**E** the generic enemy (step 5); **K** started as the kit decisions (step 6) and continues for every later
+decision, including engine ones (enemy HP, damage pricing, break).
+
 | # | Topic | Decision |
 |---|---|---|
 | 1 | Enemy count | All three scenarios: 1, 3 and 5 targets, reported separately (as Prydwen does) |
@@ -76,7 +80,7 @@ on Genshin's GOOD format. A **standard-relics mode** reuses Fribbels' benchmark 
 | S3 | Relics per member | `"equipped"` (from the scan), `"standard"` (Fribbels' benchmark build), or an explicit list of scan `_uid`s or v4 relic objects |
 | S4 | Action policy | An ordered rule list per team; the first rule that applies is taken. Conditions are structured (`what` with `min` / `max` / `is`). A turn where no rule applies is an error, never a silent basic attack |
 | S5 | Enemy weaknesses | `"all"` by default (every team hits a weakness); an explicit element list models a specific stage |
-| S6 | Do enemies die | No. A fixed window of `cycles`; enemies are damage sponges and the result is damage per cycle. Enemy HP in a profile is not used in v1 |
+| S6 | Do enemies die | No. A fixed window of `cycles`; enemies are damage sponges and the result is damage per cycle. Enemy HP is tracked (K10) but nothing reacts to it |
 | S7 | Strictness | Unknown keys are rejected. Every level has a free-text `notes` field the simulator ignores |
 | S8 | Identity | `format: "nousr-scenario"`, integer `version`, `game_version`. The schema `$id` is a placeholder URN until a publication address is chosen |
 | S9 | Multi-target damage | Fribbels computes an action against the primary target only. Each kit action declares its parts as single / blast / AoE / bounce with their scaling; NouSR asks the kernel per part and multiplies by the enemies hit |
@@ -89,11 +93,45 @@ Consequence of S6 to keep in mind: effects that trigger on a kill, overkill, and
   expected-value state. The average over real fights can differ (a threshold on an average is not the average
   of thresholds). If in-game results disagree, fix the model and log it here.
 - **Debuffs always land.** Effect Hit Rate keeps its stat value but never fails a roll.
+- **"Highest HP" ties go to the first enemy in standing order** when the primary target is not among the tied
+  enemies (K10). The game text does not say how such a tie is broken. First used by Tribbie's Zone Additional DMG
+  (`highestHp` in `src/kits/tribbie.ts`). It happens right after an attack that hits the primary harder than its
+  neighbours, for example after Tribbie's own Ultimate: 1 to 2 times per 5-cycle battle, out of 8 to 19 Zone hits
+  (Computed by the reviewer, 2026-11-13). "Nearest the primary" would pick a different enemy in about 1 of those
+  cases, and only with 5 enemies. **Today it changes no result**, because the tied enemies are identical copies
+  with identical per-enemy state, so the hit deals the same damage on either one. **It starts to change results
+  silently as soon as tied enemies can differ:** different debuffs or marks on each (Acheron's Crimson Knots,
+  any per-enemy debuff), enemies that die or change phase (real bosses, multi-stage fights), or mixed enemy
+  profiles. Before any of those lands, this rule needs a decision and a test that fails when the choice of enemy
+  changes damage.
 
 ## Open questions
 
+**In-game checks for Smitty.** Each is implemented one way and marked `IN-GAME CHECK:` in the code.
+
+| Where | Question | As implemented |
+|---|---|---|
+| Acheron | Does Thunder Core's +30% apply to the Rainblade that grants it? | From the next hit on |
+| Tribbie | E2: one extra Zone instance per instance, or one per attack? | Per instance (Fribbels' reading) |
+| Tribbie | Does the Glass Ball Max HP bonus count her own HP? | Other allies only |
+| Tribbie | Does her Ultimate's own hit get the Zone's damage bonus? | Yes |
+| Tribbie | Does the Lamb trace buff last one turn longer when applied on her own turn? | It does, as coded |
+| Along the Passing Shore | Does the hit that applies Mirage Fizzle already get its DMG bonus? Moves single-hit Basic and Skill damage by about 24% | No (Fribbels: yes) |
+| Along the Passing Shore | Does re-applying Mirage Fizzle count as inflicting a debuff for Acheron's talent? | Yes |
+| Pioneer Diver | Is the doubling's "1 turn" the wearer's next turn or the current one? | Next turn |
+| Pioneer Diver | Does the 4% CRIT Rate double with fewer than 2 debuffs? | Follows Fribbels |
+| Pioneer Diver | Does Acheron's E4 battle-start debuff count as the wearer inflicting one? | Yes |
+| Dance! Dance! Dance! | Does "all allies" include the wearer? | Yes |
+| Memosprites | Can enemies target Netherwing and Little Ica? (hsr-simulator says no) | Not built yet |
+
+
+- **"Highest HP" tie-break** when the primary is not among the tied enemies: first in standing order (as
+  implemented) or nearest the primary. Harmless today, not harmless later; see "Known approximations" for when
+  it starts to matter.
+
 Timeline rules the sources do not settle. Each is implemented one way in `src/engine/timeline.ts` (see the
-header comment there) and is a one-line change. Not yet confirmed by Smitty.
+header comment there) and is a one-line change. Smitty agreed on 2026-11-12 to keep all five as implemented;
+they stay listed here because no source settles them.
 
 - **A turn exactly on a cycle boundary** counts in the cycle that is ending. Game8's breakpoint chart and
   stephenli.ca need this; a Reddit breakpoint post listing 120.1 / 160.1 / 200.1 implies the opposite.
@@ -103,7 +141,7 @@ header comment there) and is a one-line change. Not yet confirmed by Smitty.
   start is wasted and one during the action shortens the next turn.
 - **Self-applied turn-end buffs** do not count the turn they were applied in, unless the kit says otherwise.
 - **Scan precision.** Fribbels treats HSR-Scanner SPD as unverified and Reliquary Archiver SPD as verified.
-  Both write the v4 shape and both are accepted; SPD decimals decide breakpoints.
+  Both write the v4 shape and both are accepted; SPD decimals decide breakpoints. Settled by K5 (Step 6 notes).
 
 HP and enemy-turn rules implemented from memory, without a source (`src/battle/party.ts` and
 `src/battle/enemies.ts` header comments). Also not yet confirmed by Smitty:
@@ -229,6 +267,37 @@ Affinitive Eidolon. This is the text kits are transcribed from. Game text is not
 | K2 | Stacks placed on "a random enemy" | Go on the primary target. A player aims at the enemy that got them and the generic enemies are identical, so this reproduces real play. Random *damage* hits (Thunder Core, the Affinitive Eidolon's bounces) still split evenly across enemies, as Fribbels does |
 | K3 | Primary target | The middle enemy, with the others at its sides. A blast hits 3 of 3 or 3 of 5 |
 
+**Decisions for the rest of the build (Smitty, 2026-11-12):**
+
+| # | Topic | Decision |
+|---|---|---|
+| K4 | Light cones and relic sets | Each is a small equipment module with the same hook style as a kit: it subscribes to events and supplies its own Fribbels conditional values for the wearer, as attacker and as teammate. Character kits stop supplying light cone conditionals |
+| K5 | Scanned relics | The scanned relic objects go to Fribbels as they are in the file and its own importer reads them. A Reliquary Archiver file writes each substat's exact value (and `count` / `step`, which Fribbels uses to rebuild the roll split and check the value, not to recompute SPD), so SPD is exact. Fribbels does replace rounded non-SPD substats with the exact roll sum (6.4% CRIT Rate becomes 6.48%), never SPD An HSR-Scanner file carries the rounded-down SPD the game shows; it is used as is and the result carries a warning that SPD may be understated |
+| K6 | Summons and memosprites | Two kinds, both run by the owner's kit and not by the team policy, with damage asked from the kernel as the owner's. An untargetable summon (Lightning-Lord) is a timeline unit with its own SPD and no HP or aggro. A memosprite is a timeline unit plus a party member with its own HP and aggro |
+| K7 | Weakness break | Modelled in a reduced form: a toughness bar per enemy, toughness damage on each attack part, and on break the kernel's Break DMG, the break delay and the broken state until recovery. The element-specific break effects (damage over time, Imprisonment, Entanglement, Freeze) are left out |
+| K8 | Results report | A `nousr-result` JSON with its own schema, to be drafted for Smitty's review as the scenario format was: per team and enemy count the total, per cycle, per member, the action log and downed allies. Plus a plain table on the command line |
+| K9 | Pela and Jiaoqiu | After the build-order roster, not in this pass |
+| K10 | Enemy HP (2026-11-13) | Each enemy tracks max HP and current HP; every hit lowers current HP. Enemies still never die (S6): HP may go below 0 and nothing reacts to it, so kills, phases and multi-stage fights later add a rule at 0, not new state. "Highest HP" effects (Tribbie's Zone) read current HP. The generic profile gets a sourced max HP |
+| K7b | Break scope (2026-11-13) | K7 also models the element break effects that change timing: Quantum and Imaginary extra delay scaled by (1 + Break Effect), Imprisonment's SPD reduction and Freeze's skipped turn. Damage over time (Bleed, Burn, Shock, Wind Shear, Entanglement's damage) stays out. srsim and hsr-simulator implement all seven element effects. Because of what is left out, results are only valid for the v1 roster's teams; README.md says so prominently, and lifting that limit (modelling everything) is a goal, since the simulator is meant to be usable by other people without much effort |
+| K12 | Generic enemy stats (2026-11-13) | Max HP 2,904,993 and toughness 480 (internal units): the floor 12 elite medians over the last 9 periods (`node tools/gamedata/moc-enemies.mjs`). Bosses: HP median 8,510,721, toughness 600 |
+| K13 | Kit versions (2026-11-13) | Each kit lists the ability versions it implements; a scenario naming another version stops with an error. Silver Wolf and Welt are written for version 1 (Nova Flare) |
+| K14 | Standard build (2026-11-13) | Deterministic and static, KQMS-style (after KQM's Genshin standard; KQM publishes no Star Rail one): 24 fixed rolls (2 on each of the 12 substat types) plus 24 distributed rolls, every roll at its average value, at most 2 distributed rolls of a stat per relic whose main stat is not that stat. The same build in every team; no search or optimizer. Prior work: hsr-simulator uses a fixed 50-roll total with hand-set SPD; Fribbels' 100% benchmark is a search over a team and a typed-in SPD; Prydwen's method could not be read |
+| K14b | Standard build files (2026-11-13) | NouSR ships one small file per character with its standard build's sets, main stats and the split of the 24 distributed rolls (SPD included), drafted from Fribbels' preset and reviewed by Smitty, so every choice is visible. A scenario can switch a standard member's main stats (for example CRIT Rate or CRIT DMG body), so one character can be compared across main-stat choices. That is a scenario schema addition, drafted for Smitty's review before it is built |
+| K11 | Multi-hit pricing (2026-11-13) | The kernel returns damage per hit, not one number per ability, and a kit says which hit each attack part is. One reference multiple per ability gave every hit a blended rate wherever hits get different buffs (Tribbie's E6 follow-up came out at 0.689 of the correct total on 3 enemies) |
+
+K4, K6 and K7 were agreed before the prior-work check on them had come back; anything in srsim, hsr-simulator or
+Fribbels that contradicts them goes back to Smitty. The exact break rules for K7 (toughness formula, delay,
+recovery) are taken from sources at build time, not from memory.
+
+Why K5 matters: a 5-star SPD substat roll is 2.0, 2.3 or 2.6 (`vendor/hsr-optimizer/src/lib/constants/constants.ts`,
+`SubStatValues`) and the game shows the sum rounded down, so one relic can hide just under 1 SPD. Fribbels marks
+HSR-Scanner as `speedVerified: false` and Reliquary Archiver as `speedVerified: true`
+(`vendor/hsr-optimizer/src/lib/importer/importConfig.ts`).
+
+Also agreed 2026-11-12: the five timeline rules under "Open questions" stay as implemented; the HP and enemy-turn
+rules stay as implemented while each is checked against a source; technique damage stays out; the schema `$id`
+waits for a publication address. Still open: what Aha's extra turn does (step 7, needs the full rule text).
+
 **Open, for an in-game check:** does Thunder Core's +30% apply to the Rainblade that grants it? Implemented as
 "from the next hit on", so the first Rainblade is unbuffed and its Crimson Knot detonation is buffed. Fribbels
 assumes all three stacks for the whole Ultimate.
@@ -240,18 +309,26 @@ the technique's Quadrivalent Ascendance stack is modelled.
 
 - `src/battle/battle.ts`, the battle runner. It opens an Ultimate window between any two actions and before
   the first turn, takes the first applicable policy rule on an ally's turn, and stops with an error when none
-  applies. A kit declares what each attack hits (single / blast / AoE / bounce with ATK multiples); the runner
-  asks the kernel for the attacker's damage against each enemy's own state and scales it. Fribbels' damage is
-  proportional to the ATK multiple, checked against Fribbels itself in
-  `src/kernel/fribbels/acheron.integration.test.ts`.
-- `src/kits/kit.ts`, the kit interface, and `src/kits/acheron.ts`, Acheron E0 to E6 with the Affinitive Eidolon.
+  applies. A kit declares what each attack hits (single / blast / AoE / bounce) and which of the ability's
+  hits each part is, with its multiple. The kernel returns damage per hit with the multiple Fribbels used for
+  that hit (K11), so the runner prices every part at its own hit's rate against each enemy's own state; kits
+  no longer supply a reference multiple. Every hit lowers the enemy's current HP (K10).
+  Checked against Fribbels in `src/kernel/fribbels/acheron.integration.test.ts`, and Acheron's per-cycle damage
+  is pinned across the change in `acheronPerCycle.integration.test.ts`. Hits with no ATK/HP/DEF multiple
+  (Break DMG, heals, shields, damage over time) are not priced this way; K7 prices Break DMG on its own.
+- `src/kits/kit.ts`, the kit interface, `src/kits/acheron.ts` (Acheron E0 to E6 with the Affinitive Eidolon) and
+  `src/kits/tribbie.ts` (pilot kit, six review fixes pending). `src/kits/index.ts` is the kit registry.
+- `src/run/`, the scenario-to-battle bridge: member stats from Fribbels' out-of-combat stats (not its
+  in-combat ones, which already include buffs the timeline applies), `ability_version` mapped to Fribbels ids.
 
 **Still missing before a scenario file can be run end to end:**
 
-- Turning a loaded scenario into a battle: each member's HP, DEF, SPD and Energy Regeneration Rate from the
-  kernel, `"standard"` and scanned relics as a kernel build, and `ability_version` mapped to Fribbels' ids.
-- Light cones and relic sets as kits. This matters for Acheron: Along the Passing Shore puts a debuff on what
-  she hits, which feeds her own talent, so her stack rate is understated until it exists.
+- `"standard"` relics (needs the standard-build rule) and scanned relics (K5).
+- Equipment modules for every light cone and relic set the roster wears. K4 is built (`src/equipment/`) with
+  Along the Passing Shore, Dance! Dance! Dance!, Pioneer Diver of Dead Waters, and three items registered as
+  having no conditional behaviour. A light cone or set with no module stops the run with an error, because
+  Fribbels' defaults count conditional buffs as always on.
+- The period module (step 7): a scenario that names a period stops with an error until then.
 - The other characters, and a results report.
 
 ## Castorice / HP loss
@@ -263,6 +340,13 @@ pipeline, and an `on_hp_loss` event lets other effects react. Enemy targeting is
 
 ## Roadmap
 
+- **Timeline-aware build optimizer** (after the MVP). Fribbels optimizes without a clock; NouSR can score a build
+  by simulating it, so SPD breakpoints and rotation timing count. Constraints rather than "maximize damage" alone:
+  - Turn order: a unit acts before or after another (a buffer ahead of its DPS, or a "-1 SPD" tune behind it).
+  - Skill points: a rotation that needs a Skill never finds the team at 0 SP on that turn.
+  - Breakpoints: maximize damage at a target turn count per cycle (e.g. 134 SPD for 2 turns in cycle 1).
+  What it needs first: a way for a policy rule to be marked required (today a missing Skill quietly falls to the
+  next rule, usually a basic attack), and the action log to carry each action's action value and skill points.
 - Real MoC stage bosses
 - Pure Fiction, Apocalyptic Shadow, Anomaly Arbitration
 - Graphs and a readable action log

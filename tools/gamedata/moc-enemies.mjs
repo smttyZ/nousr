@@ -28,6 +28,7 @@ function statLine(monsterId, stage) {
     atk: stat('Attack'),
     def: stat('Defence'),
     spd: stat('Speed'),
+    hp: stat('HP'),
     toughness: stat('Stance'),
     skills: m.SkillList,
   }
@@ -83,6 +84,8 @@ for (const level of [90, 92, 95]) {
 const recent = groups.slice(-9)
 console.log('== floor 12 enemies, last 9 periods in the data (E = elite, B = boss; ATK then SPD)')
 const spdByRank = new Map()
+const hpByRank = new Map()
+const toughByRank = new Map()
 const energyByTag = new Map()
 const paramsByTag = new Map()
 for (const g of recent) {
@@ -90,6 +93,8 @@ for (const g of recent) {
   for (const e of enemiesOf(g, 12)) {
     rows.push(`${e.rank === 'Elite' ? 'E' : 'B'} ${e.atk.toFixed(1)}/${e.spd.toFixed(0)}`)
     spdByRank.set(e.rank, [...(spdByRank.get(e.rank) ?? []), Math.round(e.spd)])
+    hpByRank.set(e.rank, [...(hpByRank.get(e.rank) ?? []), Math.round(e.hp)])
+    toughByRank.set(e.rank, [...(toughByRank.get(e.rank) ?? []), Math.round(e.toughness)])
     for (const skillId of e.skills) {
       const k = skills.get(skillId)
       if (!k || v(k.SPHitBase) === undefined) continue
@@ -102,6 +107,18 @@ for (const g of recent) {
 }
 console.log('== SPD by rank over those periods')
 for (const [rank, xs] of spdByRank) console.log(`  ${rank.padEnd(10)} n=${xs.length} median ${median(xs)}  ${tally(xs)}`)
+console.log('== max HP by rank over those periods (one wave, one enemy; every copy of an enemy counted)')
+for (const [rank, xs] of hpByRank) {
+  const s = [...xs].sort((a, b) => a - b)
+  console.log(`  ${rank.padEnd(10)} n=${xs.length} median ${median(xs)}  min ${s[0]}  max ${s[s.length - 1]}`)
+}
+console.log('== toughness by rank over those periods (internal units; displayed = /3)')
+for (const [rank, all] of toughByRank) {
+  // A few bosses have no single toughness value in these tables (NaN); they are counted, not used.
+  const xs = all.filter(Number.isFinite)
+  const missing = all.length - xs.length
+  console.log(`  ${rank.padEnd(10)} n=${xs.length} median ${median(xs)}  ${tally(xs)}${missing ? `  (${missing} without a value)` : ''}`)
+}
 console.log('== energy given to the target, by skill tag')
 for (const [tag, xs] of energyByTag) console.log(`  ${tag.padEnd(14)} n=${xs.length}  ${tally(xs)}`)
 console.log('== raw skill parameters by tag (the first is read as the ATK multiplier)')

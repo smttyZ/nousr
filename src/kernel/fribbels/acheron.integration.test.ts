@@ -3,7 +3,7 @@ import { Sets, Stats } from '../../../vendor/hsr-optimizer/src/lib/constants/con
 import { Battle } from '../../battle/battle'
 import type { EngineEvents } from '../../engine'
 import { loadEnemyProfile } from '../../enemy/profile'
-import { Acheron, acheronReferenceScaling } from '../../kits/acheron'
+import { Acheron } from '../../kits/acheron'
 import type { DamageRequest, KernelBuild } from '../types'
 import { FribbelsKernel } from './fribbelsKernel'
 
@@ -46,12 +46,25 @@ beforeAll(() => {
 })
 
 describe('Acheron through the real kernel', () => {
-  it('Fribbels\' damage is proportional to the ATK multiple, so per-part scaling is exact', () => {
-    const reference = acheronReferenceScaling(0, 1).ULT!
-    const bare = kernel.actionDamage(request({ thunderCoreStacks: 3 })).damage.ULT!
-    const full = kernel.actionDamage(request({ thunderCoreStacks: 3, crimsonKnotStacks: 9, stygianResurgeHitsOnTarget: 6 })).damage.ULT!
-    const fullScaling = 3 * 0.24 + 3 * 0.15 + 0.15 * 9 + 1.2 + 6 * 0.25
-    expect(full / fullScaling).toBeCloseTo(bare / reference, 6)
+  it('each ability is one Fribbels hit, and its damage is proportional to the multiple Fribbels reports for it', () => {
+    const bare = kernel.actionDamage(request({ thunderCoreStacks: 3 })).hits.ULT!
+    const full = kernel.actionDamage(request({ thunderCoreStacks: 3, crimsonKnotStacks: 9, stygianResurgeHitsOnTarget: 6 })).hits.ULT!
+    expect(bare).toHaveLength(1)
+    expect(full).toHaveLength(1)
+    // Three Rainblades, three detonations, Stygian Resurge; then 9 more knots and 6 Thunder Core hits.
+    expect(bare[0]!.scaling).toBeCloseTo(3 * 0.24 + 3 * 0.15 + 1.2, 12)
+    expect(full[0]!.scaling).toBeCloseTo(3 * 0.24 + 3 * 0.15 + 0.15 * 9 + 1.2 + 6 * 0.25, 12)
+    expect(full[0]!.damage / full[0]!.scaling!).toBeCloseTo(bare[0]!.damage / bare[0]!.scaling!, 6)
+  })
+
+  it("the hit list adds up to Fribbels' own number for every ability", () => {
+    const result = kernel.actionDamage(request({}))
+    // Break damage comes from toughness, not from a multiple of a stat, so it has no scaling to price by.
+    expect(result.hits.BREAK!.map((h) => h.scaling)).toEqual([undefined])
+    for (const [ability, hits] of Object.entries(result.hits)) {
+      if (ability === 'BREAK' || hits.length === 0) continue
+      expect(hits.reduce((sum, h) => sum + h.damage, 0), ability).toBeCloseTo(result.damage[ability]!, 6)
+    }
   })
 
   it('a solo battle: the Skill matches Fribbels, and the Ultimate sits between no Thunder Core and full Thunder Core', () => {

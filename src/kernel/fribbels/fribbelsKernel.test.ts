@@ -1,5 +1,7 @@
+import { resolve } from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { Sets, Stats } from '../../../vendor/hsr-optimizer/src/lib/constants/constants'
+import { StatCalculator } from '../../../vendor/hsr-optimizer/src/lib/relics/statCalculator'
 import {
   generateE6S5Test,
   runTest,
@@ -8,6 +10,9 @@ import {
   testSets,
   testStatSpread,
 } from '../../../vendor/hsr-optimizer/src/lib/simulations/tests/simTestUtils'
+import { getGameMetadata } from '../../../vendor/hsr-optimizer/src/lib/state/gameMetadata'
+import { buildBattleSetup, runScenario } from '../../run/run'
+import { loadScenarioFile } from '../../scenario/load'
 import type { DamageRequest, KernelBuild, KernelTeammate, KernelUnit } from '../types'
 import { FribbelsKernel } from './fribbelsKernel'
 
@@ -211,6 +216,106 @@ describe('Affinitive Eidolon', () => {
     const scaling = (enemies: number) => 3.0 + (0.8 * 6) / enemies
     expect(three / one).toBeCloseTo(scaling(3) / scaling(1), 10)
     expect(five / one).toBeCloseTo(scaling(5) / scaling(1), 10)
+  })
+})
+
+describe('game id and ability version to Fribbels id (DESIGN.md, S2)', () => {
+  it('maps version 1 to the buffed id, version 0 to the original', () => {
+    expect(kernel.characterId('1006', 1)).toBe('1006b1')
+    expect(kernel.characterId('1004', 1)).toBe('1004b1')
+    expect(kernel.characterId('1006', 0)).toBe('1006')
+    expect(kernel.characterId('1308', 0)).toBe('1308')
+  })
+
+  it('takes the newest version when none is given', () => {
+    expect(kernel.characterId('1006', undefined)).toBe('1006b1')
+    expect(kernel.characterId('1308', undefined)).toBe('1308')
+  })
+
+  it('fails loudly when Fribbels has no such version or character', () => {
+    expect(() => kernel.characterId('1308', 1)).toThrow(/no ability_version 1 of character 1308 \(no id "1308b1"\)\. Versions it has: 0$/)
+    expect(() => kernel.characterId('1006', 2)).toThrow(/Versions it has: 0, 1$/)
+    expect(() => kernel.characterId('9999', 0)).toThrow(/no character with game id 9999/)
+    expect(() => kernel.characterId('1006b1', 1)).toThrow(/not a game character id/)
+  })
+})
+
+describe('basic (out-of-combat) stats', () => {
+  const unit: KernelUnit = { characterId: ACHERON, lightConeId: ALONG_THE_PASSING_SHORE, eidolon: 0, superimposition: 1 }
+  /** No HP%, SPD or ERR from substats, so each check below sees one source only. */
+  const plain: KernelBuild = { ...acheronBuild, substatRolls: { [Stats.ATK_P]: 10, [Stats.CR]: 10, [Stats.CD]: 10 } }
+  const metadata = () => getGameMetadata()
+  // Fribbels keeps basic stats in a 32-bit array, so they match to about 4 decimals.
+  const PRECISION = 4
+
+  it('base SPD is the character\'s, and SPD boots add exactly their main stat value', () => {
+    const atkBoots = kernel.basicStats(unit, plain)
+    const spdBoots = kernel.basicStats(unit, { ...plain, feet: Stats.SPD })
+    expect(atkBoots.baseSPD).toBe(metadata().characters[ACHERON].stats[Stats.SPD])
+    expect(atkBoots.SPD).toBeCloseTo(atkBoots.baseSPD, PRECISION)
+    expect(spdBoots.SPD - atkBoots.SPD).toBeCloseTo(StatCalculator.getMaxedStatValue(Stats.SPD), PRECISION)
+  })
+
+  it('HP% scales the character plus light cone base HP; an Energy Regeneration Rope adds its main stat', () => {
+    const before = kernel.basicStats(unit, plain)
+    const baseHp = metadata().characters[ACHERON].stats[Stats.HP] + metadata().lightCones[ALONG_THE_PASSING_SHORE].stats[Stats.HP]
+    const hpRolls = kernel.basicStats(unit, { ...plain, substatRolls: { ...plain.substatRolls, [Stats.HP_P]: 10 } })
+    expect(hpRolls.HP - before.HP).toBeCloseTo(baseHp * 10 * StatCalculator.getMaxedSubstatValue(Stats.HP_P) / 100, 2)
+
+    expect(before.ERR).toBe(0)
+    const errRope = kernel.basicStats(unit, { ...plain, linkRope: Stats.ERR })
+    expect(errRope.ERR).toBeCloseTo(StatCalculator.getMaxedStatValue(Stats.ERR), PRECISION)
+  })
+
+  it('are not the in-combat stats that actionDamage returns: teammate buffs do not reach them', () => {
+    const basic = kernel.basicStats({ ...unit, eidolon: 6, superimposition: 5 }, acheronBuild)
+    const inCombat = kernel.actionDamage(acheronRequest()).stats
+    expect(inCombat.ATK).toBeGreaterThan(basic.ATK)
+  })
+
+  it('do not depend on the order of calls (Fribbels reuses its buffers)', () => {
+    const first = kernel.basicStats(unit, plain)
+    kernel.actionDamage(acheronRequest())
+    kernel.basicStats(unit, { ...plain, feet: Stats.SPD })
+    expect(kernel.basicStats(unit, plain)).toEqual(first)
+  })
+})
+
+describe('a scenario file end to end (src/run)', () => {
+  const FIXTURES = resolve(import.meta.dirname, '../../run/fixtures')
+  // Stand-in for the "standard" build until the rule for Fribbels' benchmark build is chosen:
+  // Fribbels' own Acheron test build (BiS sets, 10 max rolls each of ATK%, CRIT Rate, CRIT DMG).
+  const standIn: KernelBuild = { ...acheronBuild, substatRolls: { [Stats.ATK_P]: 10, [Stats.CR]: 10, [Stats.CD]: 10 } }
+  // The fixture's enemy is test-dummy, the generic MoC enemy with a 0% attack: against generic-moc
+  // a lone Acheron, with her real HP, is downed in cycle 1.
+  const options = () => ({ kernel, standardBuild: () => standIn, profileDir: FIXTURES })
+  const scenario = () => loadScenarioFile(resolve(FIXTURES, 'acheron-solo.scenario.json'))
+
+  it('Acheron alone at 1, 3 and 5 enemies: damage in every cycle, and more in total with more enemies', () => {
+    const runs = runScenario(scenario(), options())
+
+    expect(runs.map((r) => [r.team, r.enemyCount])).toEqual([['acheron_solo', 1], ['acheron_solo', 3], ['acheron_solo', 5]])
+    for (const { result } of runs) {
+      expect(result.damageByCycle).toHaveLength(5)
+      for (const damage of result.damageByCycle) expect(damage).toBeGreaterThan(0)
+      expect(result.downed).toEqual([])
+    }
+    const [one, three, five] = runs.map((r) => r.result.totalDamage)
+    expect(three).toBeGreaterThan(one!)
+    expect(five).toBeGreaterThan(one!)
+  })
+
+  it('the member\'s stats are the kernel\'s basic stats for that build', () => {
+    const member = buildBattleSetup(scenario(), 'acheron_solo', 1, options()).members[0]!
+    const basic = kernel.basicStats(member.kernel.unit, standIn)
+    expect(member.stats).toEqual({
+      maxHp: basic.HP,
+      def: basic.DEF,
+      baseSpd: basic.baseSPD,
+      spdFlat: basic.SPD - basic.baseSPD,
+      energyRegen: basic.ERR,
+    })
+    expect(member.kernel.unit).toEqual({ characterId: ACHERON, eidolon: 0, ex: 0, lightConeId: ALONG_THE_PASSING_SHORE, superimposition: 1 })
   })
 })
 

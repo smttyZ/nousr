@@ -1,0 +1,18 @@
+{
+  "$schema": "../../../schema/enemy-profile.schema.json",
+  "format": "nousr-enemy-profile",
+  "version": 1,
+  "id": "test-dummy",
+  "name": "Test fixture: the generic MoC enemy with harmless attacks",
+  "notes": "Same level, ATK, SPD, HP, toughness and RES as data/enemies/generic-moc.json (keep them in step), so the damage kernel sees the same enemy, but its attack does 0% ATK. Used by the end-to-end test so a lone Acheron is not downed in cycle 1 (against generic-moc she is, with her real HP).",
+  "level": 95,
+  "atk": 625.5,
+  "spd": 158.4,
+  "hp": 2904993,
+  "toughness": 480,
+  "res": 0.2,
+  "attacks": [
+    { "id": "tap", "name": "Harmless attack", "target": "single", "multiplier": 0, "energy": 10 }
+  ],
+  "pattern": ["tap"]
+}

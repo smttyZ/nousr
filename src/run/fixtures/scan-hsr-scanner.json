@@ -1,0 +1,179 @@
+{
+  "source": "HSR-Scanner",
+  "build": "v1.2.0",
+  "version": 4,
+  "metadata": {
+    "uid": 100000001,
+    "trailblazer": "Stelle"
+  },
+  "characters": [
+    {
+      "id": "1308",
+      "name": "Acheron",
+      "path": "Nihility",
+      "level": 80,
+      "ascension": 6,
+      "eidolon": 0
+    }
+  ],
+  "light_cones": [
+    {
+      "id": "23024",
+      "name": "Along the Passing Shore",
+      "level": 80,
+      "ascension": 6,
+      "superimposition": 1,
+      "location": "1308",
+      "lock": true,
+      "_uid": "900"
+    }
+  ],
+  "relics": [
+    {
+      "set_id": "102",
+      "name": "Musketeer Head",
+      "slot": "Head",
+      "rarity": 5,
+      "level": 15,
+      "mainstat": "HP",
+      "substats": [
+        {
+          "key": "SPD",
+          "value": 4
+        },
+        {
+          "key": "CRIT Rate_",
+          "value": 6.4
+        }
+      ],
+      "location": "1308",
+      "lock": false,
+      "discard": false,
+      "_uid": "1"
+    },
+    {
+      "set_id": "102",
+      "name": "Musketeer Hands",
+      "slot": "Hands",
+      "rarity": 5,
+      "level": 15,
+      "mainstat": "ATK",
+      "substats": [
+        {
+          "key": "CRIT DMG_",
+          "value": 11.6
+        }
+      ],
+      "location": "1308",
+      "lock": false,
+      "discard": false,
+      "_uid": "2"
+    },
+    {
+      "set_id": "102",
+      "name": "Musketeer Body",
+      "slot": "Body",
+      "rarity": 5,
+      "level": 15,
+      "mainstat": "CRIT DMG",
+      "substats": [
+        {
+          "key": "ATK_",
+          "value": 4.3
+        },
+        {
+          "key": "Effect RES_",
+          "value": 3.4
+        }
+      ],
+      "location": "1308",
+      "lock": false,
+      "discard": false,
+      "_uid": "3"
+    },
+    {
+      "set_id": "102",
+      "name": "Musketeer Boots",
+      "slot": "Feet",
+      "rarity": 5,
+      "level": 15,
+      "mainstat": "SPD",
+      "substats": [
+        {
+          "key": "CRIT Rate_",
+          "value": 3.2
+        },
+        {
+          "key": "ATK_",
+          "value": 3.8
+        }
+      ],
+      "location": "1308",
+      "lock": false,
+      "discard": false,
+      "_uid": "4"
+    },
+    {
+      "set_id": "306",
+      "name": "Salsotto Sphere",
+      "slot": "Planar Sphere",
+      "rarity": 5,
+      "level": 15,
+      "mainstat": "Lightning DMG Boost",
+      "substats": [
+        {
+          "key": "ATK_",
+          "value": 4.3
+        },
+        {
+          "key": "Break Effect_",
+          "value": 5.8
+        }
+      ],
+      "location": "1308",
+      "lock": false,
+      "discard": false,
+      "_uid": "5"
+    },
+    {
+      "set_id": "306",
+      "name": "Salsotto Rope",
+      "slot": "Link Rope",
+      "rarity": 5,
+      "level": 15,
+      "mainstat": "ATK",
+      "substats": [
+        {
+          "key": "Effect Hit Rate_",
+          "value": 3.8
+        },
+        {
+          "key": "CRIT DMG_",
+          "value": 6.4
+        }
+      ],
+      "location": "1308",
+      "lock": false,
+      "discard": false,
+      "_uid": "6"
+    },
+    {
+      "set_id": "102",
+      "name": "Spare Musketeer Head (not equipped)",
+      "slot": "Head",
+      "rarity": 5,
+      "level": 15,
+      "mainstat": "HP",
+      "substats": [
+        {
+          "key": "SPD",
+          "value": 2
+        }
+      ],
+      "location": "",
+      "lock": false,
+      "discard": false,
+      "_uid": "7"
+    }
+  ]
+}

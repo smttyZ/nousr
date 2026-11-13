@@ -159,6 +159,11 @@ describe('defaults', () => {
 })
 
 describe('account resolution', () => {
+  it("carries the scan's source, and none without an account", () => {
+    expect(parseScenario(withAccount()).scanSource).toBe('reliquary_archiver')
+    expect(parseScenario(minimal()).scanSource).toBeUndefined()
+  })
+
   it('takes eidolon, light cone, ability version and equipped relics from the scan', () => {
     const [acheron, silverWolf] = parseScenario(withAccount()).teams[0]!.members
     expect(acheron).toMatchObject({

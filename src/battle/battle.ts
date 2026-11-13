@@ -1,8 +1,10 @@
 import type { EngineEvents, TurnInfo, UnitId } from '../engine/events'
+import type { EquipmentInstance, MemberEquipment } from '../equipment/equipment'
+import { attackerEquipmentState, createEquipment, teammateEquipmentState } from '../equipment/equipment'
 import type { ModifierSpec } from '../engine/modifiers'
 import { Timeline } from '../engine/timeline'
 import type { EnemyProfile } from '../enemy/profile'
-import type { DamageKernel, DamageRequest, DamageResult, KernelBuild, KernelTeammate, KernelUnit } from '../kernel/types'
+import type { DamageKernel, DamageRequest, DamageResult, HitResult, KernelBuild, KernelTeammate, KernelUnit } from '../kernel/types'
 import type { Kit, KitInstance } from '../kits/kit'
 import type { Condition, Element, Rule } from '../scenario/types'
 import { Enemies } from './enemies'
@@ -18,9 +20,14 @@ import { BASE_AGGRO, Party, removeDownedFromTimeline } from './party'
  *   applies the battle stops with an error (DESIGN.md, S4).
  * - On an enemy's turn it uses the next attack in its pattern.
  *
- * Damage: a kit says which enemies an attack hits and with what ATK multiple. The runner asks the
- * kernel for the attacker's damage against each enemy's own state and scales it (DESIGN.md, S9, K1).
- * The primary target is the middle enemy (K3). A bounce is split evenly across the enemies.
+ * Damage: a kit says which enemies an attack hits, which hit of the kernel's ability each part is
+ * (ability kind plus position in the kernel's hit list) and with what multiple. The kernel prices
+ * every hit on its own, with that hit's own buffs. The runner turns a hit into damage per 100% of its
+ * scaling stat (the kernel's damage over the multiple the kernel used for that hit), then multiplies
+ * by the part's multiple (DESIGN.md, S9, K1, K11). An ability or hit the kernel does not have is an
+ * error. The primary target is the middle enemy (K3). A bounce is split evenly across the enemies.
+ *
+ * Enemy HP (K10): every hit lowers the hit enemy's current HP, which may go below 0.
  */
 
 export const MAX_SKILL_POINTS = 5
@@ -35,12 +42,21 @@ export interface MemberSetup {
   stats: { maxHp: number, def: number, baseSpd: number, spdFlat?: number, energyRegen?: number }
   /** How the damage kernel knows this member. */
   kernel: { unit: KernelUnit, build: KernelBuild }
+  /**
+   * The modules for this member's light cone and sets (K4), from `resolveEquipment`. Left out, the member
+   * has no modules and the kernel's own defaults stand, which switch conditional effects on: only for
+   * tests whose kernel is fake or whose items have no conditional. A scenario run always resolves it, and
+   * stops when an item has no module.
+   */
+  equipment?: MemberEquipment
 }
 
 export interface Member extends MemberSetup {
   /** Position in the party, 0 at the left. */
   index: number
   instance: KitInstance
+  /** What this member's light cone and sets supply, one instance per module. Created before the kits. */
+  equipmentInstances: EquipmentInstance[]
 }
 
 export interface BattleSetup {
@@ -54,7 +70,11 @@ export interface BattleSetup {
   kernel: DamageKernel
 }
 
-export type HitPart =
+/**
+ * Where an attack part lands. `scaling` is the multiple of the hit's scaling stat that the part
+ * deals to an enemy it reaches (1.6 is 160%), as the in-game text gives it.
+ */
+export type HitShape =
   /** One enemy. Defaults to the primary target. */
   | { shape: 'single', scaling: number, target?: UnitId }
   /** One enemy at `scaling` and the enemies next to it at `adjacent`. */
@@ -64,9 +84,16 @@ export type HitPart =
   /** `hits` hits of `scaling`, each on a random enemy: split evenly. */
   | { shape: 'bounce', scaling: number, hits: number }
 
+/**
+ * One part of an attack. `hit` is the position, from 0, of the kernel hit that sets this part's
+ * buffs and damage per 100%, in the list the kernel returns for the attack's ability. Several parts
+ * may share a hit (Acheron's Ultimate is one kernel hit made of many in-game hits).
+ */
+export type HitPart = HitShape & { hit: number }
+
 export interface AttackSpec {
   attacker: string
-  /** Fribbels ability kind whose damage type and buffs apply: 'BASIC', 'SKILL', 'ULT', 'FUA', ... */
+  /** Kernel ability kind whose hits the parts name: 'BASIC', 'SKILL', 'ULT', 'FUA', ... */
   ability: string
   parts: HitPart[]
 }
@@ -136,7 +163,15 @@ export class Battle {
     this.timeline.bus.on('unitDowned', (e) => this.downed.push(e.unit))
 
     // Kits are created last: they may look at the whole field and subscribe to events.
-    this.members = setup.members.map((m, index) => ({ ...m, index, instance: undefined as unknown as KitInstance }))
+    this.members = setup.members.map((m, index) => ({
+      ...m,
+      index,
+      instance: undefined as unknown as KitInstance,
+      equipmentInstances: [] as EquipmentInstance[],
+    }))
+    // Equipment first: a kit may look at what the field already has. Modules read the kits' instances only
+    // when they are asked for state, never while they are created.
+    for (const member of this.members) member.equipmentInstances = createEquipment(this, member)
     for (const member of this.members) member.instance = member.kit.create(this, member)
     this.checkPolicy()
   }
@@ -202,41 +237,65 @@ export class Battle {
     return this.timeline.modifiers.on(enemy).some((m) => m.debuff)
   }
 
+  /** How many debuffs an enemy has, from any source. */
+  debuffCount(enemy: UnitId): number {
+    return this.timeline.modifiers.on(enemy).filter((m) => m.debuff).length
+  }
+
+  /** Serial of the action in progress, or undefined between actions (a bare attack). */
+  get actionSerialInProgress(): number | undefined {
+    return this.current?.serial
+  }
+
   /** Deals an attack's damage. Returns the total across all enemies. */
   attack(spec: AttackSpec): number {
     const attacker = this.member(spec.attacker)
     const ids = this.enemies.ids
-    const scalingByEnemy = new Map<UnitId, number>()
-    const add = (enemy: UnitId, scaling: number) => {
-      if (scaling > 0) scalingByEnemy.set(enemy, (scalingByEnemy.get(enemy) ?? 0) + scaling)
+    /** Per enemy: the multiple each kernel hit is asked for. */
+    const multiples = new Map<UnitId, Map<number, number>>()
+    const add = (enemy: UnitId, hit: number, scaling: number) => {
+      if (!(scaling > 0)) return
+      const byHit = multiples.get(enemy) ?? new Map<number, number>()
+      byHit.set(hit, (byHit.get(hit) ?? 0) + scaling)
+      multiples.set(enemy, byHit)
     }
     for (const part of spec.parts) {
+      if (!Number.isInteger(part.hit) || part.hit < 0) {
+        throw new Error(`${spec.attacker}'s ${spec.ability} attack names hit ${part.hit}: a hit is a position from 0`)
+      }
       switch (part.shape) {
         case 'single':
-          add(part.target ?? this.primary, part.scaling)
+          add(part.target ?? this.primary, part.hit, part.scaling)
           break
         case 'blast': {
           const target = part.target ?? this.primary
-          add(target, part.scaling)
-          for (const neighbour of this.adjacentEnemies(target)) add(neighbour, part.adjacent)
+          add(target, part.hit, part.scaling)
+          for (const neighbour of this.adjacentEnemies(target)) add(neighbour, part.hit, part.adjacent)
           break
         }
         case 'aoe':
-          for (const enemy of ids) add(enemy, part.scaling)
+          for (const enemy of ids) add(enemy, part.hit, part.scaling)
           break
         case 'bounce':
-          for (const enemy of ids) add(enemy, (part.scaling * part.hits) / ids.length)
+          for (const enemy of ids) add(enemy, part.hit, (part.scaling * part.hits) / ids.length)
           break
       }
     }
 
     let total = 0
     for (const enemy of ids) {
-      const scaling = scalingByEnemy.get(enemy)
-      if (scaling === undefined) continue
-      const damage = this.damagePerUnitScaling(attacker, spec.ability, enemy) * scaling
+      const byHit = multiples.get(enemy)
+      if (byHit === undefined) continue
+      const hits = this.abilityHits(attacker, spec.ability, enemy)
+      let scaling = 0
+      let damage = 0
+      for (const [index, multiple] of byHit) {
+        damage += this.damagePerUnitScaling(attacker, spec.ability, index, hits) * multiple
+        scaling += multiple
+      }
       total += damage
       this.current?.enemiesHit.add(enemy)
+      this.enemies.takeDamage(enemy, damage)
       this.damageByMember[attacker.key]! += damage
       const cycleIndex = Math.min(this.timeline.cycle, this.setup.cycles) - 1
       this.damageByCycle[cycleIndex]! += damage
@@ -251,6 +310,14 @@ export class Battle {
       })
     }
     return total
+  }
+
+  /**
+   * An enemy's max HP and current HP. Current HP is below 0 once the enemy has taken more than its
+   * max, because enemies do not die (S6, K10). Stops with an error if the profile has no HP.
+   */
+  enemyHp(enemy: UnitId): { current: number, max: number } {
+    return { current: this.enemies.hp(enemy), max: this.enemies.maxHp(enemy) }
   }
 
   // ---------------------------------------------------------------- running
@@ -355,25 +422,33 @@ export class Battle {
 
   // ---------------------------------------------------------------- kernel
 
-  /** The attacker's damage against one enemy per 100% ATK of the given ability, in its current state. */
-  private damagePerUnitScaling(attacker: Member, ability: string, enemy: UnitId): number {
+  /** Every hit of one ability for the attacker against one enemy, in the enemy's current state. */
+  private abilityHits(attacker: Member, ability: string, enemy: UnitId): HitResult[] {
     const state = attacker.instance.attackerState(enemy)
-    const reference = state.scaling[ability]
-    if (!(reference !== undefined && reference > 0)) {
-      throw new Error(`${attacker.key}'s kit gives no reference scaling for ability "${ability}"`)
-    }
+    const gear = attackerEquipmentState(attacker.equipmentInstances, enemy, attacker.key)
     const teammates: KernelTeammate[] = this.members
       .filter((m) => m !== attacker)
-      .map((m) => ({ ...m.kernel.unit, ...m.instance.teammateState(attacker, enemy) }))
+      .map((m) => {
+        const own = m.instance.teammateState(attacker, enemy)
+        const worn = teammateEquipmentState(m.equipmentInstances, attacker, enemy, m.key)
+        return {
+          ...m.kernel.unit,
+          ...(own.characterConditionals && { characterConditionals: own.characterConditionals }),
+          ...(worn.lightConeConditionals && { lightConeConditionals: worn.lightConeConditionals }),
+          ...(worn.teamRelicSet !== undefined && { teamRelicSet: worn.teamRelicSet }),
+          ...(worn.teamOrnamentSet !== undefined && { teamOrnamentSet: worn.teamOrnamentSet }),
+        }
+      })
     const { weaknesses, profile, enemyCount } = this.setup
     const request: DamageRequest = {
       attacker: {
         ...attacker.kernel.unit,
         ...(state.characterConditionals && { characterConditionals: state.characterConditionals }),
-        ...(state.lightConeConditionals && { lightConeConditionals: state.lightConeConditionals }),
+        ...(gear.lightConeConditionals && { lightConeConditionals: gear.lightConeConditionals }),
       },
       teammates,
       build: attacker.kernel.build,
+      ...(gear.setConditionals && { setConditionals: gear.setConditionals }),
       enemy: {
         count: enemyCount,
         level: profile.level,
@@ -389,10 +464,30 @@ export class Battle {
       this.kernelCache.set(key, result)
       this.kernelCalls += 1
     }
-    const damage = result.damage[ability]
-    if (damage === undefined) {
-      throw new Error(`The kernel returned no "${ability}" damage for ${attacker.key} (it has: ${Object.keys(result.damage).join(', ')})`)
+    const hits = result.hits[ability]
+    if (hits === undefined) {
+      throw new Error(`The kernel has no ability "${ability}" for ${attacker.key} (it has: ${Object.keys(result.hits).join(', ')})`)
     }
-    return damage / reference
+    return hits
+  }
+
+  /**
+   * Damage per 100% of the scaling stat for one kernel hit: the kernel's damage for the hit over the
+   * multiple the kernel used for it, so a kit never supplies a reference of its own (K11).
+   */
+  private damagePerUnitScaling(attacker: Member, ability: string, index: number, hits: readonly HitResult[]): number {
+    const hit = hits[index]
+    if (hit === undefined) {
+      throw new Error(
+        `${attacker.key}'s ${ability} attack names hit ${index}, but the kernel has ${hits.length} ` +
+          `hit${hits.length === 1 ? '' : 's'} for ${ability} in this state`,
+      )
+    }
+    if (!(hit.scaling !== undefined && hit.scaling > 0)) {
+      throw new Error(
+        `${attacker.key}'s ${ability} hit ${index} has no ATK, HP or DEF multiple from the kernel, so its damage cannot be priced per 100%`,
+      )
+    }
+    return hit.damage / hit.scaling
   }
 }

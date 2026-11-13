@@ -165,4 +165,6 @@ export interface Scenario {
     weaknesses: 'all' | Element[]
   }
   teams: Team[]
+  /** The account scan's `source` ('HSR-Scanner', 'reliquary_archiver'), when the scenario has an account. */
+  scanSource?: string
 }

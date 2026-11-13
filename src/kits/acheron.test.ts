@@ -3,27 +3,40 @@ import { Battle } from '../battle/battle'
 import type { BattleSetup, MemberSetup } from '../battle/battle'
 import type { EngineEvents } from '../engine'
 import { loadEnemyProfile } from '../enemy/profile'
+import { fakeResult } from '../kernel/testing'
 import type { DamageKernel } from '../kernel/types'
 import type { Rule } from '../scenario/types'
-import { Acheron, acheronReferenceScaling } from './acheron'
+import { Acheron, acheronScalings } from './acheron'
 import type { Kit } from './kit'
 
 const profile = loadEnemyProfile('generic-moc')
 const noBuild = { relicSet1: '', relicSet2: '', ornamentSet: '', body: '', feet: '', planarSphere: '', linkRope: '', substatRolls: {} }
 
+/**
+ * The one hit Fribbels builds for each of her abilities, with the ATK multiple it uses when its Crimson
+ * Knot and Thunder Core hit counters are 0 (the Ultimate and the follow-up are one hit made of many).
+ */
+function fribbelsMultiples(eidolon: number, enemyCount: number): Record<string, number> {
+  const s = acheronScalings(eidolon)
+  return {
+    BASIC: s.basic,
+    SKILL: s.skillMain,
+    ULT: 3 * s.rainblade + 3 * s.knot + s.stygianResurge,
+    FUA: 3.0 + (0.8 * 6) / enemyCount,
+  }
+}
+
 /** 1,000 damage per 100% ATK, times 1 + 0.3 per Thunder Core stack, times 1.18 against a debuffed enemy. */
 const kernel: DamageKernel = {
   actionDamage(request) {
     const c = request.attacker.characterConditionals ?? {}
-    const eidolon = request.attacker.eidolon
-    const reference = request.attacker.characterId === '1308'
-      ? acheronReferenceScaling(eidolon, request.enemy?.count ?? 1)
+    const multiples = request.attacker.characterId === '1308'
+      ? fribbelsMultiples(request.attacker.eidolon, request.enemy?.count ?? 1)
       : { BASIC: 1 }
     const boost = (1 + 0.3 * Number(c.thunderCoreStacks ?? 0)) * (c.e1EnemyDebuffed ? 1.18 : 1)
-    return {
-      damage: Object.fromEntries(Object.entries(reference).map(([ability, scaling]) => [ability, 1000 * scaling * boost])),
-      stats: { ATK: 0, DEF: 0, HP: 0, SPD: 0, CR: 0, CD: 0, EHR: 0, RES: 0, BE: 0, ERR: 0, OHB: 0 },
-    }
+    return fakeResult(
+      Object.fromEntries(Object.entries(multiples).map(([ability, scaling]) => [ability, [{ damage: 1000 * scaling * boost, scaling }]])),
+    )
   },
 }
 
@@ -42,11 +55,11 @@ const helper = (debuffs: boolean): Kit => ({
           battle.performAction(self.key, 'basic', 'basic', () => {
             battle.gainSkillPoints(1)
             if (debuffs) battle.applyDebuff({ id: 'helper.debuff', target: battle.primary, source: self.key })
-            battle.attack({ attacker: self.key, ability: 'BASIC', parts: [{ shape: 'single', scaling: 1 }] })
+            battle.attack({ attacker: self.key, ability: 'BASIC', parts: [{ shape: 'single', scaling: 1, hit: 0 }] })
           }),
       },
     },
-    attackerState: () => ({ scaling: { BASIC: 1 } }),
+    attackerState: () => ({}),
     teammateState: () => ({}),
   }),
 })
@@ -274,6 +287,6 @@ describe('what she tells the kernel', () => {
     const state = (enemy: string) => battle.member('acheron').instance.attackerState(enemy)
     expect(state('enemy1').characterConditionals).toMatchObject({ e1EnemyDebuffed: true, crimsonKnotStacks: 0, stygianResurgeHitsOnTarget: 0 })
     expect(state('enemy2').characterConditionals).toMatchObject({ e1EnemyDebuffed: false })
-    expect(state('enemy2').scaling).toEqual(acheronReferenceScaling(0, 3))
+    expect(state('enemy2')).not.toHaveProperty('scaling') // the kernel's own hit multiples are used, not the kit's
   })
 })

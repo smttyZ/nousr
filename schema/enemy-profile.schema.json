@@ -27,12 +27,12 @@
     "hp": {
       "type": "number",
       "exclusiveMinimum": 0,
-      "description": "HP at this level. Not used in version 1 of the simulator, where enemies do not die; kept so real stage enemies can be described."
+      "description": "Max HP at this level. Optional. Every enemy copy starts at this and each hit lowers its current HP; in version 1 enemies do not die, so current HP can go below 0 and nothing reacts to it. Without it the simulation still runs, and stops with an error only if a kit asks for an enemy's HP."
     },
     "toughness": {
       "type": "number",
       "minimum": 0,
-      "description": "Maximum toughness in the game's internal units (the in-game bar value times 3; a 120 bar is 360)."
+      "description": "Maximum toughness in the game's internal units, the same unit as Fribbels' enemyMaxToughness: the in-game bar value times 3, so a 120 bar is 360 and a 160 bar is 480. (Toughness a hit removes is a different scale: a Basic ATK removes 10 on the bar, 30 in these units.)"
     },
     "res": {
       "type": "number",

@@ -1,3 +1,4 @@
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { EnemyProfileError, loadEnemyProfile, parseEnemyProfile } from './profile'
 
@@ -32,8 +33,7 @@ function problemsOf(input: unknown): string[] {
 describe('the generic Memory of Chaos profile', () => {
   it('loads by id with the decided numbers', () => {
     const p = loadEnemyProfile('generic-moc')
-    expect(p).toMatchObject({ id: 'generic-moc', level: 95, atk: 625.5, spd: 158.4, toughness: 360, res: 0.2 })
-    expect(p.hp).toBeUndefined()
+    expect(p).toMatchObject({ id: 'generic-moc', level: 95, atk: 625.5, spd: 158.4, hp: 2904993, toughness: 480, res: 0.2 })
   })
 
   it('attacks single, single, AoE, each giving 10 energy', () => {
@@ -94,5 +94,26 @@ describe('parsing', () => {
   it('reports a profile that does not exist or has a malformed id', () => {
     expect(() => loadEnemyProfile('no-such-enemy')).toThrow(/cannot read enemy profile "no-such-enemy"/)
     expect(() => loadEnemyProfile('../secrets')).toThrow(/not a valid profile id/)
+  })
+})
+
+describe('enemy HP in a profile', () => {
+  it('is optional: a profile without it parses and has no hp', () => {
+    expect(parseEnemyProfile(valid()).hp).toBeUndefined()
+  })
+
+  it('is read when given, and must be positive', () => {
+    expect(parseEnemyProfile({ ...valid(), hp: 1_000_000 }).hp).toBe(1_000_000)
+    expect(problemsOf({ ...valid(), hp: 0 }).join('\n')).toMatch(/\/hp: must be > 0/)
+  })
+})
+
+describe('the test fixture profile', () => {
+  it('has the same numbers as generic-moc except for its attack, so the kernel sees the same enemy', () => {
+    const dummy = loadEnemyProfile('test-dummy', resolve(import.meta.dirname, '../run/fixtures'))
+    const generic = loadEnemyProfile('generic-moc')
+    expect({ level: dummy.level, atk: dummy.atk, spd: dummy.spd, hp: dummy.hp, toughness: dummy.toughness, res: dummy.res }).toEqual({
+      level: generic.level, atk: generic.atk, spd: generic.spd, hp: generic.hp, toughness: generic.toughness, res: generic.res,
+    })
   })
 })

@@ -97,6 +97,7 @@ export function parseScenario(input: unknown, options: ParseOptions = {}): Scena
       weaknesses: file.enemies.weaknesses ?? 'all',
     },
     teams,
+    ...(account !== undefined && { scanSource: account.source }),
   }
 }
 

@@ -34,10 +34,10 @@ export interface KernelTeammate extends KernelUnit {
 
 /**
  * The attacker's relics in the form Fribbels' own simulations use: sets, four main stats and a
- * number of max-value substat rolls per stat. Real scanned relics arrive after the scenario schema
- * review (step 4).
+ * number of max-value substat rolls per stat. A benchmark-style build, for members on `"standard"`
+ * relics and for tests.
  */
-export interface KernelBuild {
+export interface BenchmarkBuild {
   relicSet1: string
   relicSet2: string
   ornamentSet: string
@@ -46,6 +46,47 @@ export interface KernelBuild {
   planarSphere: string
   linkRope: string
   substatRolls: Record<string, number>
+}
+
+/**
+ * One substat as an HSR-Scanner v4 / Reliquary Archiver file writes it. `count` and `step` are only
+ * in Reliquary Archiver files.
+ */
+export interface ScannedSubstat {
+  key: string
+  value: number
+  count?: number
+  step?: number
+}
+
+/** One relic exactly as the scanner file writes it (HSR-Scanner v4 shape). Not translated by NouSR. */
+export interface ScannedRelic {
+  set_id: string
+  name?: string
+  slot: string
+  rarity: number
+  level: number
+  mainstat: string
+  substats: ScannedSubstat[]
+  location?: string
+  _uid?: string
+}
+
+/**
+ * Real relics, as scanned: at most one per slot. The kernel reads them with the importer for
+ * `source` (DESIGN.md, K5), so the relic objects go in as they are in the file.
+ */
+export interface ScannedBuild {
+  /** The `source` string of the scan file the relics came from, e.g. 'HSR-Scanner' or 'reliquary_archiver'. */
+  source: string
+  relics: ScannedRelic[]
+}
+
+/** Either kind of build. Tell them apart with `isScannedBuild`. */
+export type KernelBuild = BenchmarkBuild | ScannedBuild
+
+export function isScannedBuild(build: KernelBuild): build is ScannedBuild {
+  return 'relics' in build
 }
 
 export interface KernelEnemy {
@@ -84,17 +125,72 @@ export interface CombatStats {
   OHB: number
 }
 
+/**
+ * One hit of an ability, as the kernel builds it. Fribbels builds every ability from a list of hits
+ * (a main hit, an Additional DMG hit, ...) and each hit gets its own buffs, so the hits of one ability
+ * can have different damage per point of ATK.
+ */
+export interface HitResult {
+  /** Expected value over crits, against the primary target. */
+  damage: number
+  /**
+   * The multiple of the scaling stat (ATK, HP or DEF) the kernel used for this hit: 1.6 is 160%. A
+   * hit that scales on more than one stat has the multiples added, and a part priced from it must use
+   * the same mix. Undefined when the hit is not plain damage on one of those stats (healing, a shield,
+   * Break, damage over time, or scaling on a stat such as Break Effect), so its damage cannot be
+   * turned into damage per 100%. The runner stops with an error if a part asks for such a hit.
+   */
+  scaling?: number
+}
+
 export interface DamageResult {
   /**
-   * Output of one use of each ability the attacker has, keyed by Fribbels ability kind
-   * ('BASIC', 'SKILL', 'ULT', 'FUA', 'BREAK', ...), under the requested state. Expected value
-   * over crits, against the primary target.
+   * The kernel's own total for one use of each ability the attacker has, keyed by Fribbels ability
+   * kind ('BASIC', 'SKILL', 'ULT', 'FUA', 'BREAK', ...), under the requested state. Expected value
+   * over crits, against the primary target. Equal to the sum of that ability's `hits` that the
+   * kernel counts towards it. Kept to check single actions against Fribbels' own numbers; the runner
+   * prices from `hits`.
    */
   damage: Record<string, number>
+  /**
+   * Every hit of each ability, in the kernel's own order, under the requested state. A kit names a hit
+   * by ability kind and position in this list. An ability with no hits has an empty list. Which hits
+   * exist can depend on the state (Tribbie's Zone adds one), so a kit asks about the state it models.
+   */
+  hits: Record<string, HitResult[]>
   /** The attacker's in-combat stats under the requested state. */
   stats: CombatStats
 }
 
 export interface DamageKernel {
   actionDamage(request: DamageRequest): DamageResult
+}
+
+/**
+ * A unit's stats outside combat, as the game's character screen shows them: character and light
+ * cone base stats, the light cone's always-on stat bonus, traces, relic main and sub stats, and
+ * the always-on parts of relic and ornament set effects. No buffs from abilities, teammates or
+ * conditional effects. Same units as CombatStats (percentages as fractions).
+ */
+export interface BasicStats extends CombatStats {
+  /** Character plus light cone base SPD: the part that SPD% bonuses scale. */
+  baseSPD: number
+}
+
+/** What a scenario run needs from the kernel besides per-action damage. */
+export interface ScenarioKernel extends DamageKernel {
+  /**
+   * The kernel's id for a game character id and ability version (DESIGN.md, S2): 0 = the original
+   * kit, n > 0 = buffed version n, undefined = the newest version the kernel has. Throws when the
+   * kernel has no such character or version.
+   */
+  characterId(gameId: string, abilityVersion: number | undefined): string
+  /** The unit's out-of-combat stats with this build. */
+  basicStats(unit: KernelUnit, build: KernelBuild): BasicStats
+  /**
+   * What the kernel knows about a scan file's `source` string. Throws for a source the kernel's
+   * importer does not read. `speedVerified` is false when that scanner writes SPD rounded down as
+   * the game shows it, so a relic's SPD substat may be understated by just under 1.
+   */
+  scanSource(source: string): { speedVerified: boolean }
 }

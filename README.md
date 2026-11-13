@@ -5,6 +5,13 @@ A deterministic action-value timeline simulator for Honkai: Star Rail teams.
 **Status:** personal research tool, pre-alpha, private. Scoped to one account's roster, pinned to game
 version 4.7. No support or update cadence is promised.
 
+> [!WARNING]
+> **Results are only valid for the teams NouSR v1 was built for.** Only the v1 roster's characters, light cones
+> and relic sets have kits (DESIGN.md, "Scope (v1 roster)"), and some game mechanics are not modelled at all:
+> damage over time from weakness break (Bleed, Burn, Shock, Wind Shear, Entanglement), effects that trigger on a
+> kill, and wave changes. A team that relies on any of these will be understated without any error. Modelling
+> them, so that anyone can run their own teams without extra work, is a goal, not done yet.
+
 See [DESIGN.md](DESIGN.md) for architecture, decisions and open questions.
 
 ## Development

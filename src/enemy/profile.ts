@@ -24,8 +24,9 @@ export interface EnemyProfile {
   level: number
   atk: number
   spd: number
-  /** Not used while enemies do not die. */
+  /** Max HP. Optional: without it the battle stops with an error only if a kit asks for enemy HP. */
   hp?: number
+  /** Maximum toughness in internal units (3 x the in-game bar), the unit Fribbels' enemyMaxToughness uses. */
   toughness: number
   /** Damage RES to a non-weakness element. */
   res: number

@@ -7,14 +7,21 @@ import type { Element } from '../scenario/types'
 /**
  * A kit is one character's timing behaviour: what its actions do to skill points, stacks, the turn
  * order and the enemies, and when its passives fire. It never computes damage itself. It declares
- * what each attack hits and with what ATK multiple, and tells the damage kernel what state the
- * character is in.
+ * what each attack hits, which hit of the kernel's ability each part is and with what multiple, and
+ * tells the damage kernel what state the character is in.
  */
 export interface Kit {
   /** Game character id, e.g. '1308'. */
   characterId: string
   path: Path
   element: Element
+  /**
+   * The ability versions this kit is written for (DESIGN.md, K13): 0 is the original kit, n > 0 the buffed
+   * ("Nova Flare") version n, the scanner's `ability_version`. A scenario that resolves to any other
+   * version stops with an error. Optional in the type only so that test stubs need not name one; a scenario
+   * run refuses a kit that does not declare it.
+   */
+  abilityVersions?: readonly number[]
   /** 0 for a character with no energy bar. */
   maxEnergy: number
   /** Called once per battle, after every unit is on the field. Subscribe to events here. */
@@ -31,24 +38,18 @@ export interface KitAction {
   use(target?: string): void
 }
 
-/** What the damage kernel needs to know when this character attacks one particular enemy. */
+/**
+ * What the damage kernel needs to know when this character attacks one particular enemy. Light cone and
+ * set conditionals are not here: they come from the equipment modules (DESIGN.md, K4).
+ */
 export interface AttackerState {
   /** Fribbels conditional values for the character, laid over its defaults. */
   characterConditionals?: ConditionalValues
-  lightConeConditionals?: ConditionalValues
-  /**
-   * For each Fribbels ability kind this kit attacks with ('BASIC', 'SKILL', 'ULT', 'FUA', ...): the
-   * ATK multiple Fribbels itself uses for that ability under the conditionals above. The runner
-   * divides Fribbels' damage by this to get damage per 100% ATK, then multiplies by what each
-   * enemy actually takes.
-   */
-  scaling: Record<string, number>
 }
 
 /** What the damage kernel needs to know about this character when a teammate attacks. */
 export interface TeammateState {
   characterConditionals?: ConditionalValues
-  lightConeConditionals?: ConditionalValues
 }
 
 export interface KitInstance {

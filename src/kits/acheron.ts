@@ -45,32 +45,19 @@ export function acheronScalings(eidolon: number) {
   }
 }
 
-/**
- * The ATK multiple Fribbels uses for each of her abilities when its Crimson Knot and Thunder Core
- * hit counters are set to 0, which is how attackerState below sets them.
- */
-export function acheronReferenceScaling(eidolon: number, enemyCount: number): Record<string, number> {
-  const s = acheronScalings(eidolon)
-  return {
-    BASIC: s.basic,
-    SKILL: s.skillMain,
-    ULT: 3 * s.rainblade + 3 * s.knot + s.stygianResurge,
-    FUA: FOLLOW_UP_AOE + (FOLLOW_UP_BOUNCE * FOLLOW_UP_BOUNCES) / enemyCount,
-  }
-}
-
 export const Acheron: Kit = {
   characterId: '1308',
   path: 'Nihility',
   element: 'Lightning',
   maxEnergy: 0,
+  // Fribbels has no buffed version of her: only the original kit (K13).
+  abilityVersions: [0],
 
   create(battle: Battle, self: Member): KitInstance {
     const { timeline } = battle
     const me = self.key
     const e = self.eidolon
     const s = acheronScalings(e)
-    const reference = acheronReferenceScaling(e, battle.enemies.ids.length)
 
     let slashedDream = 0
     let quadrivalent = 0
@@ -122,8 +109,8 @@ export const Acheron: Kit = {
             attacker: me,
             ability: 'FUA',
             parts: [
-              { shape: 'aoe', scaling: FOLLOW_UP_AOE },
-              { shape: 'bounce', scaling: FOLLOW_UP_BOUNCE, hits: FOLLOW_UP_BOUNCES },
+              { shape: 'aoe', scaling: FOLLOW_UP_AOE, hit: 0 },
+              { shape: 'bounce', scaling: FOLLOW_UP_BOUNCE, hits: FOLLOW_UP_BOUNCES, hit: 0 },
             ],
           })
           gainStack(mostKnotted())
@@ -139,7 +126,7 @@ export const Acheron: Kit = {
           use: () =>
             battle.performAction(me, 'basic', 'basic', () => {
               battle.gainSkillPoints(1)
-              battle.attack({ attacker: me, ability: 'BASIC', parts: [{ shape: 'single', scaling: s.basic, target: mostKnotted() }] })
+              battle.attack({ attacker: me, ability: 'BASIC', parts: [{ shape: 'single', scaling: s.basic, target: mostKnotted(), hit: 0 }] })
             }),
         },
         skill: {
@@ -153,7 +140,7 @@ export const Acheron: Kit = {
               battle.attack({
                 attacker: me,
                 ability: 'SKILL',
-                parts: [{ shape: 'blast', scaling: s.skillMain, adjacent: s.skillAdjacent, target }],
+                parts: [{ shape: 'blast', scaling: s.skillMain, adjacent: s.skillAdjacent, target, hit: 0 }],
               })
             }),
         },
@@ -166,7 +153,7 @@ export const Acheron: Kit = {
               for (let blade = 0; blade < 3; blade++) {
                 const target = mostKnotted()
                 const held = knots(target)
-                battle.attack({ attacker: me, ability: 'ULT', parts: [{ shape: 'single', scaling: s.rainblade, target }] })
+                battle.attack({ attacker: me, ability: 'ULT', parts: [{ shape: 'single', scaling: s.rainblade, target, hit: 0 }] })
                 if (held <= 0) continue
                 // Thunder Core: a Rainblade that hits a knotted enemy. 3 turns, refreshed each time.
                 timeline.modifiers.apply({
@@ -181,16 +168,16 @@ export const Acheron: Kit = {
                 battle.attack({
                   attacker: me,
                   ability: 'ULT',
-                  parts: [{ shape: 'aoe', scaling: s.knot * (Math.min(1, removed) + removed) }],
+                  parts: [{ shape: 'aoe', scaling: s.knot * (Math.min(1, removed) + removed), hit: 0 }],
                 })
               }
               // Stygian Resurge: all enemies, then every remaining knot is removed without detonating.
-              battle.attack({ attacker: me, ability: 'ULT', parts: [{ shape: 'aoe', scaling: s.stygianResurge }] })
+              battle.attack({ attacker: me, ability: 'ULT', parts: [{ shape: 'aoe', scaling: s.stygianResurge, hit: 0 }] })
               for (const enemy of battle.enemies.ids) setKnots(enemy, 0)
               battle.attack({
                 attacker: me,
                 ability: 'ULT',
-                parts: [{ shape: 'bounce', scaling: THUNDER_CORE_HIT, hits: THUNDER_CORE_HITS }],
+                parts: [{ shape: 'bounce', scaling: THUNDER_CORE_HIT, hits: THUNDER_CORE_HITS, hit: 0 }],
               })
               // Quadrivalent Ascendance: after the Ultimate, on a random enemy (the primary target, K2).
               if (quadrivalent > 0) {
@@ -219,7 +206,6 @@ export const Acheron: Kit = {
           e4UltVulnerability: true,
           e6UltBuffs: true,
         },
-        scaling: reference,
       }),
 
       // E4: enemies take 8% more Ultimate DMG from everyone. Fribbels checks the eidolon itself.

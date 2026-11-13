@@ -19,6 +19,10 @@ import type { Party } from './party'
  * damage reductions, with no crits (DESIGN.md, decision 8).
  * Source: https://www.prydwen.gg/star-rail/guides/damage-formula
  *
+ * HP (DESIGN.md, K10 and S6): every enemy has max HP from the profile and a current HP that every hit
+ * lowers. Enemies never die: current HP can go below 0 and nothing reacts to it. A profile without
+ * `hp` still runs; the error comes only when something asks for an enemy's HP.
+ *
  * Choices made here that sources do not settle:
  * - Copies of the same profile start their patterns together, so they all use the AoE on the same turn.
  * - Energy from being hit is scaled by the ally's Energy Regeneration Rate.
@@ -27,6 +31,8 @@ export class Enemies {
   readonly ids: readonly UnitId[]
   private readonly turnsTaken = new Map<UnitId, number>()
   private readonly forcedTargets = new Map<UnitId, UnitId>()
+  /** Current HP per enemy. Empty when the profile has no HP. May go below 0. */
+  private readonly currentHp = new Map<UnitId, number>()
 
   /** Adds `count` enemies to the timeline. Create this after the allies so allies win AV ties. */
   constructor(
@@ -41,6 +47,7 @@ export class Enemies {
       const id = `enemy${i}`
       timeline.addUnit({ id, baseSpd: profile.spd })
       this.turnsTaken.set(id, 0)
+      if (profile.hp !== undefined) this.currentHp.set(id, profile.hp)
       ids.push(id)
     }
     this.ids = ids
@@ -48,6 +55,30 @@ export class Enemies {
 
   has(id: UnitId): boolean {
     return this.turnsTaken.has(id)
+  }
+
+  /** An enemy's max HP. Stops with an error when the profile has none. */
+  maxHp(enemy: UnitId): number {
+    this.requireEnemy(enemy)
+    if (this.profile.hp === undefined) {
+      throw new Error(
+        `Enemy HP was asked for, but enemy profile "${this.profile.id}" has no "hp". Add one to the profile to use effects that read enemy HP.`,
+      )
+    }
+    return this.profile.hp
+  }
+
+  /** An enemy's current HP. Below 0 once it has taken more than its max HP: enemies do not die (S6). */
+  hp(enemy: UnitId): number {
+    this.maxHp(enemy)
+    return this.currentHp.get(enemy)!
+  }
+
+  /** Lowers an enemy's HP by one hit's damage. Does nothing when the profile has no HP. */
+  takeDamage(enemy: UnitId, amount: number): void {
+    this.requireEnemy(enemy)
+    const hp = this.currentHp.get(enemy)
+    if (hp !== undefined) this.currentHp.set(enemy, hp - amount)
   }
 
   /** Taunt: this enemy's single-target choices all go to `ally` while it stands. Undefined clears it. */

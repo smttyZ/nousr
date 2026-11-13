@@ -1,0 +1,41 @@
+{
+  "$schema": "../../../schema/scenario.schema.json",
+  "format": "nousr-scenario",
+  "version": 1,
+  "game_version": "4.7",
+  "name": "Test fixture: Acheron alone",
+  "notes": "Used by the end-to-end test in src/kernel/fribbels/fribbelsKernel.test.ts. Acheron is the only kit registered, so she runs alone. No period module (none exists yet). The enemy profile test-dummy is in this folder, so the run must be given this folder as its profile directory.",
+
+  "battle": {
+    "mode": "moc",
+    "cycles": 5,
+    "period": null
+  },
+
+  "enemies": {
+    "profile": "test-dummy",
+    "counts": [1, 3, 5],
+    "weaknesses": "all"
+  },
+
+  "teams": [
+    {
+      "id": "acheron_solo",
+      "members": [
+        {
+          "key": "acheron",
+          "character": "1308",
+          "eidolon": 0,
+          "light_cone": { "id": "23024", "superimposition": 1 },
+          "relics": "standard",
+          "notes": "Along the Passing Shore S1"
+        }
+      ],
+      "policy": [
+        { "unit": "acheron", "use": "ultimate" },
+        { "unit": "acheron", "use": "skill", "when": [{ "what": "team.skill_points", "min": 1 }] },
+        { "unit": "acheron", "use": "basic" }
+      ]
+    }
+  ]
+}

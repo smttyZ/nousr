@@ -225,3 +225,58 @@ describe('more enemies and falling allies', () => {
     expect(() => enemies.nextAttack('tank')).toThrow(/not an enemy/)
   })
 })
+
+describe('enemy HP', () => {
+  const withHp = (hp: number) => parseEnemyProfile({
+    format: 'nousr-enemy-profile',
+    version: 1,
+    id: 'test',
+    level: 95,
+    atk: 625.5,
+    spd: 158.4,
+    hp,
+    toughness: 480,
+    res: 0.2,
+    attacks: [{ id: 'x', energy: 10, target: 'single', multiplier: 2.5 }],
+    pattern: ['x'],
+  })
+
+  it('every copy starts at the profile\'s HP, which is both its current and its max', () => {
+    const { enemies } = setup(generic, 3)
+    for (const id of enemies.ids) {
+      expect(enemies.hp(id)).toBe(2_904_993)
+      expect(enemies.maxHp(id)).toBe(2_904_993)
+    }
+  })
+
+  it('damage lowers one enemy\'s current HP and leaves its max and the others alone', () => {
+    const { enemies } = setup(withHp(10_000), 3)
+    enemies.takeDamage('enemy2', 1_500)
+    enemies.takeDamage('enemy2', 500)
+    expect(enemies.hp('enemy2')).toBe(8_000)
+    expect(enemies.maxHp('enemy2')).toBe(10_000)
+    expect(enemies.hp('enemy1')).toBe(10_000)
+    expect(enemies.hp('enemy3')).toBe(10_000)
+  })
+
+  it('goes below 0 and keeps taking its turns: enemies do not die', () => {
+    const { enemies, hits, run } = setup(withHp(1_000))
+    enemies.takeDamage('enemy1', 5_000)
+    expect(enemies.hp('enemy1')).toBe(-4_000)
+    run(1)
+    expect(hits.length).toBeGreaterThan(0)
+  })
+
+  it('a profile without HP runs, ignores damage, and errors only when HP is asked for', () => {
+    const { enemies } = setup(only({ target: 'single', multiplier: 2.5 }))
+    expect(() => enemies.takeDamage('enemy1', 1_000)).not.toThrow()
+    expect(() => enemies.hp('enemy1')).toThrow(/profile "test" has no "hp"/)
+    expect(() => enemies.maxHp('enemy1')).toThrow(/profile "test" has no "hp"/)
+  })
+
+  it('asking about something that is not an enemy is an error', () => {
+    const { enemies } = setup(generic)
+    expect(() => enemies.hp('tank')).toThrow(/tank is not an enemy/)
+    expect(() => enemies.takeDamage('tank', 1)).toThrow(/tank is not an enemy/)
+  })
+})

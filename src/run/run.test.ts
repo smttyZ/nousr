@@ -195,6 +195,64 @@ describe('running', () => {
   })
 })
 
+describe('warnings from the battle', () => {
+  /**
+   * Hits the primary, then asks for the enemy with the highest HP among all of them: enemy 1 and enemy 3 are
+   * tied and the primary is not among them. Enemy 3 carries a mark that the fake kernel prices at double.
+   */
+  const Zoner: Kit = {
+    ...Striker,
+    create: (battle, self) => ({
+      actions: {
+        ...Striker.create(battle, self).actions,
+        basic: {
+          kind: 'basic',
+          canUse: () => true,
+          use: () =>
+            battle.performAction(self.key, 'basic', 'basic', () => {
+              if (battle.enemies.ids.length > 2) battle.applyDebuff({ id: 'zoner.mark', target: battle.enemies.ids[2]!, source: self.key })
+              battle.attack({ attacker: self.key, ability: 'BASIC', parts: [{ shape: 'single', scaling: 1, hit: 0 }] })
+              const pick = battle.highestHpAmong(battle.enemies.ids, { attacker: self.key, ability: 'BASIC', hit: 0 })
+              battle.attack({ attacker: self.key, ability: 'BASIC', parts: [{ shape: 'single', scaling: 0.1, hit: 0, target: pick }] })
+            }),
+        },
+      },
+      attackerState: (enemy) => ({ characterConditionals: { marked: battle.hasDebuff(enemy) } }),
+      teammateState: () => ({}),
+    }),
+  }
+
+  function zonerSetup() {
+    const { scenario, options } = setup(scenarioFile({ enemies: { profile: 'generic-moc', counts: [1, 3], weaknesses: 'all' } }))
+    scenario.teams[0]!.policy = [{ unit: 'striker', use: 'basic', when: [] }]
+    const kernel = {
+      ...options.kernel,
+      actionDamage: (r: DamageRequest) =>
+        fakeResult({ BASIC: [{ damage: r.attacker.characterConditionals?.marked ? 2000 : 1000, scaling: 1 }] }, { ...BASIC }),
+    }
+    return { scenario, options: { ...options, kernel, kits: new Map([['9001', { name: 'Zoner', kit: Zoner }]]) } }
+  }
+
+  it("reach the team's warnings with the team and enemy count in front, and only where the tie is undecided", () => {
+    const { scenario, options } = zonerSetup()
+    const runs = runScenario(scenario, options)
+    expect(runs.map((r) => r.result.warnings.length)).toEqual([0, 1])
+    expect(runs[0]!.warnings).toEqual([])
+    expect(runs[1]!.warnings).toEqual([
+      expect.stringMatching(/^team "solo", 3 enemies: Undecided "highest HP" tie: striker's BASIC hit 0 .*DESIGN.md, "Known approximations"/),
+    ])
+    expect(runs[1]!.warnings[0]).toBe(`team "solo", 3 enemies: ${runs[1]!.result.warnings[0]}`)
+  })
+
+  it('a plain run has none', () => {
+    const { scenario, options } = setup()
+    for (const run of runScenario(scenario, options)) {
+      expect(run.result.warnings).toEqual([])
+      expect(run.warnings).toEqual([])
+    }
+  })
+})
+
 describe('what cannot be run yet is refused clearly', () => {
   it('a character with no kit, listing the kits that exist', () => {
     const file = scenarioFile()

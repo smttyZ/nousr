@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schema/standard-build.schema.json",
+  "format": "nousr-standard-build",
+  "version": 1,
+  "game_version": "4.7",
+  "character": "1004",
+  "ability_version": 1,
+  "name": "Welt (Nova Flare, ability version 1)",
+  "notes": "DRAFT. Source: Fribbels Welt (1004b1) scoring.simulation(). Biggest guess: 12 distributed Effect Hit Rate rolls, which is what maxes his EHR-to-ATK trace but takes half the budget; the CRIT Rate vs CRIT DMG body is a 0.4% tie. Fribbels file: vendor/hsr-optimizer/src/lib/conditionals/character/1000/WeltB1.ts. Fribbels line numbers in WeltB1.ts: simulation 396-440, parts 398-414, substats 415-421. Facts about set effects and kits come from tools/gamedata/lc-text.mjs --set <id> and kit-text.mjs output. Written 2026-11-13 as a draft for Smitty to review; every GUESS is a choice Fribbels does not make.",
+  "relic_sets": {
+    "four_piece": {
+      "set_id": "117",
+      "name": "Pioneer Diver of Dead Waters"
+    },
+    "notes": "First-listed relic set (WeltB1.ts:430): Pioneer Diver of Dead Waters 4-piece."
+  },
+  "ornament_set": {
+    "set_id": "309",
+    "name": "Rutilant Arena",
+    "notes": "First-listed ornament (WeltB1.ts:434): Rutilant Arena (+8% CRIT Rate; +20% Basic ATK and Skill DMG at 70% CRIT Rate or more)."
+  },
+  "main_stats": {
+    "Body": "CRIT Rate",
+    "Feet": "SPD",
+    "Planar Sphere": "Imaginary DMG Boost",
+    "Link Rope": "ATK%",
+    "notes": "Fribbels options: Body CRIT Rate/CRIT DMG, Feet ATK%/SPD, Sphere ATK%/Imaginary DMG, Rope ATK%. GUESS: Body CRIT Rate; with the EHR rolls the proxy has the CRIT Rate and CRIT DMG bodies within 0.4% of each other, so this is a coin flip. Feet SPD (GUESS, same reason as Acheron). Sphere Imaginary DMG. Rope ATK% only."
+  },
+  "distributed": {
+    "rolls": {
+      "SPD": 1,
+      "Effect Hit Rate": 12,
+      "CRIT DMG": 9,
+      "CRIT Rate": 2
+    },
+    "notes": "Fribbels substat list: CRIT DMG, CRIT Rate, Effect Hit Rate, ATK%, ATK. His trace: above 40% Effect Hit Rate, +20% ATK per full 10% over, max +80% (kit text; code WeltB1.ts:355-379: min(0.80, 0.20 x floor((EHR - 0.40)/0.10)) x base ATK). The trace gives 28% EHR and the 2 fixed rolls 7.8%, so 11 distributed rolls reach 78.5% (3 steps, +60%) and 12 reach 82.4% (4 steps, +80%, the cap): the step function makes it all or nothing at 12. Rolls chosen with a throwaway proxy script (damage ~ scale stat x (1 + CR x CD) x (1 + DMG%), the 2 fixed rolls per stat, the per-relic cap, simple set and trace stats only, an assumed 635 ATK / 1058 HP light cone), not with Fribbels or the kernel. Treat it as a tie-breaker, not a result. (For this one the proxy tried every EHR count, because a greedy fill cannot see the steps.) SPD: 1 roll. 102 + 25.032 + 4.6 = 131.63, and 1 roll makes 133.93, the first count past 133.34. SPD arithmetic ignores light cone and team SPD buffs. The cycle-1 two-turn threshold is 133.34 (20000/150); src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1."
+  }
+}

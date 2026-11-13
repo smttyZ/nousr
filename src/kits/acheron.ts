@@ -16,6 +16,17 @@ import type { Kit, KitInstance } from './kit'
  *
  * Open (DESIGN.md): Thunder Core's +30% is applied from the hit after the Rainblade that grants it.
  * Not modelled: the technique's own 200% ATK hit.
+ *
+ * Toughness (K7), internal units from `node tools/gamedata/kit-text.mjs 1308` ("toughness a/b/c": the
+ * designated target / every enemy / adjacent): Basic 30/0/0, Skill 60/0/30, each Rainblade 15/15/0, Stygian
+ * Resurge 0/15/0. The 15 to every enemy of a Rainblade goes with its Crimson Knot detonation, so a Rainblade on
+ * an enemy with no knots removes only the 15 on its target. A full-knot Ultimate removes 105 from the primary
+ * target, which is Fribbels' 35 (`toughnessDmg(35)`, vendor/hsr-optimizer/src/lib/conditionals/character/
+ * 1300/Acheron.ts:287) times 3. Her Ultimate ignores weaknesses (talent text); from E6 so do her Basic ATK and
+ * Skill. Thunder Core's six hits have no toughness in the game data.
+ * IN-GAME CHECK: the Affinitive Eidolon's follow-up. The data lists no toughness for it. Fribbels gives the
+ * follow-up `toughnessDmg(10)` (30 here) on its one hit; read as 30 to every enemy on the 300% AoE part and 0 on
+ * the bounces, and as following weaknesses (the talent text only names the Ultimate and E6's Basic and Skill).
  */
 
 const MAX_SLASHED_DREAM = 9
@@ -27,6 +38,15 @@ const THUNDER_CORE_HITS = 6
 const FOLLOW_UP_AOE = 3.0
 const FOLLOW_UP_BOUNCE = 0.8
 const FOLLOW_UP_BOUNCES = 6
+
+/** Toughness per part, internal units (see the header). */
+const TOUGHNESS_BASIC = 30
+const TOUGHNESS_SKILL = 60
+const TOUGHNESS_SKILL_ADJACENT = 30
+const TOUGHNESS_RAINBLADE = 15
+const TOUGHNESS_RAINBLADE_ALL = 15
+const TOUGHNESS_STYGIAN_RESURGE = 15
+const TOUGHNESS_FOLLOW_UP_AOE = 30
 
 const KNOT = 'acheron.crimson_knot'
 const THUNDER_CORE = 'acheron.thunder_core'
@@ -109,7 +129,7 @@ export const Acheron: Kit = {
             attacker: me,
             ability: 'FUA',
             parts: [
-              { shape: 'aoe', scaling: FOLLOW_UP_AOE, hit: 0 },
+              { shape: 'aoe', scaling: FOLLOW_UP_AOE, hit: 0, toughness: TOUGHNESS_FOLLOW_UP_AOE },
               { shape: 'bounce', scaling: FOLLOW_UP_BOUNCE, hits: FOLLOW_UP_BOUNCES, hit: 0 },
             ],
           })
@@ -126,7 +146,8 @@ export const Acheron: Kit = {
           use: () =>
             battle.performAction(me, 'basic', 'basic', () => {
               battle.gainSkillPoints(1)
-              battle.attack({ attacker: me, ability: 'BASIC', parts: [{ shape: 'single', scaling: s.basic, target: mostKnotted(), hit: 0 }] })
+              battle.attack({ attacker: me, ability: 'BASIC', parts: [{ shape: 'single', scaling: s.basic, target: mostKnotted(), hit: 0, toughness: TOUGHNESS_BASIC, ignoresWeakness: e >= 6 }],
+              })
             }),
         },
         skill: {
@@ -140,7 +161,16 @@ export const Acheron: Kit = {
               battle.attack({
                 attacker: me,
                 ability: 'SKILL',
-                parts: [{ shape: 'blast', scaling: s.skillMain, adjacent: s.skillAdjacent, target, hit: 0 }],
+                parts: [{
+                  shape: 'blast',
+                  scaling: s.skillMain,
+                  adjacent: s.skillAdjacent,
+                  target,
+                  hit: 0,
+                  toughness: TOUGHNESS_SKILL,
+                  adjacentToughness: TOUGHNESS_SKILL_ADJACENT,
+                  ignoresWeakness: e >= 6,
+                }],
               })
             }),
         },
@@ -153,7 +183,11 @@ export const Acheron: Kit = {
               for (let blade = 0; blade < 3; blade++) {
                 const target = mostKnotted()
                 const held = knots(target)
-                battle.attack({ attacker: me, ability: 'ULT', parts: [{ shape: 'single', scaling: s.rainblade, target, hit: 0 }] })
+                battle.attack({
+                  attacker: me,
+                  ability: 'ULT',
+                  parts: [{ shape: 'single', scaling: s.rainblade, target, hit: 0, toughness: TOUGHNESS_RAINBLADE, ignoresWeakness: true }],
+                })
                 if (held <= 0) continue
                 // Thunder Core: a Rainblade that hits a knotted enemy. 3 turns, refreshed each time.
                 timeline.modifiers.apply({
@@ -168,11 +202,21 @@ export const Acheron: Kit = {
                 battle.attack({
                   attacker: me,
                   ability: 'ULT',
-                  parts: [{ shape: 'aoe', scaling: s.knot * (Math.min(1, removed) + removed), hit: 0 }],
+                  parts: [{
+                    shape: 'aoe',
+                    scaling: s.knot * (Math.min(1, removed) + removed),
+                    hit: 0,
+                    toughness: TOUGHNESS_RAINBLADE_ALL,
+                    ignoresWeakness: true,
+                  }],
                 })
               }
               // Stygian Resurge: all enemies, then every remaining knot is removed without detonating.
-              battle.attack({ attacker: me, ability: 'ULT', parts: [{ shape: 'aoe', scaling: s.stygianResurge, hit: 0 }] })
+              battle.attack({
+                attacker: me,
+                ability: 'ULT',
+                parts: [{ shape: 'aoe', scaling: s.stygianResurge, hit: 0, toughness: TOUGHNESS_STYGIAN_RESURGE, ignoresWeakness: true }],
+              })
               for (const enemy of battle.enemies.ids) setKnots(enemy, 0)
               battle.attack({
                 attacker: me,

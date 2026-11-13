@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schema/standard-build.schema.json",
+  "format": "nousr-standard-build",
+  "version": 1,
+  "game_version": "4.7",
+  "character": "1401",
+  "ability_version": 0,
+  "name": "The Herta",
+  "notes": "DRAFT. Source: Fribbels The Herta scoring.simulation(). Biggest guess: CRIT Rate over CRIT DMG body, which is an exact tie in the proxy. Fribbels file: vendor/hsr-optimizer/src/lib/conditionals/character/1400/TheHerta.ts. Fribbels line numbers in TheHerta.ts: simulation 305-345, parts 307-323, substats 324-329. Facts about set effects and kits come from tools/gamedata/lc-text.mjs --set <id> and kit-text.mjs output. Written 2026-11-13 as a draft for Smitty to review; every GUESS is a choice Fribbels does not make.",
+  "relic_sets": {
+    "four_piece": {
+      "set_id": "122",
+      "name": "Scholar Lost in Erudition"
+    },
+    "notes": "First-listed relic set (TheHerta.ts:338): Scholar Lost in Erudition 4-piece (+20% Skill and Ultimate DMG; +25% on the next Skill after an Ultimate). The 2-piece gives +8% CRIT Rate."
+  },
+  "ornament_set": {
+    "set_id": "314",
+    "name": "Izumo Gensei and Takama Divine Realm",
+    "notes": "First-listed ornament (TheHerta.ts:342): Izumo Gensei and Takama Divine Realm (+12% ATK; +12% CRIT Rate with a same-Path teammate)."
+  },
+  "main_stats": {
+    "Body": "CRIT Rate",
+    "Feet": "SPD",
+    "Planar Sphere": "Ice DMG Boost",
+    "Link Rope": "ATK%",
+    "notes": "Fribbels options: Body CRIT Rate/CRIT DMG, Feet ATK%/SPD, Sphere ATK%/Ice DMG, Rope ATK%. GUESS: Body CRIT Rate; the CRIT Rate and CRIT DMG bodies tie to the digit in the proxy because the other rolls rearrange to compensate. Feet SPD (GUESS, same reason as Acheron). Sphere Ice DMG (proxy +6.3% over ATK%). Rope ATK% only."
+  },
+  "distributed": {
+    "rolls": {
+      "CRIT DMG": 12,
+      "CRIT Rate": 9,
+      "ATK%": 3
+    },
+    "notes": "Fribbels substat list: CRIT DMG, CRIT Rate, ATK%, ATK. Rolls chosen with a throwaway proxy script (damage ~ scale stat x (1 + CR x CD) x (1 + DMG%), the 2 fixed rolls per stat, the per-relic cap, simple set and trace stats only, an assumed 635 ATK / 1058 HP light cone), not with Fribbels or the kernel. Treat it as a tie-breaker, not a result. Result: CRIT DMG 12, CRIT Rate 9, ATK% 3. SPD: 0 distributed. 99 base + 5 (trace) + 25.032 + 4.6 = 133.63, over 133.34 by 0.29; that margin is thin and depends on the trace being exactly +5 SPD. SPD arithmetic ignores light cone and team SPD buffs. The cycle-1 two-turn threshold is 133.34 (20000/150); src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1."
+  }
+}

@@ -71,6 +71,17 @@ export interface EngineEvents {
 
   // ---- enemy turns (src/battle/enemies.ts)
   enemyAttack: { enemy: UnitId, attack: string }
+  /** The enemy's turn came and it did not act. Today only Freeze does this. */
+  enemyTurnSkipped: { enemy: UnitId, reason: 'frozen' }
+
+  // ---- toughness (src/battle/enemies.ts, src/battle/battle.ts; DESIGN.md K7 and K7b)
+  /**
+   * An attack took the last of an enemy's toughness. Emitted after the Break DMG has been dealt and the
+   * delays and element effect applied. `element` is the breaker's element.
+   */
+  weaknessBroken: { enemy: UnitId, attacker: UnitId, element: string, at: number, cycle: number }
+  /** The bar refilled at the start of the enemy's turn and the broken state ended. */
+  toughnessRecovered: { enemy: UnitId, at: number }
   /**
    * One ally's share of an enemy attack. `hits` is the expected number of times it was hit:
    * for a single-target attack that is its chance of being the target.

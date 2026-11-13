@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schema/standard-build.schema.json",
+  "format": "nousr-standard-build",
+  "version": 1,
+  "game_version": "4.7",
+  "character": "1407",
+  "ability_version": 0,
+  "name": "Castorice",
+  "notes": "DRAFT. Source: Fribbels Castorice scoring.simulation(). Biggest guess: CRIT DMG body (proxy +4.0% over HP% body and +5.4% over CRIT Rate body); the Poet SPD condition (see distributed.notes) is the part to check in-game. Fribbels file: vendor/hsr-optimizer/src/lib/conditionals/character/1400/Castorice.ts. Fribbels line numbers in Castorice.ts: simulation 405-448, parts 407-424, substats 425-430. Facts about set effects and kits come from tools/gamedata/lc-text.mjs --set <id> and kit-text.mjs output. Written 2026-11-13 as a draft for Smitty to review; every GUESS is a choice Fribbels does not make.",
+  "relic_sets": {
+    "four_piece": {
+      "set_id": "124",
+      "name": "Poet of Mourning Collapse"
+    },
+    "notes": "First-listed relic set (Castorice.ts:442): Poet of Mourning Collapse 4-piece: -8% SPD, and +20% CRIT Rate (+32% under 95 SPD) before the battle if SPD is under 110 (lc-text.mjs --set 124). Her base SPD is 95."
+  },
+  "ornament_set": {
+    "set_id": "319",
+    "name": "Bone Collection's Serene Demesne",
+    "notes": "First-listed ornament (Castorice.ts:446): Bone Collection's Serene Demesne (+12% Max HP; +28% CRIT DMG at 5000 Max HP or more, wearer and memosprite)."
+  },
+  "main_stats": {
+    "Body": "CRIT DMG",
+    "Feet": "HP%",
+    "Planar Sphere": "Quantum DMG Boost",
+    "Link Rope": "HP%",
+    "notes": "Fribbels options: Body CRIT Rate/CRIT DMG/HP%, Feet HP%/SPD, Sphere HP%/Quantum DMG, Rope HP%. Feet HP% (first-listed), and not SPD: Poet of Mourning Collapse gives her +32% CRIT Rate only under 95 SPD, and SPD boots would end that. GUESS: Body CRIT DMG. Sphere Quantum DMG (proxy +11% over HP%). Rope HP% only."
+  },
+  "distributed": {
+    "rolls": {
+      "CRIT DMG": 10,
+      "CRIT Rate": 12,
+      "HP%": 2
+    },
+    "notes": "Fribbels substat list: CRIT DMG, CRIT Rate, HP%, HP; no SPD. Rolls chosen with a throwaway proxy script (damage ~ scale stat x (1 + CR x CD) x (1 + DMG%), the 2 fixed rolls per stat, the per-relic cap, simple set and trace stats only, an assumed 635 ATK / 1058 HP light cone), not with Fribbels or the kernel. Treat it as a tie-breaker, not a result. Result: CRIT DMG 10, CRIT Rate 12, HP% 2. SPD: 0 distributed. 95 base + 4.6 (2 fixed rolls) = 99.6; the Poet 4-piece takes 8% of base (7.6), so 92.0, under 95. One distributed roll would still pass (94.3), two would not (96.6). GUESS: that Poet's \"SPD lower than 95\" check includes the -8% and the fixed rolls as modelled here; read it against Fribbels' implementation before anyone relies on the margin of 3."
+  }
+}

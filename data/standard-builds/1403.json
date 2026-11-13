@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schema/standard-build.schema.json",
+  "format": "nousr-standard-build",
+  "version": 1,
+  "game_version": "4.7",
+  "character": "1403",
+  "ability_version": 0,
+  "name": "Tribbie",
+  "notes": "DRAFT. Source: Fribbels Tribbie scoring.simulation(). Biggest guess: 0 distributed SPD rolls, which leaves her at 125.6 SPD, below the 133.34 line; Fribbels' list has no SPD substat for her. Fribbels file: vendor/hsr-optimizer/src/lib/conditionals/character/1400/Tribbie.ts. Fribbels line numbers in Tribbie.ts: simulation 368-423, parts 370-387, substats 388-393. Facts about set effects and kits come from tools/gamedata/lc-text.mjs --set <id> and kit-text.mjs output. Written 2026-11-13 as a draft for Smitty to review; every GUESS is a choice Fribbels does not make.",
+  "relic_sets": {
+    "four_piece": {
+      "set_id": "108",
+      "name": "Genius of Brilliant Stars"
+    },
+    "notes": "First-listed relic set (Tribbie.ts:406): Genius of Brilliant Stars 4-piece (ignores 10% DEF, 10% more with Quantum weakness)."
+  },
+  "ornament_set": {
+    "set_id": "319",
+    "name": "Bone Collection's Serene Demesne",
+    "notes": "First-listed ornament (Tribbie.ts:412): Bone Collection's Serene Demesne (+12% Max HP; +28% CRIT DMG at 5000 Max HP or more, wearer and memosprite)."
+  },
+  "main_stats": {
+    "Body": "CRIT Rate",
+    "Feet": "SPD",
+    "Planar Sphere": "Quantum DMG Boost",
+    "Link Rope": "HP%",
+    "notes": "Fribbels options: Body CRIT Rate/CRIT DMG/HP%, Feet HP%/SPD, Sphere HP%/Quantum DMG, Rope HP%. GUESS: Body CRIT Rate (proxy +7.0% over CRIT DMG and over HP%). GUESS: Feet SPD, though Fribbels lists HP% first and gives her no SPD substat. Sphere Quantum DMG. Rope HP% only."
+  },
+  "distributed": {
+    "rolls": {
+      "CRIT DMG": 12,
+      "CRIT Rate": 10,
+      "HP%": 2
+    },
+    "notes": "Fribbels substat list: CRIT DMG, CRIT Rate, HP%, HP. Rolls chosen with a throwaway proxy script (damage ~ scale stat x (1 + CR x CD) x (1 + DMG%), the 2 fixed rolls per stat, the per-relic cap, simple set and trace stats only, an assumed 635 ATK / 1058 HP light cone), not with Fribbels or the kernel. Treat it as a tie-breaker, not a result. Result: CRIT DMG 12, CRIT Rate 10, HP% 2. SPD: 0 distributed, following Fribbels' list. 96 + 25.032 + 4.6 = 125.63; 4 rolls would give 134.83, over 133.34. GUESS that she does not want it: her Zone and Ultimate timing should show whether she does. It is the one choice in this file that changes how the team plays, so Smitty should decide it. SPD arithmetic ignores light cone and team SPD buffs. The cycle-1 two-turn threshold is 133.34 (20000/150); src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1."
+  }
+}

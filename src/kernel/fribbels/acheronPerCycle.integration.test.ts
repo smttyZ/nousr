@@ -37,6 +37,31 @@ import { FribbelsKernel } from './fribbelsKernel'
  *   The hit that applies the debuff is priced without the bonus (IN-GAME CHECK in the module).
  * - Dance! Dance! Dance!, on the cases with Tribbie: her Ultimate advances every ally by 16%, which changes
  *   the turn order, and with it when Acheron's Ultimate and Tribbie's Zone line up.
+ *
+ * Re-pinned 2026-11-13 when weakness break was built (DESIGN.md, K7 and K7b). Enemies now have a toughness bar
+ * (480, internal units), hits remove it, and a broken enemy (1) takes x1.0 instead of x0.9 from every hit
+ * until its next turn, (2) takes the kernel's Break DMG once, priced broken (x1.0), credited to the breaker
+ * (so it is in the sums below), and (3) is delayed 25%, plus 20% x (1 + BE) for a Quantum breaker (Tribbie).
+ * Each effect was measured alone (the other two switched off, by a scratch test that wrapped the kernel and
+ * undid the delay) and the case figures are Acheron's damage per cycle, old -> new, with the effect alone
+ * in brackets (change against old). The bar refills at the enemy's turn (every ~63 AV at SPD 158.4), so enemies
+ * break rarely: Acheron alone almost never, and the first case never.
+ *
+ * - E0 alone, 1 enemy: no break at all in 5 cycles. Nothing moves.
+ * - E6 + Affinitive Eidolon alone, 3 enemies: one break, in cycle 5. 39786.54 -> 47672.11 (+7885.58). Broken
+ *   multiplier alone 0 (no later hit lands on the broken enemy before its bar refills); Break DMG alone
+ *   +7097.04 (priced at 0.9, the multiplier off); delay alone 0 (she has no energy, so enemy turns do not
+ *   change her output). The other +788.54 is the Break DMG at x1.0 instead of x0.9 (7885.58 / 7097.04 = 1/0.9).
+ * - E2 + Tribbie E1, 5 enemies, 5 breaks: cycle 3 958189.98 -> 990961.66 (+32771.67: multiplier alone
+ *   +20060.12, Break DMG alone +11440.40 at 0.9, delay alone 0; Break DMG at x1.0 is 12711.55, which with the
+ *   multiplier gives the total). Cycle 4 805747.19 -> 839704.11 (multiplier alone +33956.92, the rest 0). Cycle 5
+ *   252630.49 -> 298276.80 (+45646.31: the delay alone is +32672.23, a Tribbie Quantum break delaying enemies
+ *   so they hit less often, which moves Tribbie's energy and so her Ultimate and Zone; the multiplier alone is
+ *   0 here, and the rest is the delay and the multiplier acting on the re-timed hits).
+ * - E6 + Affinitive Eidolon beside Tribbie E0, 3 enemies, 3 breaks: cycle 3 723791.30 -> 761531.79 (+37740.50:
+ *   multiplier alone +25028.92, Break DMG alone +11440.40, delay alone 0). Cycle 4 670296.22 -> 741444.10
+ *   (+71147.88: multiplier alone +44727.21, delay alone +26420.68, Break DMG alone 0, and the sum is more than
+ *   the three because the delay re-times which hits land on a broken enemy).
  */
 
 const acheronBuild: KernelBuild = {
@@ -120,7 +145,8 @@ describe('Acheron per cycle is unchanged by per-hit pricing', () => {
       enemyCount: 3,
       // Old: [36457.04003921268, 262606.65092128265, 52317.12119916089, 18684.68614255746, 52317.12119916089]
       // Pioneer alone: [33072.320, 238225.899, 47459.930, 16949.975, 47459.930]; Along alone: [27998.330, 273412.598, 43858.411, 252606.011, 43858.411].
-      expected: [25398.92774981611, 266791.2389769713, 39786.53780486456, 245039.99289891825, 39786.53780486456],
+      // Weakness break (K7): cycle 5 was 39786.53780486456, now with one Break DMG hit (see the header).
+      expected: [25398.92774981611, 266791.2389769713, 39786.53780486456, 245039.99289891825, 47672.11447928316],
     },
     {
       name: 'E2 with the Affinitive Eidolon beside Tribbie E1 against 5 enemies',
@@ -133,7 +159,8 @@ describe('Acheron per cycle is unchanged by per-hit pricing', () => {
       // Old (after the Tribbie fix above): [334428.0201240654, 721516.8683610207, 446391.70331765705, 19803.171598128552, 310538.8115008146]
       // Pioneer alone: [285403.277, 622034.428, 388350.104, 17167.281, 265162.627]; Along alone: [1284015.523, 18061.468, 899579.012, 407900.801, 24080.506];
       // Along and Pioneer: [1149081.998, 15587.954, 799490.304, 356614.939, 21844.840]; Dance moves the last four cycles to the figures below.
-      expected: [1149081.9975542831, 356614.9391330746, 958189.9831990919, 805747.1893770439, 252630.49444410455],
+      // Weakness break (K7), was [1149081.9975542831, 356614.9391330746, 958189.9831990919, 805747.1893770439, 252630.49444410455].
+      expected: [1149081.9975542831, 356614.9391330746, 990961.6572651827, 839704.1145080819, 298276.803192375],
     },
     {
       name: 'E6 with the Affinitive Eidolon beside Tribbie E0 against 3 enemies',
@@ -143,7 +170,8 @@ describe('Acheron per cycle is unchanged by per-hit pricing', () => {
       // Old: [306365.3944767085, 725884.0384614432, 28649.852085254774, 388075.2691548146, 28649.852085254774]
       // Pioneer alone: [277922.022, 658491.995, 25989.962, 352045.843, 25989.962]; Along alone: [945487.145, 344701.495, 740747.241, 704923.031, 24017.701];
       // Along and Pioneer: [913328.725, 321547.257, 723791.297, 674929.068, 21787.866]; Dance moves cycles 2, 4 and 5 to the figures below.
-      expected: [913328.7246385348, 295126.54774301045, 723791.2971497488, 670296.2246838908, 275505.7258835326],
+      // Weakness break (K7), was [913328.7246385348, 295126.54774301045, 723791.2971497488, 670296.2246838908, 275505.7258835326].
+      expected: [913328.7246385348, 295126.54774301045, 761531.7946724296, 741444.101858762, 275505.7258835326],
     },
   ]
 

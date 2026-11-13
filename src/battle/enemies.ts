@@ -27,8 +27,56 @@ import type { Party } from './party'
  * - Copies of the same profile start their patterns together, so they all use the AoE on the same turn.
  * - Energy from being hit is scaled by the ally's Energy Regeneration Rate.
  */
+/**
+ * Toughness (DESIGN.md, K7 and K7b). Every enemy has a bar of `profile.toughness` in internal units (3 x the
+ * in-game bar; a Basic ATK removes 30 of them, shown as 10 in game and in Fribbels' `toughnessDmg`).
+ * `reduceToughness` takes an amount already scaled by Weakness Break Efficiency. At 0 or less the enemy is
+ * Weakness Broken: the bar stays at 0 and further reductions do nothing until it recovers. The bar refills
+ * and the broken state ends at the start of that enemy's next turn, before it acts. Sources are on the
+ * constants below.
+ */
+
+/**
+ * Action delay a Weakness Break gives the broken enemy, as a share of a full gauge; not scaled by Break Effect.
+ * KQM speed guide, https://hsr.keqingmains.com/misc/speed-guide/ : "25% Action Delay ... not affected by Break
+ * Effect%". srsim and hsr-simulator use the same 25% (srsim `modifyGaugeAfterWeaknessBreak`; hsr-simulator
+ * `av_delayed` 2500).
+ */
+export const BREAK_BASE_DELAY = 0.25
+/**
+ * Entanglement (Quantum break): extra delay 20% x (1 + Break Effect of the breaker). KQM speed guide (same page).
+ * The Entanglement damage over time is out of scope (K7b).
+ */
+export const ENTANGLEMENT_DELAY = 0.2
+/**
+ * Imprisonment (Imaginary break): extra delay 30% x (1 + Break Effect) and a 10% SPD reduction for 1 turn that
+ * Break Effect does not scale. KQM speed guide (same page); the HoYoLAB wiki table gives the same
+ * (https://wiki.hoyolab.com/m/hsr/entry/1099). srsim's older code uses 20% for the delay; the current guides say 30%.
+ */
+export const IMPRISONMENT_DELAY = 0.3
+export const IMPRISONMENT_SLOW = 0.1
+/**
+ * Freeze (Ice break): the enemy's next turn is skipped, and the turn after it starts 50% advanced. KQM speed
+ * guide: "unable to act for that turn, and receives a 50% Advance Forward on its next turn". The Freeze damage
+ * over time is out of scope (K7b).
+ */
+export const THAW_ADVANCE = 0.5
+/**
+ * Does a frozen enemy's skipped turn leave it Weakness Broken, with the bar refilling at the turn after?
+ * hsr-simulator checks Freeze before it restores toughness and returns, so the broken state lasts through the
+ * skipped turn (`engine/core/combat_engine.py`, enemy turn, steps 0 and 1). No page read says so.
+ * IN-GAME CHECK: set false to refill at the skipped turn's start like any other turn.
+ */
+export const FREEZE_HOLDS_BREAK = true
+
+/** Remaining toughness this close to 0 counts as 0, so a chain of float sums that should hit 0 breaks. */
+export const TOUGHNESS_EPSILON = 1e-9
+
 export class Enemies {
   readonly ids: readonly UnitId[]
+  private readonly toughnessLeft = new Map<UnitId, number>()
+  private readonly broken = new Set<UnitId>()
+  private readonly frozen = new Set<UnitId>()
   private readonly turnsTaken = new Map<UnitId, number>()
   private readonly forcedTargets = new Map<UnitId, UnitId>()
   /** Current HP per enemy. Empty when the profile has no HP. May go below 0. */
@@ -48,9 +96,69 @@ export class Enemies {
       timeline.addUnit({ id, baseSpd: profile.spd })
       this.turnsTaken.set(id, 0)
       if (profile.hp !== undefined) this.currentHp.set(id, profile.hp)
+      this.toughnessLeft.set(id, profile.toughness)
       ids.push(id)
     }
     this.ids = ids
+    // The bar refills when the enemy's turn starts, before it acts.
+    timeline.bus.on('turnStart', (turn) => {
+      if (this.has(turn.unit)) this.recover(turn.unit)
+    })
+  }
+
+  /** The enemy's bar, in internal units. */
+  maxToughness(enemy: UnitId): number {
+    this.requireEnemy(enemy)
+    return this.profile.toughness
+  }
+
+  /** Toughness left, in internal units. 0 while broken. */
+  toughness(enemy: UnitId): number {
+    this.requireEnemy(enemy)
+    return this.toughnessLeft.get(enemy)!
+  }
+
+  isBroken(enemy: UnitId): boolean {
+    this.requireEnemy(enemy)
+    return this.broken.has(enemy)
+  }
+
+  isFrozen(enemy: UnitId): boolean {
+    this.requireEnemy(enemy)
+    return this.frozen.has(enemy)
+  }
+
+  /**
+   * Removes `amount` (internal units, already scaled by the attacker's Weakness Break Efficiency) and returns
+   * true if this is the reduction that broke the enemy. A broken enemy has nothing left to remove.
+   */
+  reduceToughness(enemy: UnitId, amount: number): boolean {
+    this.requireEnemy(enemy)
+    if (!(amount >= 0)) throw new Error(`Toughness reduction must not be negative, got ${amount}`)
+    if (this.broken.has(enemy) || amount === 0) return false
+    const left = this.toughnessLeft.get(enemy)! - amount
+    if (left > TOUGHNESS_EPSILON) {
+      this.toughnessLeft.set(enemy, left)
+      return false
+    }
+    this.toughnessLeft.set(enemy, 0)
+    this.broken.add(enemy)
+    return true
+  }
+
+  /** Freeze: this enemy skips its next turn (see `FREEZE_HOLDS_BREAK`, `THAW_ADVANCE`). */
+  freeze(enemy: UnitId): void {
+    this.requireEnemy(enemy)
+    this.frozen.add(enemy)
+  }
+
+  /** The start of the enemy's turn: refill the bar and end the broken state. */
+  private recover(enemy: UnitId): void {
+    if (!this.broken.has(enemy)) return
+    if (FREEZE_HOLDS_BREAK && this.frozen.has(enemy)) return
+    this.broken.delete(enemy)
+    this.toughnessLeft.set(enemy, this.profile.toughness)
+    this.timeline.bus.emit('toughnessRecovered', { enemy, at: this.timeline.now })
   }
 
   has(id: UnitId): boolean {
@@ -97,6 +205,13 @@ export class Enemies {
   /** Resolves one enemy turn. Call from the timeline's turn handler when the unit is an enemy. */
   takeTurn(turn: TurnInfo): void {
     const enemy = turn.unit
+    if (this.frozen.has(enemy)) {
+      // Frozen: no action this turn, and the next turn comes sooner. The gauge has refilled by now.
+      this.frozen.delete(enemy)
+      this.timeline.bus.emit('enemyTurnSkipped', { enemy, reason: 'frozen' })
+      this.timeline.advance(enemy, THAW_ADVANCE)
+      return
+    }
     const attack = this.nextAttack(enemy)
     this.turnsTaken.set(enemy, this.requireEnemy(enemy) + 1)
 

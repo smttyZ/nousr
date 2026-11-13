@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schema/standard-build.schema.json",
+  "format": "nousr-standard-build",
+  "version": 1,
+  "game_version": "4.7",
+  "character": "1512",
+  "ability_version": 0,
+  "name": "Robin Summeretto",
+  "notes": "DRAFT. Source: Fribbels Robin Summeretto scoring.simulation() (RobinSummeretto.ts:439-508). She ALSO has a supportSimulation (:510-570: HP% body/sphere/rope, substats HP%, HP, SPD, RES, DEF%, Lushaka ornament) that treats her as a buffer; I followed simulation() as asked, and which of the two NouSR wants is Smitty's call. Biggest guess: that choice. Fribbels file: vendor/hsr-optimizer/src/lib/conditionals/character/1500/RobinSummeretto.ts. Fribbels line numbers in RobinSummeretto.ts: simulation 439-508, parts 441-458, substats 459-465. Facts about set effects and kits come from tools/gamedata/lc-text.mjs --set <id> and kit-text.mjs output. Written 2026-11-13 as a draft for Smitty to review; every GUESS is a choice Fribbels does not make.",
+  "relic_sets": {
+    "four_piece": {
+      "set_id": "127",
+      "name": "World-Remaking Deliverer"
+    },
+    "notes": "First-listed relic set (RobinSummeretto.ts:477): World-Remaking Deliverer 4-piece (needs her memosprite on the field; +24% Max HP to her and the memosprite, +15% DMG to all allies). The 2-piece gives +8% CRIT Rate."
+  },
+  "ornament_set": {
+    "set_id": "323",
+    "name": "Amphoreus, The Eternal Land",
+    "notes": "First-listed ornament (RobinSummeretto.ts:482): Amphoreus, The Eternal Land (+8% CRIT Rate; allies +8% SPD while her memosprite is on the field)."
+  },
+  "main_stats": {
+    "Body": "CRIT DMG",
+    "Feet": "SPD",
+    "Planar Sphere": "Wind DMG Boost",
+    "Link Rope": "HP%",
+    "notes": "Fribbels options: Body CRIT Rate/CRIT DMG/HP%, Feet SPD/HP%, Sphere HP%/Wind DMG, Rope HP%. GUESS: Body CRIT DMG; in the proxy CRIT DMG body leads CRIT Rate body by 0.6% (a tie) and HP% body by 3.6%. Feet SPD (first-listed here). Sphere Wind DMG over HP% (proxy +17%). Rope HP% only."
+  },
+  "distributed": {
+    "rolls": {
+      "CRIT DMG": 10,
+      "CRIT Rate": 12,
+      "HP%": 2
+    },
+    "notes": "Fribbels substat list: CRIT DMG, CRIT Rate, HP%, HP, SPD. Rolls chosen with a throwaway proxy script (damage ~ scale stat x (1 + CR x CD) x (1 + DMG%), the 2 fixed rolls per stat, the per-relic cap, simple set and trace stats only, an assumed 635 ATK / 1058 HP light cone), not with Fribbels or the kernel. Treat it as a tie-breaker, not a result. Result: CRIT DMG 10 (cap with a CRIT DMG body), CRIT Rate 12, HP% 2. SPD: 0 distributed even though SPD is in her list. 95 base + 14 (trace) + 25.032 + 4.6 = 138.63, already over 133.34. A 143 line (5 turns in 3 cycles needs 142.86) is 2 rolls away (143.23); GUESS not taken, because the team SPD ladder is Smitty's call. SPD arithmetic ignores light cone and team SPD buffs. The cycle-1 two-turn threshold is 133.34 (20000/150); src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1."
+  }
+}

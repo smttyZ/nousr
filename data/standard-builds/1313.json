@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schema/standard-build.schema.json",
+  "format": "nousr-standard-build",
+  "version": 1,
+  "game_version": "4.7",
+  "character": "1313",
+  "ability_version": 0,
+  "name": "Sunday",
+  "notes": "DRAFT. Source: Fribbels supportSimulation (no scoring.simulation()). Biggest guess: the 13 rolls after CRIT DMG and SPD go to HP% and DEF%, and RES gets none. Fribbels file: vendor/hsr-optimizer/src/lib/conditionals/character/1300/Sunday.ts. Fribbels line numbers in Sunday.ts: supportSimulation 423-472, parts 425-430, substats 431-437. Facts about set effects and kits come from tools/gamedata/lc-text.mjs --set <id> and kit-text.mjs output. Written 2026-11-13 as a draft for Smitty to review; every GUESS is a choice Fribbels does not make.",
+  "relic_sets": {
+    "four_piece": {
+      "set_id": "121",
+      "name": "Sacerdos' Relived Ordeal"
+    },
+    "notes": "First-listed relic set (Sunday.ts:443): Sacerdos' Relived Ordeal 4-piece (+18% CRIT DMG to the target of his Skill or Ultimate, 2 stacks)."
+  },
+  "ornament_set": {
+    "set_id": "310",
+    "name": "Broken Keel",
+    "notes": "First-listed ornament (Sunday.ts:447): Broken Keel (+10% Effect RES; at 30% RES or more, allies +10% CRIT DMG). His trace gives 18% RES, the set 10%, and the 2 fixed rolls 7.8%, so 35.8%, over the 30% line without distributed RES."
+  },
+  "main_stats": {
+    "Body": "CRIT DMG",
+    "Feet": "SPD",
+    "Planar Sphere": "HP%",
+    "Link Rope": "Energy Regeneration Rate",
+    "notes": "Fribbels options: Body CRIT DMG, Feet SPD, Sphere HP%/DEF%, Rope Energy Regeneration Rate. One real choice, the Sphere: HP% (first-listed). GUESS only in that DEF% is the other option; his kit scales on CRIT DMG (his Ultimate gives the target 33.6% of his CRIT DMG plus 12.8%, kit text), not on either."
+  },
+  "distributed": {
+    "rolls": {
+      "CRIT DMG": 10,
+      "SPD": 1,
+      "HP%": 6,
+      "DEF%": 7
+    },
+    "notes": "Fribbels substat list: CRIT DMG, SPD, RES, HP%, DEF%; buffStat CRIT DMG. CRIT DMG is filled to its cap of 10 (CRIT DMG body). SPD: 1 roll: 96 base + 5.76 (Sacerdos 2-piece, 6% of base) + 25.032 + 4.6 = 131.39, 1 roll = 133.69. GUESS: HP% 6 and DEF% 7 for the 13 left, because the preset lists HP% and DEF% and survival is modelled; no RES, since the fixed rolls already clear Broken Keel's 30% and the generic enemy applies no debuffs to allies, so RES has no other use here. SPD arithmetic ignores light cone and team SPD buffs. The cycle-1 two-turn threshold is 133.34 (20000/150); src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1."
+  }
+}

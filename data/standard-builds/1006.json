@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schema/standard-build.schema.json",
+  "format": "nousr-standard-build",
+  "version": 1,
+  "game_version": "4.7",
+  "character": "1006",
+  "ability_version": 1,
+  "name": "Silver Wolf (Nova Flare, ability version 1)",
+  "notes": "DRAFT, MOSTLY GUESS. Fribbels has NO scoring.simulation() for Silver Wolf (neither 1006 nor 1006b1): SilverWolfB1.ts:338-390 has only substat weights, main-stat options and optimizer presets. The sets are guessed. Biggest guess: the sets, then ATK% rope over Energy Regeneration Rate. Fribbels file: vendor/hsr-optimizer/src/lib/conditionals/character/1000/SilverWolfB1.ts. Fribbels line numbers in SilverWolfB1.ts: scoring parts start at 353. Facts about set effects and kits come from tools/gamedata/lc-text.mjs --set <id> and kit-text.mjs output. Written 2026-11-13 as a draft for Smitty to review; every GUESS is a choice Fribbels does not make.",
+  "relic_sets": {
+    "four_piece": {
+      "set_id": "117",
+      "name": "Pioneer Diver of Dead Waters"
+    },
+    "notes": "GUESS. No Fribbels set list exists for her. The only hint is scoring.presets (SilverWolfB1.ts:374-378), which switches on Pioneer Diver 4-piece, a Mortenax Ashblazing stack and Master Smith set conditionals in the optimizer form; that shows what the optimizer assumes when it scores her, not a recommended set. Pioneer Diver of Dead Waters 4-piece chosen because she is a debuffer and Pioneer is the first preset."
+  },
+  "ornament_set": {
+    "set_id": "314",
+    "name": "Izumo Gensei and Takama Divine Realm",
+    "notes": "GUESS. Izumo Gensei and Takama Divine Realm (+12% ATK, +12% CRIT Rate with a same-Path teammate), the ornament the ATK-scaling DPS presets (Acheron, The Herta) list first. Nothing in Fribbels says it for her."
+  },
+  "main_stats": {
+    "Body": "CRIT Rate",
+    "Feet": "SPD",
+    "Planar Sphere": "Quantum DMG Boost",
+    "Link Rope": "ATK%",
+    "notes": "Fribbels main-stat options (SilverWolfB1.ts:353-373, a scoring list, not a simulation): Body CRIT DMG/CRIT Rate/Effect Hit Rate, Feet SPD, Sphere Quantum DMG/ATK%/HP%/DEF%, Rope Energy Regeneration Rate/ATK%/Break Effect. GUESS: Body CRIT Rate (proxy +4.3% over CRIT DMG, +12.6% over Effect Hit Rate). Feet SPD is the only option. Sphere Quantum DMG. GUESS: Rope ATK%; the proxy has no energy model, so it cannot weigh the Energy Regeneration Rate rope that Fribbels lists first, and Ultimate timing is exactly what NouSR simulates. Smitty should decide this one."
+  },
+  "distributed": {
+    "rolls": {
+      "Effect Hit Rate": 4,
+      "CRIT DMG": 12,
+      "CRIT Rate": 8
+    },
+    "notes": "No Fribbels substat list; the scoring weights (SilverWolfB1.ts:339-352) give ATK 0.75, SPD 1, CRIT Rate 1, CRIT DMG 1, Effect Hit Rate 1. Her trace gives +10% ATK per 10% Effect Hit Rate, max +50% (kit text, kit-text.mjs 1006 --version 1; code SilverWolfB1.ts:303-318: floor(EHR/10%) steps). The trace gives 18% EHR and the 2 fixed rolls 7.8%, so 4 distributed rolls reach 41.3% (4 steps, +40% ATK); the next step is at 50%. Rolls chosen with a throwaway proxy script (damage ~ scale stat x (1 + CR x CD) x (1 + DMG%), the 2 fixed rolls per stat, the per-relic cap, simple set and trace stats only, an assumed 635 ATK / 1058 HP light cone), not with Fribbels or the kernel. Treat it as a tie-breaker, not a result. SPD: 0 distributed. 107 base + 25.032 + 4.6 = 136.63, already over 133.34."
+  }
+}

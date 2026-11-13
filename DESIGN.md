@@ -94,16 +94,17 @@ Consequence of S6 to keep in mind: effects that trigger on a kill, overkill, and
   of thresholds). If in-game results disagree, fix the model and log it here.
 - **Debuffs always land.** Effect Hit Rate keeps its stat value but never fails a roll.
 - **"Highest HP" ties go to the first enemy in standing order** when the primary target is not among the tied
-  enemies (K10). The game text does not say how such a tie is broken. First used by Tribbie's Zone Additional DMG
-  (`highestHp` in `src/kits/tribbie.ts`). It happens right after an attack that hits the primary harder than its
+  enemies (K10). The game text does not say how such a tie is broken. Implemented once for every kit in
+  `Battle.highestHpAmong` (`src/battle/battle.ts`); first used by Tribbie's Zone Additional DMG. It happens right after an attack that hits the primary harder than its
   neighbours, for example after Tribbie's own Ultimate: 1 to 2 times per 5-cycle battle, out of 8 to 19 Zone hits
   (Computed by the reviewer, 2026-11-13). "Nearest the primary" would pick a different enemy in about 1 of those
   cases, and only with 5 enemies. **Today it changes no result**, because the tied enemies are identical copies
   with identical per-enemy state, so the hit deals the same damage on either one. **It starts to change results
   silently as soon as tied enemies can differ:** different debuffs or marks on each (Acheron's Crimson Knots,
   any per-enemy debuff), enemies that die or change phase (real bosses, multi-stage fights), or mixed enemy
-  profiles. Before any of those lands, this rule needs a decision and a test that fails when the choice of enemy
-  changes damage.
+  profiles. **Guarded (2026-11-13):** whenever this tie-break picks between enemies that would take different damage
+  from the hit, the run result carries a warning naming the attacker, the hit, the tied enemies, each one's
+  price and the battle time, so it cannot change numbers silently. The rule itself still needs a decision.
 
 ## Open questions
 

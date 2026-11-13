@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schema/standard-build.schema.json",
+  "format": "nousr-standard-build",
+  "version": 1,
+  "game_version": "4.7",
+  "character": "1409",
+  "ability_version": 0,
+  "name": "Hyacine",
+  "notes": "DRAFT. Source: Fribbels Hyacine scoring.simulation() (Hyacine.ts:522-607); her healSimulation (:609-669) lists the same sets and an Outgoing Healing Boost-only body. FINDING: her hardBreakpoint is SPD 200 (Hyacine.ts:559-561), which the K14 cap cannot reach (see distributed.notes). Biggest guess: Outgoing Healing Boost body, and zero crit rolls. Fribbels file: vendor/hsr-optimizer/src/lib/conditionals/character/1400/Hyacine.ts. Fribbels line numbers in Hyacine.ts: simulation 522-607, parts 524-541, substats 542-548. Facts about set effects and kits come from tools/gamedata/lc-text.mjs --set <id> and kit-text.mjs output. Written 2026-11-13 as a draft for Smitty to review; every GUESS is a choice Fribbels does not make.",
+  "relic_sets": {
+    "four_piece": {
+      "set_id": "125",
+      "name": "Warrior Goddess of Sun and Thunder"
+    },
+    "notes": "First-listed relic set (Hyacine.ts:562): Warrior Goddess of Sun and Thunder 4-piece (2-piece +6% SPD; 4-piece +6% SPD and +15% CRIT DMG to allies after healing another ally, once per turn)."
+  },
+  "ornament_set": {
+    "set_id": "320",
+    "name": "Giant Tree of Rapt Brooding",
+    "notes": "First-listed ornament (Hyacine.ts:570): Giant Tree of Rapt Brooding (+6% SPD; +12% Outgoing Healing at 135 SPD or more, +20% at 180 or more, wearer and memosprite; lc-text.mjs --set 320)."
+  },
+  "main_stats": {
+    "Body": "Outgoing Healing Boost",
+    "Feet": "SPD",
+    "Planar Sphere": "HP%",
+    "Link Rope": "HP%",
+    "notes": "Fribbels options: Body CRIT DMG/HP%/Outgoing Healing Boost, Feet SPD/HP%, Sphere HP%/Wind DMG, Rope HP%. GUESS: Body Outgoing Healing Boost. Her damage is 20% of the healing tally (kit text), so healing is both her job and her damage. By rough, unchecked arithmetic OHB body (+34.56% healing) and HP% body (about +36% HP, which healing and her basic attack scale on) are close, and Fribbels' own healSimulation picks OHB. Sphere HP% over Wind DMG, GUESS, for the same reason. Feet SPD (first-listed). Rope HP% only."
+  },
+  "distributed": {
+    "rolls": {
+      "SPD": 6,
+      "HP%": 8,
+      "HP": 10
+    },
+    "notes": "Fribbels substat list: CRIT DMG, CRIT Rate, HP%, HP, SPD. GUESS: no crit rolls, because nothing in her kit text says she crits for her healing; check in-game. HP% 8 (cap: sphere and rope are HP%) and HP 10 (cap) are filled, then SPD 6. SPD: 110 base + 14 (trace) + 6.6 (Warrior 2-piece) + 6.6 (Giant Tree 2-piece) + 25.032 + 4.6 = 166.83; 6 rolls give 180.63, which crosses Giant Tree's 180 line (20% Outgoing Healing instead of 12%). The 200 hard breakpoint is not reachable: 10 rolls (the cap) give 189.83, or 196.4 with the Warrior 4-piece's extra +6% (6.6) while \"Gentle Rain\" is up. Smitty's call, as for Cyrene. SPD arithmetic ignores light cone and team SPD buffs. The cycle-1 two-turn threshold is 133.34 (20000/150); src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1."
+  }
+}

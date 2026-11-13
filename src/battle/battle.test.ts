@@ -5,7 +5,7 @@ import { fakeResult } from '../kernel/testing'
 import type { DamageKernel, DamageRequest } from '../kernel/types'
 import type { Kit } from '../kits/kit'
 import type { Rule } from '../scenario/types'
-import { Battle } from './battle'
+import { Battle, HP_TIE } from './battle'
 import type { BattleSetup, MemberSetup } from './battle'
 
 const profile = loadEnemyProfile('generic-moc')
@@ -214,7 +214,7 @@ describe('talking to the kernel', () => {
     kernel.requests.length = 0
     const { b } = battle({ enemyCount: 3, cycles: 5, weaknesses: ['Ice'], policy: [{ unit: 'a', use: 'skill', when: [] }, ...basicOnly] })
     const result = b.run()
-    expect(kernel.requests[0]!.enemy).toEqual({ count: 3, level: 95, maxToughness: 480, resistance: 0.2, elementalWeak: false })
+    expect(kernel.requests[0]!.enemy).toEqual({ count: 3, level: 95, maxToughness: 480, resistance: 0.2, elementalWeak: false, weaknessBroken: false })
     // Two distinct states in the whole battle: marked and not marked.
     expect(result.kernelCalls).toBe(2)
   })
@@ -385,5 +385,95 @@ describe('enemy HP in a battle', () => {
     const { b } = battle({ members: [duo()], kernel: duoKernel, profile: noHpProfile, policy: basicRule })
     expect(() => b.run()).not.toThrow()
     expect(() => b.enemyHp('enemy1')).toThrow(/profile "generic-moc" has no "hp"/)
+  })
+})
+
+describe('highestHpAmong: the undecided tie-break is guarded', () => {
+  // Three enemies, enemy2 is the primary. 1,000 damage per 100% on an enemy with no mark, 2,000 on a marked one
+  // (the fake kernel above). Setting HP directly keeps the cases small.
+  const ids = ['enemy1', 'enemy2', 'enemy3']
+  const pricing = { attacker: 'a', ability: 'BASIC', hit: 0 }
+  const setup = () => {
+    kernel.requests.length = 0
+    return battle({ enemyCount: 3 }).b
+  }
+  const mark = (b: Battle, enemy: string) => b.applyDebuff({ id: 'test.mark', target: enemy, source: 'a' })
+
+  it('does no pricing when no enemy is tied for the highest HP', () => {
+    const b = setup()
+    b.enemies.takeDamage('enemy1', 10)
+    b.enemies.takeDamage('enemy2', 20)
+    expect(b.highestHpAmong(ids, pricing)).toBe('enemy3')
+    expect(kernel.requests).toHaveLength(0)
+    expect(b.run().warnings).toEqual([])
+  })
+
+  it('does no pricing when the primary is among the tied: that rule is decided', () => {
+    const b = setup()
+    mark(b, 'enemy1') // would price differently, if anyone asked
+    expect(b.highestHpAmong(ids, pricing)).toBe('enemy2')
+    expect(kernel.requests).toHaveLength(0)
+    expect(b.run().warnings).toEqual([])
+  })
+
+  it('takes the first in standing order whatever order the candidates come in, and prices without a warning when the tied price the same', () => {
+    const b = setup()
+    b.enemies.takeDamage('enemy2', 100)
+    expect(b.highestHpAmong(['enemy3', 'enemy2', 'enemy1'], pricing)).toBe('enemy1')
+    expect(kernel.requests.length).toBeGreaterThan(0)
+    expect(b.run().warnings).toEqual([])
+  })
+
+  it('ties are read within the HP tolerance, as a share of the top HP', () => {
+    const b = setup()
+    const top = b.enemyHp('enemy1').current
+    b.enemies.takeDamage('enemy2', 100)
+    b.enemies.takeDamage('enemy3', top * HP_TIE * 0.5)
+    mark(b, 'enemy3')
+    expect(b.highestHpAmong(ids, pricing)).toBe('enemy1')
+    expect(b.run().warnings).toHaveLength(1)
+  })
+
+  it('warns once per attacker, ability, hit and tied set, with a count, when the tied price differently', () => {
+    const b = setup()
+    b.enemies.takeDamage('enemy2', 100)
+    mark(b, 'enemy3')
+    for (let i = 0; i < 3; i++) expect(b.highestHpAmong(ids, pricing)).toBe('enemy1')
+    // Another hit of the same ability is another entry.
+    b.highestHpAmong(ids, { ...pricing, hit: 0, ability: 'SKILL' })
+    const { warnings } = b.run()
+    expect(warnings).toHaveLength(2)
+    const [basic] = warnings
+    expect(basic).toContain("a's BASIC hit 0")
+    expect(basic).toContain('enemy1, enemy3 tied')
+    expect(basic).toContain('enemy1 1000.000, enemy3 2000.000')
+    expect(basic).toContain('went to enemy1')
+    expect(basic).toMatch(/First at AV 0\.0, cycle 1; 3 times in this battle/)
+    expect(basic).toContain('DESIGN.md, "Known approximations"')
+    expect(warnings[1]).toContain("a's SKILL hit 0")
+    expect(warnings[1]).toContain('1 time in this battle')
+  })
+
+  it('records the battle time of the first occurrence', () => {
+    const b = battle({ enemyCount: 3, cycles: 2 }).b
+    b.enemies.takeDamage('enemy2', 100)
+    mark(b, 'enemy3')
+    let at = Number.NaN
+    b.timeline.bus.on('turnStart', (t) => {
+      if (t.cycle === 2 && Number.isNaN(at)) {
+        at = t.at
+        b.highestHpAmong(ids, pricing)
+      }
+    })
+    const { warnings } = b.run()
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain(`First at AV ${at.toFixed(1)}, cycle 2; 1 time in this battle`)
+  })
+})
+
+describe('existing battles are quiet', () => {
+  it('a battle of identical enemies that never reaches an undecided tie has no warnings', () => {
+    const { b } = battle({ enemyCount: 3, cycles: 5, policy: [{ unit: 'a', use: 'skill', when: [] }, ...basicOnly] })
+    expect(b.run().warnings).toEqual([])
   })
 })

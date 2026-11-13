@@ -42,6 +42,10 @@ import type { Kit, KitInstance } from './kit'
  * - The Zone's Max HP trace as a change to her party HP: it is only reflected in the damage multiple, through
  *   Fribbels' own HP buff (the alliesMaxHp conditional).
  *
+ * Toughness (K7), internal units from `node tools/gamedata/kit-text.mjs 1403` ("toughness a/b/c": the designated
+ * target / every enemy / adjacent): Basic 30/0/15, Ultimate 0/60/0, talent follow-up 0/15/0 (Fribbels:
+ * `toughnessDmg` 10, 20 and 5, times 3). The Zone's Additional DMG removes none. She follows weaknesses.
+ *
  * IN-GAME CHECK notes mark the readings Smitty will check in game. AMBIGUOUS notes mark other places where
  * the text can be read two ways.
  */
@@ -56,6 +60,12 @@ const TALENT_ENERGY = 5
 const PEBBLE_START_ENERGY = 30
 const PEBBLE_PER_HIT = 1.5
 
+/** Toughness per part, internal units (see the header). */
+const TOUGHNESS_BASIC = 30
+const TOUGHNESS_BASIC_ADJACENT = 15
+const TOUGHNESS_ULT = 60
+const TOUGHNESS_TALENT = 15
+
 const NUMINOSITY_TURNS = 3
 const ZONE_TURNS = 2
 const LAMB_TURNS = 3
@@ -69,9 +79,6 @@ const ZONE_ADDITIONAL_HIT = 1
 
 /** Fribbels prices an ally-triggered instance as the only hit of its UNIQUE ability. */
 const ALLY_ADDITIONAL_ABILITY = 'UNIQUE'
-
-/** Two enemies' HP are tied when they differ by less than this, as a share of the larger. */
-const HP_TIE = 1e-9
 
 /** Ability multiples by eidolon. E3 raises the Basic ATK, Ultimate and Zone additional; E5 the Talent. */
 export function tribbieScalings(eidolon: number) {
@@ -122,22 +129,9 @@ export const Tribbie: Kit = {
       battle.members.filter((m) => m.key !== me).reduce((sum, m) => sum + battle.party.get(m.key).maxHp, 0)
 
     /**
-     * The enemy the Zone's Additional DMG goes to: the one with the highest current HP among those hit
-     * (K10). Ties go to the primary target if it is among them, else to the first in standing order.
-     * KNOWN APPROXIMATION, undecided (DESIGN.md, "Known approximations" and "Open questions"): the game does
-     * not say how a tie without the primary is broken. Harmless while tied enemies are identical; it starts to
-     * change damage silently once enemies can differ (per-enemy debuffs or marks, deaths, mixed profiles).
-     */
-    const highestHp = (hit: readonly UnitId[]): UnitId => {
-      const hp = hit.map((enemy) => battle.enemyHp(enemy).current)
-      const top = Math.max(...hp)
-      const tied = hit.filter((_, i) => top - hp[i]! <= HP_TIE * Math.max(1, Math.abs(top)))
-      return tied.includes(battle.primary) ? battle.primary : tied[0]!
-    }
-
-    /**
      * The Zone's Additional DMG after an attack of hers, if the Zone is up: one instance per enemy the
      * attack hit, all on the hit enemy with the highest current HP, read after the main hit has landed.
+     * The choice is `Battle.highestHpAmong` (K10), which guards its undecided tie-break.
      */
     const ownZoneAdditional = (ability: string, hit: readonly UnitId[]) => {
       if (!zoneUp() || hit.length === 0) return
@@ -146,7 +140,7 @@ export const Tribbie: Kit = {
         ability,
         parts: [{
           shape: 'single',
-          target: highestHp(hit),
+          target: battle.highestHpAmong(hit, { attacker: me, ability, hit: ZONE_ADDITIONAL_HIT }),
           scaling: hit.length * tribbieZoneAdditional(e),
           hit: ZONE_ADDITIONAL_HIT,
         }],
@@ -161,7 +155,7 @@ export const Tribbie: Kit = {
       battle.attack({
         attacker: me,
         ability: ALLY_ADDITIONAL_ABILITY,
-        parts: [{ shape: 'single', target: highestHp(hit), scaling: hit.length * tribbieZoneAdditional(e), hit: 0 }],
+        parts: [{ shape: 'single', target: battle.highestHpAmong(hit, { attacker: me, ability: ALLY_ADDITIONAL_ABILITY, hit: 0 }), scaling: hit.length * tribbieZoneAdditional(e), hit: 0 }],
       })
     }
 
@@ -172,7 +166,7 @@ export const Tribbie: Kit = {
     const talentFollowUp = () => {
       battle.performAction(me, 'talent_follow_up', 'followUp', () => {
         battle.party.gainEnergy(me, TALENT_ENERGY)
-        battle.attack({ attacker: me, ability: 'FUA', parts: [{ shape: 'aoe', scaling: s.talent, hit: 0 }] })
+        battle.attack({ attacker: me, ability: 'FUA', parts: [{ shape: 'aoe', scaling: s.talent, hit: 0, toughness: TOUGHNESS_TALENT }] })
         ownZoneAdditional('FUA', battle.enemies.ids)
         // AMBIGUOUS: the Lamb trace triggers "after using Talent's Follow-Up ATK". Read as: each talent
         // follow-up adds a stack and refreshes the 3-turn duration. The E6 follow-up counts too.
@@ -217,7 +211,14 @@ export const Tribbie: Kit = {
               battle.attack({
                 attacker: me,
                 ability: 'BASIC',
-                parts: [{ shape: 'blast', scaling: s.basic, adjacent: s.basic / 2, hit: 0 }],
+                parts: [{
+                  shape: 'blast',
+                  scaling: s.basic,
+                  adjacent: s.basic / 2,
+                  hit: 0,
+                  toughness: TOUGHNESS_BASIC,
+                  adjacentToughness: TOUGHNESS_BASIC_ADJACENT,
+                }],
               })
               ownZoneAdditional('BASIC', [battle.primary, ...battle.adjacentEnemies(battle.primary)])
             }),
@@ -253,7 +254,7 @@ export const Tribbie: Kit = {
                 source: me,
                 duration: { turns: ZONE_TURNS, tick: 'turnStart' },
               })
-              battle.attack({ attacker: me, ability: 'ULT', parts: [{ shape: 'aoe', scaling: s.ult, hit: 0 }] })
+              battle.attack({ attacker: me, ability: 'ULT', parts: [{ shape: 'aoe', scaling: s.ult, hit: 0, toughness: TOUGHNESS_ULT }] })
               ownZoneAdditional('ULT', battle.enemies.ids)
               battle.party.gainEnergy(me, ULT_ENERGY)
             }),

@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schema/standard-build.schema.json",
+  "format": "nousr-standard-build",
+  "version": 1,
+  "game_version": "4.7",
+  "character": "1208",
+  "ability_version": 0,
+  "name": "Fu Xuan",
+  "notes": "DRAFT, MOSTLY GUESS. Fribbels has NO scoring.simulation() for Fu Xuan: FuXuan.ts:267-319 has only substat weights (HP 1, DEF 0.75, SPD 1, RES 0.5), main-stat options and one preset. The sets and the split are guesses. Biggest guess: the relic and ornament sets. Fribbels file: vendor/hsr-optimizer/src/lib/conditionals/character/1200/FuXuan.ts. Fribbels line numbers in FuXuan.ts: scoring parts start at 282. Facts about set effects and kits come from tools/gamedata/lc-text.mjs --set <id> and kit-text.mjs output. Written 2026-11-13 as a draft for Smitty to review; every GUESS is a choice Fribbels does not make.",
+  "relic_sets": {
+    "four_piece": {
+      "set_id": "125",
+      "name": "Warrior Goddess of Sun and Thunder"
+    },
+    "notes": "GUESS. The only hint is scoring.presets: WARRIOR_SET (FuXuan.ts:302-304), which turns the Warrior Goddess set conditional on in the optimizer form. That is a set effect the optimizer assumes, not a recommendation, and its 4-piece needs the wearer or memosprite to heal another ally, which her kit text should be checked for. Warrior Goddess 4-piece chosen anyway; its 2-piece gives +6% SPD, which sets her SPD below."
+  },
+  "ornament_set": {
+    "set_id": "310",
+    "name": "Broken Keel",
+    "notes": "GUESS. Broken Keel (+10% Effect RES; at 30% Effect RES or more, all allies +10% CRIT DMG). Her trace gives 10% RES, the set 10%, and the 2 fixed rolls 7.8%, so 27.8% before any distributed RES; 2 distributed RES rolls reach 35.6%. Sunday's file also picks Broken Keel; whether two wearers stack is for the kernel adapter to decide, not this file."
+  },
+  "main_stats": {
+    "Body": "HP%",
+    "Feet": "SPD",
+    "Planar Sphere": "HP%",
+    "Link Rope": "HP%",
+    "notes": "Fribbels options (FuXuan.ts:282-301): Body HP%/DEF%, Feet HP%/DEF%/SPD, Sphere HP%/DEF%, Rope HP%/DEF%/Energy Regeneration Rate. GUESS: HP% on the three non-Feet slots (HP% has the highest weight, 1, with DEF% at 0.75) and SPD boots. Rope Energy Regeneration Rate is the alternative and affects Ultimate timing; Smitty should decide it."
+  },
+  "distributed": {
+    "rolls": {
+      "HP%": 6,
+      "HP": 6,
+      "DEF%": 10,
+      "Effect RES": 2
+    },
+    "notes": "All GUESS, from the scoring weights (FuXuan.ts:268-281): HP% 1, HP 1, DEF% 0.75, DEF 0.75, RES 0.5, SPD 1. Caps: HP% 6 (three HP% main stats), HP 10, DEF% 12. HP% is filled to its cap of 6, HP 6, DEF% 10, RES 2 (for Broken Keel's 30%). SPD: 0 distributed: 100 base + 6 (Warrior Goddess 2-piece, 6% of base) + 25.032 + 4.6 = 135.63, already over 133.34. SPD arithmetic ignores light cone and team SPD buffs. The cycle-1 two-turn threshold is 133.34 (20000/150); src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1."
+  }
+}

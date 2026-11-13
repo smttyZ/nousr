@@ -641,3 +641,45 @@ describe('eidolons, by the multiples in the text', () => {
     expect(took('enemy1', 'ULT')).toBeCloseTo(RATE.main * 0.3 + RATE.additional * 0.12 * 2.4, 9)
   })
 })
+
+describe('toughness (K7)', () => {
+  // Internal units from `node tools/gamedata/kit-text.mjs 1403`: Basic 30/0/15, Ultimate 0/60/0, talent follow-up 0/15/0.
+  const makeBattle = (enemyCount: number) => {
+    const { kernel } = fakeKernel()
+    const b = new Battle({
+      members: [{
+        key: 'tribbie',
+        kit: Tribbie,
+        eidolon: 0,
+        affinitiveEidolon: false,
+        stats: { maxHp: 1_000_000, def: 1000, baseSpd: 100 },
+        kernel: { unit: { characterId: '1403', lightConeId: '21018', eidolon: 0, superimposition: 1 }, build: noBuild },
+      }],
+      policy: [],
+      profile,
+      enemyCount,
+      weaknesses: 'all',
+      cycles: 1,
+      start: { energy: 0, skillPoints: 3, techniques: false },
+      kernel,
+    })
+    return b
+  }
+  const bars = (b: Battle) => b.enemies.ids.map((id) => b.enemies.toughness(id))
+
+  it('the Basic ATK is 30 on the target and 15 on its neighbours', () => {
+    const b = makeBattle(3)
+    b.member('tribbie').instance.actions.basic!.use()
+    expect(bars(b)).toEqual([465, 450, 465])
+  })
+
+  it('the Ultimate removes 60 from every enemy, and the Zone\'s Additional DMG removes none', () => {
+    const b = makeBattle(3)
+    b.party.setEnergy('tribbie', 120)
+    b.member('tribbie').instance.actions.ultimate!.use()
+    expect(bars(b)).toEqual([420, 420, 420])
+    // The Zone is up now: a Basic ATK adds Additional DMG instances but only the Basic's own 30/15.
+    b.member('tribbie').instance.actions.basic!.use()
+    expect(bars(b)).toEqual([405, 390, 405])
+  })
+})

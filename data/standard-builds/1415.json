@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schema/standard-build.schema.json",
+  "format": "nousr-standard-build",
+  "version": 1,
+  "game_version": "4.7",
+  "character": "1415",
+  "ability_version": 0,
+  "name": "Cyrene",
+  "notes": "DRAFT. Source: Fribbels Cyrene scoring.simulation(). FINDING: her hardBreakpoint is SPD 180 (Cyrene.ts:478-480) and benchmarks.md:147 says missing it scores 0%; under K14's cap this build reaches at most 162.6 SPD by itself. Biggest guess: SPD 10 (the cap), which is not enough. Fribbels file: vendor/hsr-optimizer/src/lib/conditionals/character/1400/Cyrene.ts. Fribbels line numbers in Cyrene.ts: simulation 451-505, parts 453-470, substats 471-477. Facts about set effects and kits come from tools/gamedata/lc-text.mjs --set <id> and kit-text.mjs output. Written 2026-11-13 as a draft for Smitty to review; every GUESS is a choice Fribbels does not make.",
+  "relic_sets": {
+    "four_piece": {
+      "set_id": "127",
+      "name": "World-Remaking Deliverer"
+    },
+    "notes": "First-listed relic set (Cyrene.ts:491): World-Remaking Deliverer 4-piece (needs her memosprite on the field). The 2-piece gives +8% CRIT Rate."
+  },
+  "ornament_set": {
+    "set_id": "319",
+    "name": "Bone Collection's Serene Demesne",
+    "notes": "First-listed ornament (Cyrene.ts:496): Bone Collection's Serene Demesne (+12% Max HP; +28% CRIT DMG at 5000 Max HP or more, wearer and memosprite). Amphoreus (+8% SPD to allies with a memosprite) is also in Fribbels' list and would add 8% of base (about 8); not used because Bone Collection is first-listed."
+  },
+  "main_stats": {
+    "Body": "CRIT Rate",
+    "Feet": "SPD",
+    "Planar Sphere": "Ice DMG Boost",
+    "Link Rope": "HP%",
+    "notes": "Fribbels options: Body CRIT Rate/CRIT DMG/HP%, Feet HP%/SPD, Sphere HP%/Ice DMG, Rope HP%. Feet SPD because of the 180 target. GUESS: Body CRIT Rate (proxy +4.5% over HP% body, +4.7% over CRIT DMG body). Sphere Ice DMG (proxy +14.7% over HP%). Rope HP% only."
+  },
+  "distributed": {
+    "rolls": {
+      "SPD": 10,
+      "CRIT DMG": 5,
+      "CRIT Rate": 9
+    },
+    "notes": "Fribbels substat list: CRIT DMG, CRIT Rate, HP%, HP, SPD. SPD: 10 distributed, the cap (SPD boots leave 5 relics without an SPD main stat, 2 each). 101 base + 9 (trace) + 25.032 + 4.6 + 23.0 = 162.63. The 180 breakpoint is out of reach by about 17 SPD (8 more rolls than the cap allows); Fribbels judges it on in-combat SPD, which includes teammates' buffs that a per-character file cannot know. Either the cap is relaxed for SPD, or her teammates supply the rest, or the 180 line is not a NouSR requirement: Smitty's call. The other 14 rolls follow the proxy. Rolls chosen with a throwaway proxy script (damage ~ scale stat x (1 + CR x CD) x (1 + DMG%), the 2 fixed rolls per stat, the per-relic cap, simple set and trace stats only, an assumed 635 ATK / 1058 HP light cone), not with Fribbels or the kernel. Treat it as a tie-breaker, not a result. SPD arithmetic ignores light cone and team SPD buffs. The cycle-1 two-turn threshold is 133.34 (20000/150); src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1."
+  }
+}

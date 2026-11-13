@@ -75,7 +75,10 @@ export interface TeamRun {
   team: string
   enemyCount: number
   result: BattleResult
-  /** The same warnings for every enemy count of a team. */
+  /**
+   * The team's setup warnings (the same for every enemy count), then the battle's own
+   * (`BattleResult.warnings`) prefixed with the team and enemy count.
+   */
   warnings: RunWarnings
 }
 
@@ -106,12 +109,11 @@ export function runScenario(scenario: Scenario, options: RunOptions): TeamRun[] 
     }
   }
   if (problems.length > 0) throw new RunError([...new Set(problems)])
-  return planned.map(({ team, enemyCount, plan }) => ({
-    team,
-    enemyCount,
-    result: runBattle(plan.setup),
-    warnings: plan.warnings,
-  }))
+  return planned.map(({ team, enemyCount, plan }) => {
+    const result = runBattle(plan.setup)
+    const prefix = `team "${team}", ${enemyCount} enem${enemyCount === 1 ? 'y' : 'ies'}: `
+    return { team, enemyCount, result, warnings: [...plan.warnings, ...result.warnings.map((w) => prefix + w)] }
+  })
 }
 
 /** Runs one team of the scenario against `enemyCount` enemies. `runScenario` also returns the warnings. */

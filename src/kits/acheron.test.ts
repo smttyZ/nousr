@@ -290,3 +290,70 @@ describe('what she tells the kernel', () => {
     expect(state('enemy2')).not.toHaveProperty('scaling') // the kernel's own hit multiples are used, not the kit's
   })
 })
+
+describe('toughness (K7)', () => {
+  // Internal units from `node tools/gamedata/kit-text.mjs 1308`: Basic 30/0/0, Skill 60/0/30, Rainblade 15/15/0, Stygian Resurge 0/15/0.
+  const use = (battle: Battle, key: string, action: string) => battle.member(key).instance.actions[action]!.use()
+  const bars = (battle: Battle) => battle.enemies.ids.map((id) => battle.enemies.toughness(id))
+
+  it('the Basic ATK removes 30 from an enemy weak to Lightning and nothing from one that is not (E0)', () => {
+    const weak = setup({ weaknesses: ['Lightning'] })
+    use(weak.battle, 'acheron', 'basic')
+    expect(bars(weak.battle)).toEqual([450])
+    const notWeak = setup({ weaknesses: ['Ice'] })
+    use(notWeak.battle, 'acheron', 'basic')
+    expect(bars(notWeak.battle)).toEqual([480])
+  })
+
+  it('from E6 the Basic ATK and Skill remove toughness whatever the weakness; at E5 they do not', () => {
+    const e6 = setup({ members: [acheron(6)], weaknesses: ['Ice'], enemyCount: 3 })
+    use(e6.battle, 'acheron', 'basic')
+    expect(bars(e6.battle)).toEqual([480, 450, 480])
+    use(e6.battle, 'acheron', 'skill')
+    // The Skill is a blast: 60 on the target, 30 on each neighbour.
+    expect(bars(e6.battle)).toEqual([450, 390, 450])
+    const e5 = setup({ members: [acheron(5)], weaknesses: ['Ice'], enemyCount: 3 })
+    use(e5.battle, 'acheron', 'basic')
+    use(e5.battle, 'acheron', 'skill')
+    expect(bars(e5.battle)).toEqual([480, 480, 480])
+  })
+
+  it('the Skill is 60 on the target and 30 on each neighbour against weak enemies', () => {
+    const { battle } = setup({ enemyCount: 3 })
+    use(battle, 'acheron', 'skill')
+    expect(bars(battle)).toEqual([450, 420, 450])
+  })
+
+  it('the Ultimate ignores weakness: 3 Rainblades and Stygian Resurge, with the 15 to every enemy only where a knot was removed', () => {
+    // No knots: three Rainblades on the target (15 each) and Stygian Resurge on everyone (15).
+    const bare = setup({ weaknesses: ['Ice'], enemyCount: 3 })
+    use(bare.battle, 'acheron', 'ultimate')
+    expect(bars(bare.battle)).toEqual([480 - 15, 480 - 60, 480 - 15])
+    // 5 knots on the target (Red Oni): detonations on the first two Rainblades only (3 knots, then 2).
+    const knotted = setup({ weaknesses: ['Ice'], enemyCount: 3 })
+    knotted.battle.member('acheron').instance.onBattleStart!({ techniques: false })
+    use(knotted.battle, 'acheron', 'ultimate')
+    expect(bars(knotted.battle)).toEqual([480 - 45, 480 - 90, 480 - 45])
+  })
+
+  it('a full-knot Ultimate removes 105 from the primary target: Fribbels\' 35 times 3', () => {
+    const { battle } = setup()
+    battle.member('acheron').instance.onBattleStart!({ techniques: false })
+    // Nine knots, so that all three Rainblades detonate.
+    battle.timeline.modifiers.apply({ id: 'acheron.crimson_knot', target: battle.primary, source: 'acheron', stacks: 9 })
+    use(battle, 'acheron', 'ultimate')
+    expect(bars(battle)).toEqual([480 - 105])
+  })
+
+  it('the Affinitive Eidolon follow-up removes 30 from every enemy (IN-GAME CHECK reading)', () => {
+    const { battle } = setup({
+      members: [acheron(0, true), teammate(false, 90)],
+      policy: skillPolicy,
+      enemyCount: 3,
+    })
+    battle.member('acheron').instance.onBattleStart!({ techniques: false })
+    use(battle, 'helper', 'basic')
+    // The helper's hit has no toughness of its own; the follow-up that its hit on a knotted enemy triggers does.
+    expect(bars(battle)).toEqual([450, 450, 450])
+  })
+})

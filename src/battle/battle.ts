@@ -7,7 +7,7 @@ import type { EnemyProfile } from '../enemy/profile'
 import type { DamageKernel, DamageRequest, DamageResult, HitResult, KernelBuild, KernelTeammate, KernelUnit } from '../kernel/types'
 import type { Kit, KitInstance } from '../kits/kit'
 import type { Condition, Element, Rule } from '../scenario/types'
-import { Enemies } from './enemies'
+import { BREAK_BASE_DELAY, ENTANGLEMENT_DELAY, Enemies, IMPRISONMENT_DELAY, IMPRISONMENT_SLOW } from './enemies'
 import { BASE_AGGRO, Party, removeDownedFromTimeline } from './party'
 
 /**
@@ -89,7 +89,24 @@ export type HitShape =
  * buffs and damage per 100%, in the list the kernel returns for the attack's ability. Several parts
  * may share a hit (Acheron's Ultimate is one kernel hit made of many in-game hits).
  */
-export type HitPart = HitShape & { hit: number }
+export type HitPart = HitShape & {
+  hit: number
+  /**
+   * Toughness this part removes from each enemy it reaches (the main target, for a blast; each hit, for a
+   * bounce, split evenly like its damage), in INTERNAL units, the unit of the profile's `toughness` and of the
+   * three-number "toughness a/b/c" that `node tools/gamedata/kit-text.mjs` prints (a Basic ATK is 30; in game
+   * and in Fribbels' `toughnessDmg` it is 10, so multiply those by 3). In that list a is the designated
+   * target, b every enemy and c the adjacent ones. Left out: 0. Before Weakness Break Efficiency.
+   */
+  toughness?: number
+  /** Blast only: toughness the adjacent enemies lose (c in the in-game list). Left out: 0. */
+  adjacentToughness?: number
+  /**
+   * The part removes toughness whatever the enemy's weaknesses (Acheron's Ultimate always, and at E6 her Basic
+   * ATK and Skill). Without it, the part removes toughness only from an enemy weak to the attacker's element.
+   */
+  ignoresWeakness?: boolean
+}
 
 export interface AttackSpec {
   attacker: string
@@ -97,6 +114,23 @@ export interface AttackSpec {
   ability: string
   parts: HitPart[]
 }
+
+/**
+ * Who attacks with which ability and hit, for a choice between enemies that depends on how the hit would be
+ * priced against each of them (`Battle.highestHpAmong`). `hit` is the position from 0 in the kernel's list for
+ * `ability`, as in `HitPart`.
+ */
+export interface HitPricing {
+  attacker: string
+  ability: string
+  hit: number
+}
+
+/** Two prices are the same when they differ by less than this, as a share of the larger one. */
+export const PRICE_TIE = 1e-9
+
+/** Two enemies' HP are tied when they differ by less than this, as a share of the larger (at least 1). */
+export const HP_TIE = 1e-9
 
 export interface BattleResult {
   cycles: number
@@ -110,6 +144,22 @@ export interface BattleResult {
   /** Allies that were downed. Non-empty fails the "no downed characters" objective. */
   downed: string[]
   kernelCalls: number
+  /**
+   * What the run says about its own numbers, one sentence each. Today: an undecided "highest HP" tie that
+   * changed the price of a hit (`Battle.highestHpAmong`).
+   */
+  warnings: string[]
+}
+
+/** An undecided "highest HP" tie that priced differently, kept once per (attacker, ability, hit, tied set). */
+interface TieRecord {
+  pricing: HitPricing
+  tied: UnitId[]
+  prices: number[]
+  chosen: UnitId
+  at: number
+  cycle: number
+  count: number
 }
 
 interface ActionInProgress {
@@ -135,6 +185,7 @@ export class Battle {
   private readonly damageByMember: Record<string, number> = {}
   private readonly actionLog: EngineEvents['actionUsed'][] = []
   private readonly downed: string[] = []
+  private readonly tieRecords = new Map<string, TieRecord>()
 
   constructor(private readonly setup: BattleSetup) {
     if (setup.members.length === 0) throw new Error('A battle needs at least one member')
@@ -282,34 +333,148 @@ export class Battle {
       }
     }
 
+    const toughness = this.toughnessByEnemy(attacker, spec.parts)
+
     let total = 0
     for (const enemy of ids) {
       const byHit = multiples.get(enemy)
-      if (byHit === undefined) continue
-      const hits = this.abilityHits(attacker, spec.ability, enemy)
-      let scaling = 0
-      let damage = 0
-      for (const [index, multiple] of byHit) {
-        damage += this.damagePerUnitScaling(attacker, spec.ability, index, hits) * multiple
-        scaling += multiple
+      const base = toughness.get(enemy)
+      if (byHit === undefined && base === undefined) continue
+      // The kernel's state for this enemy as it is when the attack lands: a hit that breaks the enemy is
+      // priced as against an enemy that is not yet broken, like every other hit of the same attack.
+      const result = this.kernelResult(attacker, enemy)
+      if (byHit !== undefined) {
+        const hits = this.hitsOf(attacker, spec.ability, result)
+        let scaling = 0
+        let damage = 0
+        for (const [index, multiple] of byHit) {
+          damage += this.damagePerUnitScaling(attacker, spec.ability, index, hits) * multiple
+          scaling += multiple
+        }
+        total += damage
+        this.current?.enemiesHit.add(enemy)
+        this.recordDamage(attacker, enemy, spec.ability, scaling, damage)
       }
-      total += damage
-      this.current?.enemiesHit.add(enemy)
-      this.enemies.takeDamage(enemy, damage)
-      this.damageByMember[attacker.key]! += damage
-      const cycleIndex = Math.min(this.timeline.cycle, this.setup.cycles) - 1
-      this.damageByCycle[cycleIndex]! += damage
-      this.timeline.bus.emit('damageDealt', {
-        attacker: attacker.key,
-        enemy,
-        ability: spec.ability,
-        scaling,
-        damage,
-        at: this.timeline.now,
-        cycle: this.timeline.cycle,
-      })
+      if (base !== undefined && base > 0) {
+        // Weakness Break Efficiency raises what the attack removes (K7). Toughness vulnerability is not modelled.
+        const removed = base * (1 + (result.stats.breakEfficiency ?? 0))
+        if (this.enemies.reduceToughness(enemy, removed)) total += this.weaknessBreak(attacker, enemy)
+      }
     }
     return total
+  }
+
+  /**
+   * Per enemy, the base toughness (internal units, before Weakness Break Efficiency) the attack's parts remove.
+   * A part removes toughness only from an enemy weak to the attacker's element, unless it ignores weakness;
+   * with `weaknesses: 'all'` every element is a weakness (S5). An enemy no part touches has no entry.
+   */
+  private toughnessByEnemy(attacker: Member, parts: readonly HitPart[]): Map<UnitId, number> {
+    const out = new Map<UnitId, number>()
+    const { weaknesses } = this.setup
+    const ids = this.enemies.ids
+    const add = (enemy: UnitId, amount: number | undefined) => {
+      if (amount === undefined) return
+      if (!(amount >= 0)) throw new Error(`${attacker.key} has a part with negative toughness ${amount}`)
+      out.set(enemy, (out.get(enemy) ?? 0) + amount)
+    }
+    for (const part of parts) {
+      const weak = part.ignoresWeakness === true || weaknesses === 'all' || weaknesses.includes(attacker.kit.element)
+      if (!weak) continue
+      switch (part.shape) {
+        case 'single':
+          add(part.target ?? this.primary, part.toughness)
+          break
+        case 'blast': {
+          const target = part.target ?? this.primary
+          add(target, part.toughness)
+          for (const neighbour of this.adjacentEnemies(target)) add(neighbour, part.adjacentToughness)
+          break
+        }
+        case 'aoe':
+          for (const enemy of ids) add(enemy, part.toughness)
+          break
+        case 'bounce':
+          for (const enemy of ids) add(enemy, part.toughness === undefined ? undefined : (part.toughness * part.hits) / ids.length)
+          break
+      }
+    }
+    return out
+  }
+
+  /** Books one enemy's damage: its HP, the attacker's and the cycle's totals, and the `damageDealt` event. */
+  private recordDamage(attacker: Member, enemy: UnitId, ability: string, scaling: number, damage: number): void {
+    this.enemies.takeDamage(enemy, damage)
+    this.damageByMember[attacker.key]! += damage
+    const cycleIndex = Math.min(this.timeline.cycle, this.setup.cycles) - 1
+    this.damageByCycle[cycleIndex]! += damage
+    this.timeline.bus.emit('damageDealt', {
+      attacker: attacker.key,
+      enemy,
+      ability,
+      scaling,
+      damage,
+      at: this.timeline.now,
+      cycle: this.timeline.cycle,
+    })
+  }
+
+  /**
+   * An enemy has just been broken by `attacker` (K7, K7b). In order: Break DMG, the base delay, the element's
+   * effect, then the `weaknessBroken` event. Returns the Break DMG.
+   *
+   * Break DMG is the kernel's own BREAK number for this attacker against this enemy, priced with the enemy
+   * broken (the multiplier 1.0 instead of 0.9; srsim reads the enemy's toughness, now 0, when the Break DMG
+   * lands). Fribbels' BREAK ability has no ATK-style multiple, so it does not go through the per-100% path.
+   * IN-GAME CHECK: Break DMG at x1.0 (broken). Fribbels' own default prices its BREAK number at 0.9.
+   * Damage over time (Bleed, Burn, Shock, Wind Shear, Entanglement's and Freeze's damage) is out of scope.
+   *
+   * Break effects are not counted as debuffs inflicted (no Crimson Knot or Slashed Dream from the Shock, no
+   * "against debuffed" checks on the Imprisonment slow). IN-GAME CHECK: whether Acheron's talent counts the
+   * Lightning break's Shock when her own hit breaks the enemy.
+   */
+  private weaknessBreak(attacker: Member, enemy: UnitId): number {
+    const result = this.kernelResult(attacker, enemy)
+    const breakHits = result.hits.BREAK
+    if (breakHits === undefined) {
+      throw new Error(
+        `The kernel has no BREAK ability for ${attacker.key}, so its Break DMG cannot be priced (it has: ${Object.keys(result.hits).join(', ')})`,
+      )
+    }
+    const damage = breakHits.reduce((sum, hit) => sum + hit.damage, 0)
+    this.recordDamage(attacker, enemy, 'BREAK', 0, damage)
+
+    const be = result.stats.BE
+    this.timeline.delay(enemy, BREAK_BASE_DELAY)
+    const element = attacker.kit.element
+    switch (element) {
+      case 'Quantum':
+        this.timeline.delay(enemy, ENTANGLEMENT_DELAY * (1 + be))
+        break
+      case 'Imaginary':
+        this.timeline.delay(enemy, IMPRISONMENT_DELAY * (1 + be))
+        this.timeline.modifiers.apply({
+          id: 'break.imprisonment',
+          target: enemy,
+          source: attacker.key,
+          spdPct: -IMPRISONMENT_SLOW,
+          duration: { turns: 1, tick: 'turnEnd' },
+        })
+        break
+      case 'Ice':
+        this.enemies.freeze(enemy)
+        break
+      default:
+        break
+    }
+    this.timeline.bus.emit('weaknessBroken', {
+      enemy,
+      attacker: attacker.key,
+      element,
+      at: this.timeline.now,
+      cycle: this.timeline.cycle,
+    })
+    return damage
   }
 
   /**
@@ -318,6 +483,61 @@ export class Battle {
    */
   enemyHp(enemy: UnitId): { current: number, max: number } {
     return { current: this.enemies.hp(enemy), max: this.enemies.maxHp(enemy) }
+  }
+
+  /**
+   * The enemy among `candidates` with the highest current HP (K10), for effects that say "the enemy with the
+   * highest HP". Enemies within `HP_TIE` of the top are tied. A tie goes to the primary target if it is among
+   * the tied, else to the first in standing order.
+   *
+   * KNOWN APPROXIMATION, undecided (DESIGN.md, "Known approximations"): the game does not say how a tie
+   * without the primary is broken. That choice changes damage once the tied enemies can differ, so it is
+   * guarded: when the primary is not among the tied, the hit that `pricing` names is priced per unit multiple
+   * against each tied enemy, the way `attack` prices it, and if the prices differ by more than `PRICE_TIE`
+   * a warning is recorded (once per attacker, ability, hit and tied set, with a count) in `BattleResult.warnings`.
+   * When the primary is tied, or nothing is tied, the rule is decided and nothing is priced.
+   */
+  highestHpAmong(candidates: readonly UnitId[], pricing: HitPricing): UnitId {
+    if (candidates.length === 0) throw new Error('highestHpAmong needs at least one candidate')
+    const standing = this.enemies.ids
+    const ordered = [...candidates].sort((a, b) => standing.indexOf(a) - standing.indexOf(b))
+    const hp = ordered.map((enemy) => this.enemies.hp(enemy))
+    const top = Math.max(...hp)
+    const tied = ordered.filter((_, i) => top - hp[i]! <= HP_TIE * Math.max(1, Math.abs(top)))
+    if (tied.includes(this.primary)) return this.primary
+    const chosen = tied[0]!
+    if (tied.length > 1) this.guardTie(tied, chosen, pricing)
+    return chosen
+  }
+
+  private guardTie(tied: UnitId[], chosen: UnitId, pricing: HitPricing): void {
+    const attacker = this.member(pricing.attacker)
+    const prices = tied.map((enemy) =>
+      this.damagePerUnitScaling(attacker, pricing.ability, pricing.hit, this.abilityHits(attacker, pricing.ability, enemy)),
+    )
+    const lo = Math.min(...prices)
+    const hi = Math.max(...prices)
+    if (hi - lo <= PRICE_TIE * Math.max(Math.abs(hi), Math.abs(lo))) return
+    const key = [pricing.attacker, pricing.ability, pricing.hit, ...tied].join('|')
+    const seen = this.tieRecords.get(key)
+    if (seen) {
+      seen.count += 1
+      return
+    }
+    this.tieRecords.set(key, { pricing, tied, prices, chosen, at: this.timeline.now, cycle: this.timeline.cycle, count: 1 })
+  }
+
+  private tieWarnings(): string[] {
+    return [...this.tieRecords.values()].map((r) => {
+      const prices = r.tied.map((enemy, i) => `${enemy} ${r.prices[i]!.toPrecision(7)}`).join(', ')
+      return (
+        `Undecided "highest HP" tie: ${r.pricing.attacker}'s ${r.pricing.ability} hit ${r.pricing.hit} had the enemies ` +
+        `${r.tied.join(', ')} tied for the highest HP, the primary target not among them, and they price it differently ` +
+        `(damage per 100% of the scaling stat: ${prices}). It went to ${r.chosen} (first in standing order); the game does ` +
+        `not say how such a tie is broken, so this choice changes damage. First at AV ${r.at.toFixed(1)}, cycle ${r.cycle}; ` +
+        `${r.count} time${r.count === 1 ? '' : 's'} in this battle. See DESIGN.md, "Known approximations".`
+      )
+    })
   }
 
   // ---------------------------------------------------------------- running
@@ -335,6 +555,7 @@ export class Battle {
       actions: [...this.actionLog],
       downed: [...this.downed],
       kernelCalls: this.kernelCalls,
+      warnings: this.tieWarnings(),
     }
   }
 
@@ -424,6 +645,11 @@ export class Battle {
 
   /** Every hit of one ability for the attacker against one enemy, in the enemy's current state. */
   private abilityHits(attacker: Member, ability: string, enemy: UnitId): HitResult[] {
+    return this.hitsOf(attacker, ability, this.kernelResult(attacker, enemy))
+  }
+
+  /** What the kernel says for the attacker against one enemy, in the enemy's current state (cached by request). */
+  private kernelResult(attacker: Member, enemy: UnitId): DamageResult {
     const state = attacker.instance.attackerState(enemy)
     const gear = attackerEquipmentState(attacker.equipmentInstances, enemy, attacker.key)
     const teammates: KernelTeammate[] = this.members
@@ -455,6 +681,7 @@ export class Battle {
         maxToughness: profile.toughness,
         resistance: profile.res,
         elementalWeak: weaknesses === 'all' || weaknesses.includes(attacker.kit.element),
+        weaknessBroken: this.enemies.isBroken(enemy),
       },
     }
     const key = JSON.stringify(request)
@@ -464,6 +691,10 @@ export class Battle {
       this.kernelCache.set(key, result)
       this.kernelCalls += 1
     }
+    return result
+  }
+
+  private hitsOf(attacker: Member, ability: string, result: DamageResult): HitResult[] {
     const hits = result.hits[ability]
     if (hits === undefined) {
       throw new Error(`The kernel has no ability "${ability}" for ${attacker.key} (it has: ${Object.keys(result.hits).join(', ')})`)

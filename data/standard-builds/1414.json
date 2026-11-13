@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schema/standard-build.schema.json",
+  "format": "nousr-standard-build",
+  "version": 1,
+  "game_version": "4.7",
+  "character": "1414",
+  "ability_version": 0,
+  "name": "Dan Heng - Permansor Terrae",
+  "notes": "DRAFT. Source: Fribbels supportSimulation (he has no scoring.simulation(), only this buffer one). Biggest guess: how the 7 rolls left after ATK%, ATK and SPD are split between HP% and DEF%. Fribbels file: vendor/hsr-optimizer/src/lib/conditionals/character/1400/PermansorTerrae.ts. Fribbels line numbers in PermansorTerrae.ts: supportSimulation 338-387, parts 340-345, substats 346-352. Facts about set effects and kits come from tools/gamedata/lc-text.mjs --set <id> and kit-text.mjs output. Written 2026-11-13 as a draft for Smitty to review; every GUESS is a choice Fribbels does not make.",
+  "relic_sets": {
+    "four_piece": {
+      "set_id": "128",
+      "name": "Self-Enshrouded Recluse"
+    },
+    "notes": "First-listed relic set (PermansorTerrae.ts:358): Self-Enshrouded Recluse 4-piece (+Shield effect; +15% CRIT DMG to allies holding his Shield)."
+  },
+  "ornament_set": {
+    "set_id": "317",
+    "name": "Lushaka, the Sunken Seas",
+    "notes": "First-listed ornament (PermansorTerrae.ts:362): Lushaka, the Sunken Seas (+5% ERR; +12% ATK to the first character in the lineup when the wearer is not first)."
+  },
+  "main_stats": {
+    "Body": "ATK%",
+    "Feet": "SPD",
+    "Planar Sphere": "ATK%",
+    "Link Rope": "ATK%",
+    "notes": "Fribbels options: Body ATK%, Feet SPD/ATK%, Sphere ATK%, Rope ATK%. Only Feet has a choice: SPD (first-listed), because the preset's buffStat is ATK (his Shield is 21.2% of his ATK plus 445, kit text) and a trace gives him +5 SPD, so SPD boots put him at the 133 line for one roll. GUESS only in that ATK% boots are the other option."
+  },
+  "distributed": {
+    "rolls": {
+      "ATK%": 6,
+      "ATK": 10,
+      "SPD": 1,
+      "HP%": 4,
+      "DEF%": 3
+    },
+    "notes": "Fribbels substat list: ATK%, ATK, SPD, HP%, DEF%, and buffStat ATK. Caps: ATK% 6 (three ATK% main stats), ATK 10 (Hands main). ATK% and ATK are filled to their caps because the Shield and the buff scale on his ATK. SPD: 1 roll; 97 base + 5 (trace) + 25.032 + 4.6 = 131.63, 1 roll = 133.93. GUESS: HP% 4 and DEF% 3 for the 7 leftover rolls; the preset lists HP% and DEF% but not which is worth more, and survival is modelled (K8). SPD arithmetic ignores light cone and team SPD buffs. The cycle-1 two-turn threshold is 133.34 (20000/150); src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1."
+  }
+}

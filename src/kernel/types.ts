@@ -123,6 +123,12 @@ export interface CombatStats {
   BE: number
   ERR: number
   OHB: number
+  /**
+   * Weakness Break Efficiency as a fraction (0.5 is +50%): what a part's toughness is multiplied by, plus 1
+   * (K7). Optional: a kernel that does not report it counts as 0. Fribbels has it as
+   * `StatKey.BREAK_EFFICIENCY_BOOST`; `FribbelsKernel` does not copy it into `stats` yet (see the K7 report).
+   */
+  breakEfficiency?: number
 }
 
 /**

@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schema/standard-build.schema.json",
+  "format": "nousr-standard-build",
+  "version": 1,
+  "game_version": "4.7",
+  "character": "1204",
+  "ability_version": 0,
+  "name": "Jing Yuan",
+  "notes": "DRAFT. Source: Fribbels Jing Yuan scoring.simulation(). Biggest guess: SPD boots with 3 distributed SPD rolls (the preset lists ATK% boots first and has no SPD substat). Fribbels file: vendor/hsr-optimizer/src/lib/conditionals/character/1200/JingYuan.ts. Fribbels line numbers in JingYuan.ts: simulation 313-358, parts 315-331, substats 332-337. Facts about set effects and kits come from tools/gamedata/lc-text.mjs --set <id> and kit-text.mjs output. Written 2026-11-13 as a draft for Smitty to review; every GUESS is a choice Fribbels does not make.",
+  "relic_sets": {
+    "four_piece": {
+      "set_id": "115",
+      "name": "The Ashblazing Grand Duke"
+    },
+    "notes": "First-listed relic set (JingYuan.ts:352): The Ashblazing Grand Duke 4-piece (its ATK stacks are a kit/scenario conditional)."
+  },
+  "ornament_set": {
+    "set_id": "318",
+    "name": "The Wondrous BananAmusement Park",
+    "notes": "First-listed ornament (JingYuan.ts:356): The Wondrous BananAmusement Park (+16% CRIT DMG, +32% more while a target the wearer summoned is on the field; whether Lightning-Lord counts is Fribbels' modelling and unchecked here)."
+  },
+  "main_stats": {
+    "Body": "CRIT Rate",
+    "Feet": "SPD",
+    "Planar Sphere": "Lightning DMG Boost",
+    "Link Rope": "ATK%",
+    "notes": "Fribbels options: Body CRIT Rate/CRIT DMG, Feet ATK%/SPD, Sphere ATK%/Lightning DMG, Rope ATK%. GUESS: Body CRIT Rate (proxy +5.1% over CRIT DMG). GUESS: Feet SPD, same reason as Acheron (SPD boots in the 0% baseline, benchmarks.md:65). Sphere Lightning DMG (proxy +9.7% over ATK%). Rope ATK% is the only option."
+  },
+  "distributed": {
+    "rolls": {
+      "SPD": 3,
+      "CRIT DMG": 11,
+      "CRIT Rate": 10
+    },
+    "notes": "Fribbels substat list: CRIT DMG, CRIT Rate, ATK%, ATK. Rolls chosen with a throwaway proxy script (damage ~ scale stat x (1 + CR x CD) x (1 + DMG%), the 2 fixed rolls per stat, the per-relic cap, simple set and trace stats only, an assumed 635 ATK / 1058 HP light cone), not with Fribbels or the kernel. Treat it as a tie-breaker, not a result. Result: crit rolls fill toward their caps (CRIT DMG 11, CRIT Rate 10). SPD: 3 rolls. 99 + 25.032 + 4.6 = 128.63; 2 rolls give 133.23, just under 133.34; 3 give 135.53. GUESS: Jing Yuan's own Lightning-Lord timing may want a different tune; the kit file will show it. SPD arithmetic ignores light cone and team SPD buffs. The cycle-1 two-turn threshold is 133.34 (20000/150); src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1."
+  }
+}

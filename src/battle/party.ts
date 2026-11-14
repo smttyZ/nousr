@@ -208,6 +208,14 @@ export class Party {
     return Math.max(0, ...this.state(id).shields.values())
   }
 
+  /**
+   * The amount of the one shield stored under `key`, or 0 if the unit has none under it. Unlike `shield`, it ignores
+   * every other source, so a kit can stack its own shield without counting another one's.
+   */
+  shieldOf(id: UnitId, key: string): number {
+    return this.state(id).shields.get(key) ?? 0
+  }
+
   /** A hit: shields absorb first, the rest comes off HP. Returns what each took. */
   takeDamage(id: UnitId, amount: number, source: UnitId): { absorbed: number, lost: number } {
     const m = this.state(id)

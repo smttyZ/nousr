@@ -4,6 +4,9 @@ import { createRegistry, setWithoutBehaviour } from './equipment'
 import { EternalCalculus } from './eternalCalculus'
 import { PioneerDiverOfDeadWaters } from './pioneerDiverOfDeadWaters'
 import { TodayIsAnotherPeacefulDay } from './todayIsAnotherPeacefulDay'
+import { GoodNightAndSleepWell } from './goodNightAndSleepWell'
+import { InTheNameOfTheWorld } from './inTheNameOfTheWorld'
+import { TextureOfMemories } from './textureOfMemories'
 // Relic sets written in the Haiku test wave, 2026-11-13 (see DESIGN.md); some refuse cases the engine cannot model yet.
 import { TheAshblazingGrandDuke } from './ashblazingGrandDuke'
 import { RutilantArena } from './rutilantArena'
@@ -23,6 +26,7 @@ import { AmphoreusTheEternalLand } from './amphoreusTheEternalLand'
 
 export * from './equipment'
 export { AlongThePassingShore, DanceDanceDance, EternalCalculus, PioneerDiverOfDeadWaters, TodayIsAnotherPeacefulDay }
+export { GoodNightAndSleepWell, InTheNameOfTheWorld, TextureOfMemories }
 export { TheAshblazingGrandDuke, RutilantArena, TheWondrousBananAmusementPark, ScholarLostInErudition, GeniusOfBrilliantStars, WarriorGoddessOfSunAndThunder, BrokenKeel, SacerdosRelivedOrdeal, SelfEnshroudedRecluse, LushakaTheSunkenSeas, BoneCollectionsSereneDemesne, PoetOfMourningCollapse, GiantTreeOfRaptBrooding, WorldRemakingDeliverer, AmphoreusTheEternalLand }
 
 /**
@@ -66,5 +70,6 @@ export const InertSalsotto = setWithoutBehaviour({
  * `resolveEquipment`). Add an item only once its text has been read in game.
  */
 export const EQUIPMENT = createRegistry([AlongThePassingShore, DanceDanceDance, EternalCalculus, TodayIsAnotherPeacefulDay, PioneerDiverOfDeadWaters, IzumoGensei, MusketeerOfWildWheat, InertSalsotto,
+  GoodNightAndSleepWell, InTheNameOfTheWorld, TextureOfMemories,
   TheAshblazingGrandDuke, RutilantArena, TheWondrousBananAmusementPark, ScholarLostInErudition, GeniusOfBrilliantStars, WarriorGoddessOfSunAndThunder, BrokenKeel, SacerdosRelivedOrdeal, SelfEnshroudedRecluse, LushakaTheSunkenSeas, BoneCollectionsSereneDemesne, PoetOfMourningCollapse, GiantTreeOfRaptBrooding, WorldRemakingDeliverer, AmphoreusTheEternalLand,
 ])

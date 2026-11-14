@@ -143,6 +143,7 @@ export const Tribbie: Kit = {
           target: battle.highestHpAmong(hit, { attacker: me, ability, hit: ZONE_ADDITIONAL_HIT }),
           scaling: hit.length * tribbieZoneAdditional(e),
           hit: ZONE_ADDITIONAL_HIT,
+          additional: true,
         }],
       })
     }
@@ -165,6 +166,7 @@ export const Tribbie: Kit = {
           target: battle.highestHpAmong(action.enemiesHit, { attacker: me, ability: ALLY_ADDITIONAL_ABILITY, hit: 0 }),
           scaling: action.expectedEnemiesHit * tribbieZoneAdditional(e),
           hit: 0,
+          additional: true,
         }],
       })
     }

@@ -10,9 +10,12 @@ import { BasicKey } from '../../../vendor/hsr-optimizer/src/lib/optimization/bas
 import { DamageFunctionType } from '../../../vendor/hsr-optimizer/src/lib/optimization/engine/damage/damageCalculator'
 import { OutputTag } from '../../../vendor/hsr-optimizer/src/lib/optimization/engine/config/tag'
 import { generateContext } from '../../../vendor/hsr-optimizer/src/lib/optimization/context/calculateContext'
+import type { ActionModifier } from '../../../vendor/hsr-optimizer/src/lib/optimization/context/calculateActions'
+import { HitDefinitionBuilder } from '../../../vendor/hsr-optimizer/src/lib/conditionals/hitDefinitionBuilder'
+import { characterOptionMapping } from '../../../vendor/hsr-optimizer/src/lib/conditionals/resolver/characterConditionalsResolver'
 import { AToHKey, StatKey } from '../../../vendor/hsr-optimizer/src/lib/optimization/engine/config/keys'
 import { Source } from '../../../vendor/hsr-optimizer/src/lib/optimization/buffSource'
-import { DamageTag, TargetTag } from '../../../vendor/hsr-optimizer/src/lib/optimization/engine/config/tag'
+import { DamageTag, ElementTag, TargetTag } from '../../../vendor/hsr-optimizer/src/lib/optimization/engine/config/tag'
 import { AbilityKind } from '../../../vendor/hsr-optimizer/src/lib/optimization/rotation/turnAbilityConfig'
 import { resetConditionalState } from '../../../vendor/hsr-optimizer/src/lib/optimization/conditionalStateUtils'
 import { simulateBuild } from '../../../vendor/hsr-optimizer/src/lib/simulations/simulateBuild'
@@ -31,6 +34,7 @@ import type {
   ConditionalValues,
   DamageRequest,
   DamageResult,
+  ExtraHit,
   HitResult,
   InjectedBuff,
   InjectedDamageType,
@@ -41,7 +45,7 @@ import type {
   KernelUnit,
   ScenarioKernel,
 } from '../types'
-import { isScannedBuild } from '../types'
+import { EXTRA_ABILITY, isScannedBuild } from '../types'
 import { scannedRelicsByPart, scanSourceInfo } from './scannedRelics'
 
 let metadataReady = false
@@ -138,7 +142,7 @@ export class FribbelsKernel implements ScenarioKernel {
     if (enemy.elementalWeak !== undefined) form.enemyElementalWeak = enemy.elementalWeak
     if (enemy.weaknessBroken !== undefined) form.enemyWeaknessBroken = enemy.weaknessBroken
 
-    const { x, actionDamage, context } = simulate(form, request.build, request.injectedBuffs)
+    const { x, actionDamage, context, extra } = simulate(form, request.build, request.injectedBuffs, request.extraHits, request.attacker.characterId)
 
     // x is a buffer Fribbels reuses on the next run, so copy the numbers out now.
     const stats: CombatStats = {
@@ -160,6 +164,7 @@ export class FribbelsKernel implements ScenarioKernel {
     for (const [ability, value] of Object.entries(actionDamage ?? {})) {
       damage[ability] = value ?? 0
     }
+    const extraHitObjects = new Set<Hit>(extra.hits)
 
     // Every hit of every default action. Fribbels evaluates each hit on its own and stores the number
     // in a register (simulateBuild.ts: x.setHitRegisterValue); read them here. Two default actions of
@@ -168,9 +173,18 @@ export class FribbelsKernel implements ScenarioKernel {
     for (const action of context.defaultActions) {
       const list = (hits[action.actionType] ??= [])
       for (const hit of action.hits ?? []) {
+        // An extra hit rides on a host action of Fribbels' (see `extraHitModifier`) and is reported as ability EXTRA below.
+        if (extraHitObjects.has(hit)) continue
         const scaling = hitScaling(hit)
         list.push({ damage: x.getHitRegisterValue(hit.registerIndex), ...(scaling !== undefined && { scaling }) })
       }
+    }
+    if (extra.hits.length > 0) {
+      hits[EXTRA_ABILITY] = extra.hits.map((hit) => {
+        const scaling = hitScaling(hit)
+        return { damage: x.getHitRegisterValue(hit.registerIndex), ...(scaling !== undefined && { scaling }) }
+      })
+      damage[EXTRA_ABILITY] = hits[EXTRA_ABILITY].reduce((sum, hit) => sum + hit.damage, 0)
     }
     return { damage, hits, stats }
   }
@@ -201,15 +215,110 @@ function hitScaling(hit: Hit): number | undefined {
  * read, the call its character preview and optimizer make for a character's real relics. Both end in
  * the same function, so the two paths differ only in where the relic stats come from.
  */
-function simulate(form: Form, build: KernelBuild, injectedBuffs?: readonly InjectedBuff[]) {
-  const context = generateContext(form)
+function simulate(
+  form: Form,
+  build: KernelBuild,
+  injectedBuffs?: readonly InjectedBuff[],
+  extraHits?: readonly ExtraHit[],
+  characterId?: string,
+) {
+  const extra: ExtraHitSlot = { hits: [] }
+  const context = extraHits !== undefined && extraHits.length > 0
+    ? withExtraHits(characterId!, extraHits, extra, () => generateContext(form))
+    : generateContext(form)
   injectBuffs(context, injectedBuffs ?? [])
   if (isScannedBuild(build)) {
     for (const action of context.allActions) resetConditionalState(action)
     const { x, actionDamage } = simulateBuild(scannedRelicsByPart(build), context, null)
-    return { x, actionDamage, context }
+    return { x, actionDamage, context, extra }
   }
-  return { ...simulateBenchmark(form, build, context), context }
+  return { ...simulateBenchmark(form, build, context), context, extra }
+}
+
+/** The extra hits as Fribbels hit objects, in the request's order, once `generateContext` has built them. */
+interface ExtraHitSlot {
+  hits: Hit[]
+}
+
+const EXTRA_HIT_ELEMENTS: Record<string, ElementTag> = {
+  Physical: ElementTag.Physical,
+  Fire: ElementTag.Fire,
+  Ice: ElementTag.Ice,
+  Lightning: ElementTag.Lightning,
+  Wind: ElementTag.Wind,
+  Quantum: ElementTag.Quantum,
+  Imaginary: ElementTag.Imaginary,
+}
+
+/**
+ * Adds the request's extra hits (K23) to the attacker's actions, through the extension point Fribbels' own light cones use for
+ * the same thing (Hidden Shadow pushes a `HitDefinitionBuilder.standardAdditional()` hit onto an action: an `actionModifiers`
+ * entry). `generateContext` builds the action list, the hit registers and the stat containers in one pass, and collects the
+ * character's modifiers inside it, so a hit cannot be appended afterwards; instead the attacker's controller factory is wrapped
+ * for the duration of that one synchronous call and restored in `finally`.
+ *
+ * Each extra hit is a standard Additional DMG hit (`standardAdditional()`), so it is priced with the attacker's own ATK/HP/DEF,
+ * CRIT, element and buffs, including the hit-level buffs aimed at Additional DMG. It is put on the default action of ability
+ * kind BREAK (the last default action when there is none): of Fribbels' actions that is the one least likely to carry buffs
+ * the damage should not get (its action-level buffs are Break's). The hit is `recorded(false)`, so the host action's own
+ * total in `damage` does not change, and the adapter takes it out of the host's hit list and reports it as ability EXTRA.
+ */
+function withExtraHits<T>(characterId: string, extraHits: readonly ExtraHit[], slot: ExtraHitSlot, run: () => T): T {
+  const ids = new Set<string>()
+  for (const hit of extraHits) {
+    const name = `Extra hit "${hit.id}"`
+    if (ids.has(hit.id)) throw new Error(`${name}: the id is used twice in one request`)
+    ids.add(hit.id)
+    if (hit.damageType !== 'ADDITIONAL') throw new Error(`${name}: damage type must be 'ADDITIONAL', got ${String(hit.damageType)}`)
+    if (hit.scalingStat !== 'ATK' && hit.scalingStat !== 'HP' && hit.scalingStat !== 'DEF') {
+      throw new Error(`${name}: scaling stat must be 'ATK', 'HP' or 'DEF', got ${String(hit.scalingStat)}`)
+    }
+    if (typeof hit.multiple !== 'number' || !Number.isFinite(hit.multiple) || hit.multiple <= 0) {
+      throw new Error(`${name}: multiple must be a positive number, got ${String(hit.multiple)}`)
+    }
+    if (hit.element !== undefined && !Object.hasOwn(EXTRA_HIT_ELEMENTS, hit.element)) {
+      throw new Error(`${name}: unknown element "${String(hit.element)}". Known: ${Object.keys(EXTRA_HIT_ELEMENTS).join(', ')}`)
+    }
+  }
+
+  const original = characterOptionMapping[characterId as CharacterId]
+  if (original === undefined) throw new Error(`Unknown character id "${characterId}"`)
+  const modifier = (): ActionModifier => ({
+    modify: (action, context, self) => {
+      // The attacker's own actions only (a teammate of the same character gets none), and only the default ones.
+      if (self.isTeammate || !action.actionIdentifier.startsWith('Default')) return
+      const declared = context.actionDeclarations as string[]
+      const breakIndex = declared.indexOf(AbilityKind.BREAK)
+      const hostIndex = breakIndex >= 0 ? breakIndex : declared.length - 1
+      if (action.actionIndex !== hostIndex) return
+      const element = ElementTag[context.element as keyof typeof ElementTag]
+      for (const extraHit of extraHits) {
+        const builder = HitDefinitionBuilder.standardAdditional()
+          .damageElement(extraHit.element !== undefined ? EXTRA_HIT_ELEMENTS[extraHit.element]! : element)
+          .recorded(false)
+        if (extraHit.scalingStat === 'ATK') builder.atkScaling(extraHit.multiple)
+        else if (extraHit.scalingStat === 'HP') builder.hpScaling(extraHit.multiple)
+        else builder.defScaling(extraHit.multiple)
+        const hit = builder.build() as Hit
+        action.hits!.push(hit)
+        slot.hits.push(hit)
+      }
+    },
+  })
+  characterOptionMapping[characterId as CharacterId] = (eidolon, withContent, ex) => {
+    const controller = original(eidolon, withContent, ex)
+    const base = controller.actionModifiers
+    return { ...controller, actionModifiers: () => [...base(), modifier()] }
+  }
+  try {
+    const result = run()
+    if (slot.hits.length !== extraHits.length) {
+      throw new Error(`Extra hits were not added to the attacker's default actions (added ${slot.hits.length} of ${extraHits.length})`)
+    }
+    return result
+  } finally {
+    characterOptionMapping[characterId as CharacterId] = original
+  }
 }
 
 /**

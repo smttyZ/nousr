@@ -1,3 +1,5 @@
+import { probabilityAtLeastEnemiesHit } from '../battle/hitProbability'
+import type { HitPart } from '../battle/battle'
 import type { LightConeModule } from './equipment'
 
 /**
@@ -17,14 +19,18 @@ import type { LightConeModule } from './equipment'
  * IN-GAME CHECK: whether an attack by a summon counts as "the wearer's attack" for the stacks and the SPD.
  * Enemies hit are counted per distinct enemy, as an expected number (K17): a random-target attack counts each
  * enemy by its chance of being hit at least once (`actionUsed.expectedEnemiesHit`). The stacks are that number
- * capped at 5 (so they can be fractional). The SPD rise is a threshold on that expected value: it applies when
- * the expected count is 3 or more, which is not the same as 3 or more enemies being hit in any one real fight.
+ * capped at 5 (so they can be fractional). The SPD rise is the buff scaled by the chance the condition holds (K21):
+ * P(3 or more distinct enemies hit) x the superimposition's SPD%, as the modifier's value, for its duration. The
+ * probability comes from the action's own attacks (`attackResolved` parts) through `src/battle/hitProbability.ts`,
+ * exactly, not from the expected count. Where the chance is 0 (one target), nothing is applied.
  * IN-GAME CHECK: whether the stacks are counted per distinct enemy hit (as implemented).
  */
 
 const SPD_BY_SUPERIMPOSITION = [0.08, 0.1, 0.12, 0.14, 0.16] as const
 const MAX_STACKS = 5
 const SPD_THRESHOLD = 3
+/** Below this chance the SPD rise is not applied at all (float noise). */
+const NEGLIGIBLE = 1e-12
 
 export const EternalCalculus: LightConeModule = {
   kind: 'lightCone',
@@ -39,15 +45,27 @@ export const EternalCalculus: LightConeModule = {
     if (spd === undefined) throw new Error(`Eternal Calculus: superimposition must be 1 to 5, got ${level}`)
     const id = `lightcone.24004.spd:${me}`
     let stacks = 0
+    /** The attacks (each one `Battle.attack` call) the wearer has made in the action in progress. */
+    let attacks: HitPart[][] = []
+    let field: { enemies: readonly string[], primary: string } | undefined
+
+    timeline.bus.on('attackResolved', (attack) => {
+      if (attack.attacker !== me) return
+      attacks.push([...attack.parts])
+      field = { enemies: [...battle.enemies.ids], primary: battle.primary }
+    })
 
     timeline.bus.on('actionUsed', (action) => {
       if (action.actor !== me) return
       // K17: the expected number of distinct enemies hit, not every enemy a random hit could reach.
       stacks = Math.min(MAX_STACKS, action.expectedEnemiesHit)
-      // A threshold on an expected value (DESIGN.md, Known approximations): read as expected count >= 3, with a
-      // tolerance for the rounding of a sum of probabilities (three certain hits must reach 3).
-      if (action.expectedEnemiesHit >= SPD_THRESHOLD - 1e-9) {
-        timeline.modifiers.apply({ id, target: me, source: me, spdPct: spd, duration: { turns: 1, tick: 'turnEnd' } })
+      // K21: the SPD rise is scaled by the chance that 3 or more distinct enemies were hit, not cut off at an
+      // expected count. No resolved attack means no enemy was hit.
+      const chance = field === undefined ? 0 : probabilityAtLeastEnemiesHit({ attacks, ...field }, SPD_THRESHOLD)
+      attacks = []
+      field = undefined
+      if (chance > NEGLIGIBLE) {
+        timeline.modifiers.apply({ id, target: me, source: me, spdPct: spd * chance, duration: { turns: 1, tick: 'turnEnd' } })
       }
     })
 

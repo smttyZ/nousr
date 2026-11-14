@@ -1,10 +1,11 @@
 import type { EngineEvents, TurnInfo, UnitId } from '../engine/events'
 import type { EquipmentInstance, MemberEquipment } from '../equipment/equipment'
 import { attackerEquipmentState, createEquipment, teammateEquipmentState } from '../equipment/equipment'
-import type { ModifierSpec } from '../engine/modifiers'
+import type { Modifier, ModifierSpec } from '../engine/modifiers'
+import { CHANCE_EPSILON } from '../engine/modifiers'
 import { Timeline } from '../engine/timeline'
 import type { EnemyProfile } from '../enemy/profile'
-import type { DamageKernel, DamageRequest, DamageResult, HitResult, InjectedBuff, KernelBuild, KernelTeammate, KernelUnit } from '../kernel/types'
+import type { CombatStats, DamageKernel, DamageRequest, DamageResult, ExtraHit, HitResult, InjectedBuff, KernelBuild, KernelTeammate, KernelUnit } from '../kernel/types'
 import type { Kit, KitInstance } from '../kits/kit'
 import type { RunWarning } from '../run/warnings'
 import type { Condition, Element, Rule } from '../scenario/types'
@@ -32,6 +33,31 @@ import { BASE_AGGRO, Party, removeDownedFromTimeline } from './party'
  */
 
 export const MAX_SKILL_POINTS = 5
+
+/** The shared Imprisoned state (K24): a break's Imprisonment, Welt's Ultimate and technique all apply this one modifier. */
+export const IMPRISONED = 'status.imprisoned'
+/** Entanglement (a Quantum break), a debuff for 1 turn while it lasts (K24). */
+export const ENTANGLED = 'status.entangled'
+/** Freeze (an Ice break), a debuff until the frozen enemy's skipped turn ends (K24). */
+export const FROZEN = 'status.frozen'
+
+/** A presence probability counts as certain at this distance from 1. Inside a priced world every read is exactly 0 or 1. */
+export const CERTAIN = 1 - 1e-9
+
+/** Whether a probability from `Battle.presence`, `debuffChance` or `anyPresent` is a certainty (for a kernel switch built in a priced world). */
+export function certain(probability: number): boolean {
+  return probability >= CERTAIN
+}
+
+/** The expected value of `min(cap, N)` for a count N with `distribution` (`Battle.debuffCountDistribution`). */
+export function expectedCapped(distribution: readonly number[], cap: number): number {
+  return distribution.reduce((sum, p, k) => sum + p * Math.min(cap, k), 0)
+}
+
+/** More uncertain modifiers than this around one enemy make the debuff states too many to enumerate (2^n). */
+export const MAX_UNCERTAIN_MODIFIERS = 14
+
+const worldKey = (modifier: Modifier): string => `${modifier.target}\u0000${modifier.id}`
 
 export interface MemberSetup {
   /** The member's key from the scenario. Doubles as its unit id. */
@@ -149,6 +175,22 @@ export type HitPart = HitShape & {
    * ATK and Skill). Without it, the part removes toughness only from an enemy weak to the attacker's element.
    */
   ignoresWeakness?: boolean
+  /**
+   * The part is Additional DMG (Welt's Talent, Tribbie's Zone, Dan Heng PT's Bondmate hits, ...): damage that rides on
+   * an attack or follows it but is not itself an attack. Listeners that react to "an ally attacked" skip these parts.
+   * It changes no number: the damage is whatever kernel hit the part names.
+   */
+  additional?: boolean
+  /**
+   * A multiplier on this part's `scaling` that depends on the debuff state (K22), read once in each state ("world") the
+   * enemy's debuffs can be in, with `Battle.presence`, `debuffCount` and the like returning exact 0 / 1 values there. The
+   * part deals `scaling x weight` priced in that state, and the states are averaged by their probabilities. Use it for a
+   * part that exists only in some states or scales with something random: Welt's Talent hit only against a Slowed enemy
+   * (weight 1 or 0), Silver Wolf's E4 hit at 20% per debuff (weight min(5, debuffs)). That prices the hit in the state that
+   * triggers it, which a plain `scaling` times a chance (the price averaged over all states) does not. The recorded
+   * `damageDealt.scaling` is `scaling` times the mean weight. Must not ask the kernel.
+   */
+  worldWeight?: () => number
 }
 
 export interface AttackSpec {
@@ -212,6 +254,8 @@ interface ActionInProgress {
   debuffed: Set<UnitId>
   /** Per enemy, the probability that NO part of the action so far hit it (K17). Absent: not hit. */
   miss: Map<UnitId, number>
+  /** Per enemy, the probability that NO debuff has landed on it so far in the action (K22). Absent: none applied. */
+  debuffMiss: Map<UnitId, number>
 }
 
 export class Battle {
@@ -233,6 +277,13 @@ export class Battle {
   private readonly downed: string[] = []
   private readonly tieRecords = new Map<string, TieRecord>()
   private readonly summonMap = new Map<UnitId, SummonSpec>()
+  /** True while `kernelResult` is collecting the kits' and modules' state: the kernel must not be asked from there. */
+  private collectingState = false
+  /**
+   * The debuff state ("world") being priced: the keys of the uncertain modifiers (presence below 1) that are present in
+   * it. Set only while `kernelResult` collects state; undefined means reads give probabilities.
+   */
+  private world: ReadonlySet<string> | undefined
 
   constructor(private readonly setup: BattleSetup) {
     if (setup.members.length === 0) throw new Error('A battle needs at least one member')
@@ -346,12 +397,41 @@ export class Battle {
   }
 
   /**
+   * The member's in-combat stats as the kernel reports them for that member as the attacker against the primary enemy,
+   * in the state it is in now: ATK, HP, DEF, SPD, CRIT Rate (`CR`), CRIT DMG (`CD`), Effect RES (`RES`), Break Effect
+   * (`BE`) and the rest of `CombatStats`. It reads the same cached kernel result that `attack` prices with, so the
+   * numbers a kit sizes a shield or a buff from are the numbers the damage uses. Returns a copy.
+   *
+   * RECURSION HAZARD: building that result asks every kit's `attackerState` and `teammateState` (and every equipment
+   * module's state) for the member. A kit must therefore not call this from its own `attackerState` or `teammateState`:
+   * those run while the request is being built, so the call would need the request it is part of. The battle detects
+   * it and throws a clear error instead of looping. Call it from actions and event listeners.
+   *
+   * Fribbels fills its stats once per action and the kernel reports them after the last default action, so a stat that
+   * only some action's conditionals change reflects the last one. For ATK, HP, DEF, SPD and the CRIT stats that is the
+   * attacker's own state either way.
+   */
+  combatStats(member: string): CombatStats {
+    return { ...this.kernelResult(this.member(member), this.primary).stats }
+  }
+
+  /**
+   * Where the extra hit `id` (an `ExtraHit` a teammate's `teammateState` gives `attacker`, K23) stands in the kernel's
+   * 'EXTRA' hit list for `attacker`, for a part's `hit`. Stops with an error when no teammate gives that hit now.
+   */
+  extraHitIndex(attacker: string, id: string, enemy: UnitId = this.primary): number {
+    const index = this.collectExtraHits(this.member(attacker), enemy).findIndex((hit) => hit.id === id)
+    if (index < 0) throw new Error(`No extra hit "${id}" for ${attacker}: no teammate's teammateState gives it in the current state`)
+    return index
+  }
+
+  /**
    * Wraps one Basic ATK, Skill, Ultimate or follow-up. Everything the body does counts as that one
    * action; `actionUsed` is emitted when it has fully resolved.
    */
   performAction(actor: string, action: string, kind: EngineEvents['actionUsed']['kind'], body: () => void): void {
     const outer = this.current
-    const mine: ActionInProgress = { serial: ++this.actionSerial, enemiesHit: new Set(), debuffed: new Set(), miss: new Map() }
+    const mine: ActionInProgress = { serial: ++this.actionSerial, enemiesHit: new Set(), debuffed: new Set(), miss: new Map(), debuffMiss: new Map() }
     this.current = mine
     try {
       body()
@@ -365,6 +445,8 @@ export class Battle {
       hitChance[enemy] = chance
       expectedEnemiesHit += chance
     }
+    const debuffChance: Record<UnitId, number> = {}
+    for (const enemy of mine.debuffed) debuffChance[enemy] = Math.min(1, Math.max(0, 1 - (mine.debuffMiss.get(enemy) ?? 1)))
     const event = {
       actor,
       action,
@@ -374,25 +456,123 @@ export class Battle {
       hitChance,
       expectedEnemiesHit,
       debuffed: [...mine.debuffed],
+      debuffChance,
     }
     this.actionLog.push(event)
     this.timeline.bus.emit('actionUsed', event)
   }
 
-  /** Puts a debuff on an enemy and records it against the action in progress. */
+  /**
+   * Puts a debuff on an enemy and records it against the action in progress. `spec.chance` (default 1) is the
+   * probability the debuff landed on this enemy (K22): a random-target hit applies it with the chance it hit there. The
+   * action's `debuffChance` for the enemy combines the action's applications as independent ones.
+   */
   applyDebuff(spec: Omit<ModifierSpec, 'debuff'>): void {
     if (!this.enemies.has(spec.target)) throw new Error(`${spec.target} is not an enemy`)
+    const chance = spec.chance ?? 1
+    if (chance <= CHANCE_EPSILON) return
     this.timeline.modifiers.apply({ ...spec, debuff: true })
-    this.current?.debuffed.add(spec.target)
+    this.recordDebuffLanding(spec.target, chance)
   }
 
-  hasDebuff(enemy: UnitId): boolean {
-    return this.timeline.modifiers.on(enemy).some((m) => m.debuff)
+  /**
+   * One random debuff from a list ("1 random Bug": ATK, DEF or SPD), all on one enemy. Each option is present with the
+   * chance `landing / options.length` (K22); the application counts once in the action's `debuffChance`, at `landing`
+   * (the chance the application happened at all: 1 for an attack that always hits the enemy). The options are applied
+   * as independent modifiers, not as mutually exclusive ones (DESIGN.md, K22): their expected count is exact, the chance
+   * that at least one is present is not (3 options at 1/3 each give 1 - (2/3)^3 = 0.70 where one is surely there).
+   * `optionChance` replaces the per-option presence (`landing / options.length`) for a caller that has already accounted
+   * for earlier applications of the same draw (Silver Wolf's E2, one Bug per enemy per action over several attack calls).
+   */
+  applyRandomDebuff(
+    options: ReadonlyArray<Omit<ModifierSpec, 'debuff' | 'chance'>>,
+    landing = 1,
+    optionChance = landing / options.length,
+  ): void {
+    const first = options[0]
+    if (first === undefined) throw new Error('applyRandomDebuff needs at least one option')
+    if (options.some((o) => o.target !== first.target)) throw new Error('applyRandomDebuff: every option must be on the same enemy')
+    if (!this.enemies.has(first.target)) throw new Error(`${first.target} is not an enemy`)
+    if (!(landing >= 0 && landing <= 1)) throw new Error(`applyRandomDebuff: landing must be in [0, 1], got ${landing}`)
+    if (landing <= CHANCE_EPSILON) return
+    for (const option of options) this.timeline.modifiers.apply({ ...option, debuff: true, chance: Math.min(1, optionChance) })
+    this.recordDebuffLanding(first.target, landing)
   }
 
-  /** How many debuffs an enemy has, from any source. */
+  private recordDebuffLanding(enemy: UnitId, chance: number): void {
+    if (!this.current) return
+    this.current.debuffed.add(enemy)
+    this.current.debuffMiss.set(enemy, (this.current.debuffMiss.get(enemy) ?? 1) * (1 - Math.min(1, chance)))
+  }
+
+  /**
+   * Imprisons an enemy (DESIGN.md, K24): the one shared Imprisoned state, whoever imprisons (a break, Welt's Ultimate or
+   * technique). It is a debuff for 1 turn with the Imprisonment SPD cut; applying it again refreshes it and never stacks
+   * the SPD cut. The delay stays separate, as the text says for each source: it is applied every time.
+   * `inflicted` is whether this counts as a debuff an ability inflicted during the action in progress (an ability's own
+   * Imprison does; a Weakness Break's does not, see `weaknessBreak`).
+   */
+  imprison(enemy: UnitId, source: UnitId, delay: number, inflicted: boolean): void {
+    const spec = { id: IMPRISONED, target: enemy, source, spdPct: -IMPRISONMENT_SLOW, duration: { turns: 1, tick: 'turnEnd' } as const }
+    if (inflicted) this.applyDebuff(spec)
+    else this.timeline.modifiers.apply({ ...spec, debuff: true })
+    this.timeline.delay(enemy, delay)
+  }
+
+  // ---- debuff state: probabilities, and certain facts inside a priced world (see `kernelResult`)
+
+  private chanceOf(modifier: Modifier): number {
+    if (this.world === undefined || modifier.chance >= 1) return modifier.chance
+    return this.world.has(worldKey(modifier)) ? 1 : 0
+  }
+
+  /**
+   * The probability that modifier `id` is on `unit` (K22): its chance, or 0 when it is not there. While the battle is
+   * building a kernel request (inside a kit's or module's `attackerState` / `teammateState`) the debuff states are
+   * enumerated one at a time and this returns exactly 0 or 1, so a kernel switch is `certain(battle.presence(...))`.
+   */
+  presence(unit: UnitId, id: string): number {
+    const modifier = this.timeline.modifiers.get(unit, id)
+    return modifier === undefined ? 0 : this.chanceOf(modifier)
+  }
+
+  /** The probability that at least one modifier on `unit` that `matches` is present (independent modifiers). Exactly 0 or 1 in a priced world. */
+  anyPresent(unit: UnitId, matches: (modifier: Modifier) => boolean): number {
+    let none = 1
+    for (const modifier of this.timeline.modifiers.on(unit)) if (matches(modifier)) none *= 1 - this.chanceOf(modifier)
+    return none <= CHANCE_EPSILON ? 1 : 1 - none
+  }
+
+  /** The probability that an enemy has at least one debuff, from any source (K22). Exactly 0 or 1 in a priced world. */
+  debuffChance(enemy: UnitId): number {
+    return this.anyPresent(enemy, (m) => m.debuff)
+  }
+
+  /** The expected number of debuffs an enemy has, from any source (K22). A whole number in a priced world. */
   debuffCount(enemy: UnitId): number {
-    return this.timeline.modifiers.on(enemy).filter((m) => m.debuff).length
+    let count = 0
+    for (const modifier of this.timeline.modifiers.on(enemy)) if (modifier.debuff) count += this.chanceOf(modifier)
+    return count
+  }
+
+  /**
+   * The distribution of an enemy's debuff count: `result[k]` is the probability of exactly k debuffs, k = 0 to the
+   * number of debuff modifiers on it (independent presences, so a Poisson-binomial). For a cap on a count whose
+   * expectation is not the cap of the expectation (`expectedCapped`). Not for use inside a priced world.
+   */
+  debuffCountDistribution(enemy: UnitId): number[] {
+    let distribution = [1]
+    for (const modifier of this.timeline.modifiers.on(enemy)) {
+      if (!modifier.debuff) continue
+      const p = this.chanceOf(modifier)
+      const next = new Array<number>(distribution.length + 1).fill(0)
+      distribution.forEach((q, k) => {
+        next[k]! += q * (1 - p)
+        next[k + 1]! += q * p
+      })
+      distribution = next
+    }
+    return distribution
   }
 
   /** Serial of the action in progress, or undefined between actions (a bare attack). */
@@ -404,16 +584,26 @@ export class Battle {
   attack(spec: AttackSpec): number {
     const attacker = this.member(spec.attacker)
     const ids = this.enemies.ids
-    /** Per enemy: the multiple each kernel hit is asked for. */
-    const multiples = new Map<UnitId, Map<number, number>>()
+    /** Per enemy: the multiple each kernel hit is asked for, plain and with a debuff-state weight (`HitPart.worldWeight`). */
+    interface Asked { plain: number, weighted: Array<{ scaling: number, weight: () => number }> }
+    const multiples = new Map<UnitId, Map<number, Asked>>()
     /** Enemies a deterministic part reaches. */
     const certain = new Set<UnitId>()
     /** Random-target groups (K17): per group, the hits it stands for and each enemy's chance per hit. */
     const randomGroups = new Map<string, { hits: number, perHit: Map<UnitId, number> }>()
-    const add = (enemy: UnitId, hit: number, scaling: number, random?: { hits: number, chance: number, group?: string }) => {
+    const add = (
+      enemy: UnitId,
+      hit: number,
+      scaling: number,
+      random?: { hits: number, chance: number, group?: string },
+      weight?: () => number,
+    ) => {
       if (!(scaling > 0)) return
-      const byHit = multiples.get(enemy) ?? new Map<number, number>()
-      byHit.set(hit, (byHit.get(hit) ?? 0) + scaling)
+      const byHit = multiples.get(enemy) ?? new Map<number, Asked>()
+      const asked = byHit.get(hit) ?? { plain: 0, weighted: [] }
+      if (weight === undefined) asked.plain += scaling
+      else asked.weighted.push({ scaling, weight })
+      byHit.set(hit, asked)
       multiples.set(enemy, byHit)
       if (random === undefined) {
         certain.add(enemy)
@@ -433,25 +623,27 @@ export class Battle {
       }
       switch (part.shape) {
         case 'single':
-          add(part.target ?? this.primary, part.hit, part.scaling, part.random)
+          add(part.target ?? this.primary, part.hit, part.scaling, part.random, part.worldWeight)
           break
         case 'blast': {
           const target = part.target ?? this.primary
-          add(target, part.hit, part.scaling, part.random)
-          for (const neighbour of this.adjacentEnemies(target)) add(neighbour, part.hit, part.adjacent, part.random)
+          add(target, part.hit, part.scaling, part.random, part.worldWeight)
+          for (const neighbour of this.adjacentEnemies(target)) add(neighbour, part.hit, part.adjacent, part.random, part.worldWeight)
           break
         }
         case 'aoe':
-          for (const enemy of ids) add(enemy, part.hit, part.scaling)
+          for (const enemy of ids) add(enemy, part.hit, part.scaling, undefined, part.worldWeight)
           break
         case 'bounce':
           // Each of the bounce's hits lands on a given enemy with probability 1 / enemies. One group per part.
           for (const enemy of ids) {
-            add(enemy, part.hit, (part.scaling * part.hits) / ids.length, {
-              hits: part.hits,
-              chance: 1 / ids.length,
-              group: `bounce:${spec.parts.indexOf(part)}`,
-            })
+            add(
+              enemy,
+              part.hit,
+              (part.scaling * part.hits) / ids.length,
+              { hits: part.hits, chance: 1 / ids.length, group: `bounce:${spec.parts.indexOf(part)}` },
+              part.worldWeight,
+            )
           }
           break
       }
@@ -476,21 +668,34 @@ export class Battle {
       if (byHit === undefined && base === undefined) continue
       // The kernel's state for this enemy as it is when the attack lands: a hit that breaks the enemy is
       // priced as against an enemy that is not yet broken, like every other hit of the same attack.
-      const result = this.kernelResult(attacker, enemy)
+      const worlds = this.kernelWorlds(attacker, enemy)
+      const result = mixWorlds(worlds)
       if (byHit !== undefined) {
         const hits = this.hitsOf(attacker, spec.ability, result)
         let scaling = 0
         let damage = 0
-        for (const [index, multiple] of byHit) {
-          damage += this.damagePerUnitScaling(attacker, spec.ability, index, hits) * multiple
-          scaling += multiple
+        for (const [index, asked] of byHit) {
+          if (asked.plain > 0) {
+            damage += this.damagePerUnitScaling(attacker, spec.ability, index, hits) * asked.plain
+            scaling += asked.plain
+          }
+          for (const { scaling: multiple, weight } of asked.weighted) {
+            // Priced state by state: the part's weight is read in each world, and so is the hit's own price there.
+            for (const world of worlds) {
+              const w = world.weight * this.readInWorld(world.present, weight)
+              if (!(w > 0)) continue
+              const worldHits = this.hitsOf(attacker, spec.ability, world.result)
+              damage += w * multiple * this.damagePerUnitScaling(attacker, spec.ability, index, worldHits)
+              scaling += w * multiple
+            }
+          }
         }
         total += damage
         if (this.current) {
           this.current.enemiesHit.add(enemy)
           this.current.miss.set(enemy, (this.current.miss.get(enemy) ?? 1) * missChance(enemy))
         }
-        this.recordDamage(attacker, enemy, spec.ability, scaling, damage)
+        this.recordDamage(attacker, enemy, spec.ability, scaling, damage, 1 - missChance(enemy))
       }
       if (base !== undefined && base > 0) {
         // Weakness Break Efficiency raises what the attack removes (K7). Toughness vulnerability is not modelled.
@@ -541,7 +746,7 @@ export class Battle {
   }
 
   /** Books one enemy's damage: its HP, the attacker's and the cycle's totals, and the `damageDealt` event. */
-  private recordDamage(attacker: Member, enemy: UnitId, ability: string, scaling: number, damage: number): void {
+  private recordDamage(attacker: Member, enemy: UnitId, ability: string, scaling: number, damage: number, chance: number): void {
     this.enemies.takeDamage(enemy, damage)
     this.damageByMember[attacker.key]! += damage
     const cycleIndex = Math.min(this.timeline.cycle, this.setup.cycles) - 1
@@ -552,6 +757,7 @@ export class Battle {
       ability,
       scaling,
       damage,
+      chance,
       at: this.timeline.now,
       cycle: this.timeline.cycle,
     })
@@ -567,9 +773,12 @@ export class Battle {
    * IN-GAME CHECK: Break DMG at x1.0 (broken). Fribbels' own default prices its BREAK number at 0.9.
    * Damage over time (Bleed, Burn, Shock, Wind Shear, Entanglement's and Freeze's damage) is out of scope.
    *
-   * Break effects are not counted as debuffs inflicted (no Crimson Knot or Slashed Dream from the Shock, no
-   * "against debuffed" checks on the Imprisonment slow). IN-GAME CHECK: whether Acheron's talent counts the
-   * Lightning break's Shock when her own hit breaks the enemy.
+   * Break effects are debuffs while they last (K24): Entanglement (Entangled, 1 turn), Imprisonment (the shared Imprisoned
+   * state, with its SPD cut) and Freeze (Frozen, until the skipped turn ends) are modifiers with `debuff: true`, so every
+   * debuff count and "against debuffed" check sees them. They are NOT recorded as debuffs an ability inflicted during the
+   * action in progress, so they trigger no Crimson Knot or Slashed Dream (`actionUsed.debuffed`), as before K24.
+   * IN-GAME CHECK: whether Acheron's talent counts a Weakness Break's effect (and the Lightning break's Shock, which is not
+   * modelled) as a debuff inflicted during the ability that broke the enemy.
    */
   private weaknessBreak(attacker: Member, enemy: UnitId): number {
     const result = this.kernelResult(attacker, enemy)
@@ -580,7 +789,7 @@ export class Battle {
       )
     }
     const damage = breakHits.reduce((sum, hit) => sum + hit.damage, 0)
-    this.recordDamage(attacker, enemy, 'BREAK', 0, damage)
+    this.recordDamage(attacker, enemy, 'BREAK', 0, damage, 1)
 
     const be = result.stats.BE
     this.timeline.delay(enemy, BREAK_BASE_DELAY)
@@ -588,19 +797,27 @@ export class Battle {
     switch (element) {
       case 'Quantum':
         this.timeline.delay(enemy, ENTANGLEMENT_DELAY * (1 + be))
-        break
-      case 'Imaginary':
-        this.timeline.delay(enemy, IMPRISONMENT_DELAY * (1 + be))
         this.timeline.modifiers.apply({
-          id: 'break.imprisonment',
+          id: ENTANGLED,
           target: enemy,
           source: attacker.key,
-          spdPct: -IMPRISONMENT_SLOW,
+          debuff: true,
           duration: { turns: 1, tick: 'turnEnd' },
         })
         break
+      case 'Imaginary':
+        this.imprison(enemy, attacker.key, IMPRISONMENT_DELAY * (1 + be), false)
+        break
       case 'Ice':
         this.enemies.freeze(enemy)
+        // The frozen enemy's skipped turn is its next one; the debuff ends with it.
+        this.timeline.modifiers.apply({
+          id: FROZEN,
+          target: enemy,
+          source: attacker.key,
+          debuff: true,
+          duration: { turns: 1, tick: 'turnEnd' },
+        })
         break
       default:
         break
@@ -795,27 +1012,105 @@ export class Battle {
     return this.hitsOf(attacker, ability, this.kernelResult(attacker, enemy))
   }
 
-  /** What the kernel says for the attacker against one enemy, in the enemy's current state (cached by request). */
+  /**
+   * What the kernel says for the attacker against one enemy, in the enemy's current state (cached by request).
+   *
+   * Debuffs are present with a probability (K22). The expected damage is the weighted mean over the debuff states
+   * ("worlds"): the uncertain modifiers (presence below 1) on this enemy and on the allies are taken as independent, each
+   * combination of present / absent is one world with the product of its probabilities, and the kernel prices each world
+   * with every debuff read as a certain fact (`presence`, `debuffCount`, `debuffChance` return 0 or 1 there). With no
+   * uncertain modifier there is one world and nothing changes. A hit that exists in only some worlds (Silver Wolf's E4
+   * Additional DMG needs one debuff) is the mean over the worlds that have it, and the kit scales it by the expected
+   * count. Because every consumer reads the same world, two effects that depend on the same debuff stay consistent.
+   */
   private kernelResult(attacker: Member, enemy: UnitId): DamageResult {
-    const state = attacker.instance.attackerState(enemy)
-    const gear = attackerEquipmentState(attacker.equipmentInstances, enemy, attacker.key)
-    // Injected buffs (K15a): the attacker's own, then each teammate's that are aimed at the team. A teammate's
-    // 'self' buff changes only that teammate, so it does not reach the attacker's damage.
-    const injectedBuffs: InjectedBuff[] = [...(state.injectedBuffs ?? [])]
-    const teammates: KernelTeammate[] = this.members
-      .filter((m) => m !== attacker)
-      .map((m) => {
-        const own = m.instance.teammateState(attacker, enemy)
-        injectedBuffs.push(...(own.injectedBuffs ?? []).filter((b) => b.target === 'team'))
-        const worn = teammateEquipmentState(m.equipmentInstances, attacker, enemy, m.key)
-        return {
-          ...m.kernel.unit,
-          ...(own.characterConditionals && { characterConditionals: own.characterConditionals }),
-          ...(worn.lightConeConditionals && { lightConeConditionals: worn.lightConeConditionals }),
-          ...(worn.teamRelicSet !== undefined && { teamRelicSet: worn.teamRelicSet }),
-          ...(worn.teamOrnamentSet !== undefined && { teamOrnamentSet: worn.teamOrnamentSet }),
-        }
+    return mixWorlds(this.kernelWorlds(attacker, enemy))
+  }
+
+  /**
+   * The debuff states of `enemy` with their probabilities and the kernel's answer in each (see `kernelResult`). States
+   * that price to the same request are one entry. A single entry with `present` undefined means nothing is uncertain.
+   */
+  private kernelWorlds(attacker: Member, enemy: UnitId): KernelWorld[] {
+    const uncertain = [...this.timeline.modifiers.on(enemy), ...this.members.flatMap((m) => this.timeline.modifiers.on(m.key))].filter(
+      (m) => m.chance < 1,
+    )
+    if (uncertain.length === 0) return [{ weight: 1, present: undefined, result: this.priceWorld(attacker, enemy, undefined) }]
+    if (uncertain.length > MAX_UNCERTAIN_MODIFIERS) {
+      throw new Error(
+        `${uncertain.length} uncertain modifiers (presence below 1) around ${enemy} is more than the ${MAX_UNCERTAIN_MODIFIERS} the debuff states are enumerated for`,
+      )
+    }
+    const worlds: KernelWorld[] = []
+    for (let mask = 0; mask < 1 << uncertain.length; mask++) {
+      let weight = 1
+      const present = new Set<string>()
+      uncertain.forEach((modifier, i) => {
+        if (mask & (1 << i)) {
+          weight *= modifier.chance
+          present.add(worldKey(modifier))
+        } else weight *= 1 - modifier.chance
       })
+      if (weight <= 0) continue
+      worlds.push({ weight, present, result: this.priceWorld(attacker, enemy, present) })
+    }
+    return worlds
+  }
+
+  /** Runs `read` with the debuff state `world` in force (`presence` and the like return its exact values). */
+  private readInWorld<T>(world: ReadonlySet<string> | undefined, read: () => T): T {
+    const before = this.world
+    this.world = world
+    try {
+      return read()
+    } finally {
+      this.world = before
+    }
+  }
+
+  /** The kernel's answer for the attacker against one enemy with the debuff state `world` (undefined: probabilities, see `presence`). */
+  private priceWorld(attacker: Member, enemy: UnitId, world: ReadonlySet<string> | undefined): DamageResult {
+    if (this.collectingState) {
+      throw new Error(
+        `The kernel was asked (Battle.combatStats, attack or a price) for ${attacker.key} while the battle was collecting a ` +
+          "kit's or module's attackerState / teammateState for another request. A kit must not ask the kernel from its own " +
+          'attackerState or teammateState: it would loop. Read it from an action or an event listener instead.',
+      )
+    }
+    this.collectingState = true
+    this.world = world
+    let state: ReturnType<KitInstance['attackerState']>
+    let gear: ReturnType<typeof attackerEquipmentState>
+    const injectedBuffs: InjectedBuff[] = []
+    const extraHits: ExtraHit[] = []
+    let teammates: KernelTeammate[]
+    try {
+      state = attacker.instance.attackerState(enemy)
+      gear = attackerEquipmentState(attacker.equipmentInstances, enemy, attacker.key)
+      // Injected buffs (K15a): the attacker's own, then each teammate's that are aimed at the team. A teammate's
+      // 'self' buff changes only that teammate, so it does not reach the attacker's damage. Extra hits (K23) are the
+      // teammates' gifts to the attacker, merged in the same pass.
+      injectedBuffs.push(...(state.injectedBuffs ?? []))
+      teammates = this.members
+        .filter((m) => m !== attacker)
+        .map((m) => {
+          const own = m.instance.teammateState(attacker, enemy)
+          injectedBuffs.push(...(own.injectedBuffs ?? []).filter((b) => b.target === 'team'))
+          extraHits.push(...(own.extraHits ?? []))
+          const worn = teammateEquipmentState(m.equipmentInstances, attacker, enemy, m.key)
+          return {
+            ...m.kernel.unit,
+            ...(own.characterConditionals && { characterConditionals: own.characterConditionals }),
+            ...(worn.lightConeConditionals && { lightConeConditionals: worn.lightConeConditionals }),
+            ...(worn.teamRelicSet !== undefined && { teamRelicSet: worn.teamRelicSet }),
+            ...(worn.teamOrnamentSet !== undefined && { teamOrnamentSet: worn.teamOrnamentSet }),
+          }
+        })
+    } finally {
+      this.collectingState = false
+      this.world = undefined
+    }
+    this.checkExtraHits(attacker, extraHits)
     const { weaknesses, profile, enemyCount } = this.setup
     const request: DamageRequest = {
       attacker: {
@@ -827,6 +1122,7 @@ export class Battle {
       build: attacker.kernel.build,
       ...(gear.setConditionals && { setConditionals: gear.setConditionals }),
       ...(injectedBuffs.length > 0 && { injectedBuffs }),
+      ...(extraHits.length > 0 && { extraHits }),
       enemy: {
         count: enemyCount,
         level: profile.level,
@@ -844,6 +1140,30 @@ export class Battle {
       this.kernelCalls += 1
     }
     return result
+  }
+
+  /** The extra hits the teammates give `attacker` against `enemy` now, in the order a request lists them (K23). */
+  private collectExtraHits(attacker: Member, enemy: UnitId): ExtraHit[] {
+    if (this.collectingState) {
+      throw new Error("Battle.extraHitIndex was called while the battle was collecting a kit's teammateState: ask it from an action instead")
+    }
+    this.collectingState = true
+    const extraHits: ExtraHit[] = []
+    try {
+      for (const m of this.members) if (m !== attacker) extraHits.push(...(m.instance.teammateState(attacker, enemy).extraHits ?? []))
+    } finally {
+      this.collectingState = false
+    }
+    this.checkExtraHits(attacker, extraHits)
+    return extraHits
+  }
+
+  private checkExtraHits(attacker: Member, extraHits: readonly ExtraHit[]): void {
+    const seen = new Set<string>()
+    for (const hit of extraHits) {
+      if (seen.has(hit.id)) throw new Error(`Two teammates give ${attacker.key} an extra hit with the id "${hit.id}": ids must be unique`)
+      seen.add(hit.id)
+    }
   }
 
   private hitsOf(attacker: Member, ability: string, result: DamageResult): HitResult[] {
@@ -873,4 +1193,54 @@ export class Battle {
     }
     return hit.damage / hit.scaling
   }
+}
+
+/** One debuff state of an enemy: its probability, the uncertain modifiers present in it, and the kernel's answer for it. */
+interface KernelWorld {
+  weight: number
+  present: ReadonlySet<string> | undefined
+  result: DamageResult
+}
+
+/** The kernel's answer averaged over the states, one result per distinct kernel answer. */
+function mixWorlds(worlds: readonly KernelWorld[]): DamageResult {
+  if (worlds.length === 1) return worlds[0]!.result
+  const byResult = new Map<DamageResult, number>()
+  for (const { weight, result } of worlds) byResult.set(result, (byResult.get(result) ?? 0) + weight)
+  return byResult.size === 1 ? [...byResult.keys()][0]! : mixResults([...byResult])
+}
+
+/**
+ * The weighted mean of kernel results (weights sum to 1). A number is the weighted mean over the results that have it,
+ * so a hit that exists in only some debuff states is its mean over those (the kit scales it by how often it exists).
+ */
+function mixResults(parts: ReadonlyArray<readonly [DamageResult, number]>): DamageResult {
+  const mean = (pick: (result: DamageResult) => number | undefined): number | undefined => {
+    let sum = 0
+    let weight = 0
+    for (const [result, w] of parts) {
+      const value = pick(result)
+      if (value === undefined) continue
+      sum += w * value
+      weight += w
+    }
+    return weight > 0 ? sum / weight : undefined
+  }
+  const damage: Record<string, number> = {}
+  for (const ability of new Set(parts.flatMap(([r]) => Object.keys(r.damage)))) damage[ability] = mean((r) => r.damage[ability])!
+  const hits: Record<string, HitResult[]> = {}
+  for (const ability of new Set(parts.flatMap(([r]) => Object.keys(r.hits)))) {
+    const length = Math.max(...parts.map(([r]) => r.hits[ability]?.length ?? 0))
+    hits[ability] = Array.from({ length }, (_, i) => {
+      const d = mean((r) => r.hits[ability]?.[i]?.damage)!
+      const scaling = mean((r) => r.hits[ability]?.[i]?.scaling)
+      return scaling === undefined ? { damage: d } : { damage: d, scaling }
+    })
+  }
+  const stats = { ...parts[0]![0].stats }
+  for (const key of Object.keys(stats) as Array<keyof CombatStats>) {
+    const value = mean((r) => r.stats[key])
+    if (value !== undefined) stats[key] = value
+  }
+  return { damage, hits, stats }
 }

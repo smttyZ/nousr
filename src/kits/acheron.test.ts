@@ -113,7 +113,7 @@ describe('Slashed Dream and Crimson Knot', () => {
     const { battle, read } = setup({ cycles: 1, policy: [{ unit: 'acheron', use: 'basic', when: [] }] })
     battle.run()
     expect([read('slashed_dream'), read('crimson_knots'), read('quadrivalent_ascendance')]).toEqual([5, 5, 1])
-    expect(battle.hasDebuff('enemy1')).toBe(false) // a knot is a mark, not a debuff
+    expect(battle.debuffChance('enemy1') > 0).toBe(false) // a knot is a mark, not a debuff
   })
 
   it('without the technique there is no Quadrivalent Ascendance', () => {
@@ -267,7 +267,7 @@ describe('E4', () => {
   it('puts a debuff on every enemy at the start, without giving a talent stack', () => {
     const { battle, read } = setup({ members: [acheron(4)], enemyCount: 3, cycles: 1, policy: [{ unit: 'acheron', use: 'basic', when: [] }] })
     battle.run()
-    expect(battle.enemies.ids.map((enemy) => battle.hasDebuff(enemy))).toEqual([true, true, true])
+    expect(battle.enemies.ids.map((enemy) => battle.debuffChance(enemy) > 0)).toEqual([true, true, true])
     // E2's turn-start stack only: 5 + 1. Nothing from the E4 debuff.
     expect(read('slashed_dream')).toBe(6)
     expect(battle.member('acheron').instance.attackerState('enemy1').characterConditionals).toMatchObject({ e1EnemyDebuffed: true })
@@ -276,7 +276,7 @@ describe('E4', () => {
   it('below E4 the enemies start without it', () => {
     const { battle } = setup({ members: [acheron(3)], enemyCount: 3, cycles: 1, policy: [{ unit: 'acheron', use: 'basic', when: [] }] })
     battle.run()
-    expect(battle.enemies.ids.some((enemy) => battle.hasDebuff(enemy))).toBe(false)
+    expect(battle.enemies.ids.some((enemy) => battle.debuffChance(enemy) > 0)).toBe(false)
   })
 })
 

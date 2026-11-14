@@ -181,6 +181,30 @@ export interface InjectedBuff {
   label?: string
 }
 
+/** The kernel's ability kind for the hits a request's `extraHits` name, in the order the request lists them. */
+export const EXTRA_ABILITY = 'EXTRA'
+
+/** The element of an extra hit when it is not the attacker's own. Fribbels' own element names. */
+export type ExtraHitElement = 'Physical' | 'Fire' | 'Ice' | 'Lightning' | 'Wind' | 'Quantum' | 'Imaginary'
+
+/**
+ * A hit of Additional DMG that another unit gives the attacker (DESIGN.md, K23): "the Bondmate deals Additional DMG equal
+ * to 80% of its ATK". The kernel prices it as a standard Additional DMG hit of the ATTACKER (the attacker's own scaling
+ * stat, CRIT, element and buffs, including hit-level buffs aimed at Additional DMG) and returns it in
+ * `DamageResult.hits.EXTRA`, at the position it has in the request's list.
+ */
+export interface ExtraHit {
+  /** Names the hit in messages and for `Battle.extraHitIndex`. Unique within one request. */
+  id: string
+  damageType: 'ADDITIONAL'
+  /** The attacker's stat the hit scales on. */
+  scalingStat: 'ATK' | 'HP' | 'DEF'
+  /** 1.0 is 100% of the stat. A kit that wants a price per 100% asks for 1 and scales the part itself. */
+  multiple: number
+  /** Left out: the attacker's own element. */
+  element?: ExtraHitElement
+}
+
 export interface DamageRequest {
   attacker: KernelUnit
   /** Up to three. */
@@ -195,6 +219,11 @@ export interface DamageRequest {
    * requests that differ only here are different requests (the battle runner caches by request).
    */
   injectedBuffs?: InjectedBuff[]
+  /**
+   * Extra Additional DMG hits added to the attacker's actions (K23). Part of the request, so two requests that differ
+   * only here are different requests. Priced as the attacker's, returned as `hits.EXTRA` (and `damage.EXTRA`).
+   */
+  extraHits?: ExtraHit[]
 }
 
 export interface CombatStats {

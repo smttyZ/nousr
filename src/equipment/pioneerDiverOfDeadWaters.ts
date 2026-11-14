@@ -1,3 +1,4 @@
+import { certain } from '../battle/battle'
 import type { SetModule } from './equipment'
 
 /**
@@ -15,6 +16,15 @@ import type { SetModule } from './equipment'
  * (re)applied for 1 of the wearer's turns, with the engine's default of not counting the turn it was
  * applied in. Fribbels' menu cannot express "doubled with fewer than 2 debuffs", so that state is read as
  * 0 or -1.
+ *
+ * Debuffs are present with a probability (K22), and the menu is a tiered count, not linear, so it is priced in each debuff
+ * state and the states are weighted (`Battle.kernelResult`): in a state the debuff count is a whole number and the doubling
+ * is on or off. The doubling's own presence is the chance the debuff that triggered it landed (the debuff modifier's
+ * `chance`), independent applications combined as independent.
+ * Approximation: the doubling and the debuff that triggered it are one event in the game but two independent modifiers in the
+ * states, so when the wearer's debuff lands with a chance below 1 the states "debuff present" and "doubled" are taken as
+ * independent (a debuff at 0.5 is present and doubling in 0.25 of the states, where it is 0.5). Exact when the wearer's debuffs
+ * are certain, which they are for every Acheron case in the repo.
  *
  * IN-GAME CHECK: whether the doubling's 1 turn is the wearer's next turn (as implemented) or ends with the
  * turn it was applied in.
@@ -38,13 +48,13 @@ export const PioneerDiverOfDeadWaters: SetModule = {
 
     timeline.bus.on('modifierApplied', ({ modifier }) => {
       if (!modifier.debuff || modifier.source !== me || !battle.enemies.has(modifier.target)) return
-      timeline.modifiers.apply({ id: DOUBLED, target: me, source: me, duration: { turns: 1, tick: 'turnEnd' } })
+      timeline.modifiers.apply({ id: DOUBLED, target: me, source: me, chance: modifier.chance, duration: { turns: 1, tick: 'turnEnd' } })
     })
 
     return {
       attackerState: (enemy) => {
         const debuffs = battle.debuffCount(enemy)
-        const doubled = timeline.modifiers.has(me, DOUBLED)
+        const doubled = certain(battle.presence(me, DOUBLED))
         const value = debuffs < 1 ? -1 : debuffs < 2 ? 0 : doubled ? (debuffs >= 3 ? 4 : 3) : debuffs >= 3 ? 2 : 1
         return { setConditionals: { 'Pioneer Diver of Dead Waters': value } }
       },

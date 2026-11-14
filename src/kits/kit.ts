@@ -1,7 +1,7 @@
 import type { Battle, Member } from '../battle/battle'
 import type { Path } from '../battle/party'
 import type { UnitId } from '../engine/events'
-import type { ConditionalValues, InjectedBuff } from '../kernel/types'
+import type { ConditionalValues, ExtraHit, InjectedBuff } from '../kernel/types'
 import type { Element } from '../scenario/types'
 
 /**
@@ -62,6 +62,15 @@ export interface TeammateState {
    * that teammate.
    */
   injectedBuffs?: InjectedBuff[]
+  /**
+   * Extra Additional DMG hits this character gives `attacker` (DESIGN.md, K23): damage that is dealt by the attacker, on
+   * the attacker's own stats, because of this character ("the Bondmate deals Additional DMG equal to 80% of its ATK").
+   * The battle merges them into the attacker's kernel request next to the team's injected buffs, and the kernel prices
+   * them as hits of ability kind 'EXTRA'. To deal one, the kit makes a bare
+   * `battle.attack({ attacker, ability: 'EXTRA', parts: [{ ..., hit: battle.extraHitIndex(attacker, id) }] })`, never inside a
+   * `performAction` for the attacker, so that Additional DMG does not count as that ally attacking.
+   */
+  extraHits?: ExtraHit[]
 }
 
 export interface KitInstance {
@@ -69,9 +78,14 @@ export interface KitInstance {
   actions: Record<string, KitAction>
   /** Numbers and yes/no values a policy condition can read as `<member key>.<name>`. */
   quantities?: Record<string, () => number | boolean>
+  /**
+   * Must not call `Battle.combatStats`, `Battle.attack` or anything else that asks the kernel: the battle is building
+   * the kernel request from this very call, so it would loop. The battle throws a clear error if it happens.
+   */
   attackerState(enemy: UnitId): AttackerState
   /**
-   * Required on purpose: left to Fribbels' defaults, a teammate's buffs would count as always on.
+   * Required on purpose: left to Fribbels' defaults, a teammate's buffs would count as always on. The same rule as
+   * `attackerState`: never ask the kernel from here (`Battle.combatStats` included).
    */
   teammateState(attacker: Member, enemy: UnitId): TeammateState
   /** Effects at the start of battle. `techniques` is the scenario's setting. */

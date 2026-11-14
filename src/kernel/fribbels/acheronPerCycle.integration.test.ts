@@ -38,6 +38,9 @@ import { FribbelsKernel } from './fribbelsKernel'
  * - Dance! Dance! Dance!, on the cases with Tribbie: her Ultimate advances every ally by 16%, which changes
  *   the turn order, and with it when Acheron's Ultimate and Tribbie's Zone line up.
  *
+ * Re-pinned 2026-11-14 for K22 (expected-value debuffs) and K24 (break effects are debuffs): the two Tribbie cases moved, in cycles 4 and 5
+ * only, and only through K24; see the comments on each case.
+ *
  * Re-pinned 2026-11-13 when weakness break was built (DESIGN.md, K7 and K7b). Enemies now have a toughness bar
  * (480, internal units), hits remove it, and a broken enemy (1) takes x1.0 instead of x0.9 from every hit
  * until its next turn, (2) takes the kernel's Break DMG once, priced broken (x1.0), credited to the breaker
@@ -160,7 +163,12 @@ describe('Acheron per cycle is unchanged by per-hit pricing', () => {
       // Pioneer alone: [285403.277, 622034.428, 388350.104, 17167.281, 265162.627]; Along alone: [1284015.523, 18061.468, 899579.012, 407900.801, 24080.506];
       // Along and Pioneer: [1149081.998, 15587.954, 799490.304, 356614.939, 21844.840]; Dance moves the last four cycles to the figures below.
       // Weakness break (K7), was [1149081.9975542831, 356614.9391330746, 958189.9831990919, 805747.1893770439, 252630.49444410455].
-      expected: [1149081.9975542831, 356614.9391330746, 990961.6572651827, 839704.1145080819, 298276.803192375],
+      // K22 / K24 (2026-11-14), was [1149081.9975542831, 356614.9391330746, 990961.6572651827, 839704.1145080819, 298276.803192375]: cycles 4 and 5 only
+      // (+54630.86 and +10562.47). Each cause alone: K22 on bounces 0 (Acheron's own parts reach every enemy for certain, so Along the Passing Shore's
+      // chance is always 1; the old and new Fizzle give the same numbers), expected talent stacks 0 (no debuff in this run lands with a chance below
+      // 1, so the stacks stay whole), K24 break debuffs all of it: Tribbie's Quantum break leaves Entangled on the enemy, a debuff, so her next
+      // Acheron hits count it (Pioneer Diver's tier, her E1's +18% CRIT Rate against debuffed enemies).
+      expected: [1149081.9975542831, 356614.9391330746, 990961.6572651827, 894334.9762539868, 308839.2669066245],
     },
     {
       name: 'E6 with the Affinitive Eidolon beside Tribbie E0 against 3 enemies',
@@ -171,7 +179,9 @@ describe('Acheron per cycle is unchanged by per-hit pricing', () => {
       // Pioneer alone: [277922.022, 658491.995, 25989.962, 352045.843, 25989.962]; Along alone: [945487.145, 344701.495, 740747.241, 704923.031, 24017.701];
       // Along and Pioneer: [913328.725, 321547.257, 723791.297, 674929.068, 21787.866]; Dance moves cycles 2, 4 and 5 to the figures below.
       // Weakness break (K7), was [913328.7246385348, 295126.54774301045, 723791.2971497488, 670296.2246838908, 275505.7258835326].
-      expected: [913328.7246385348, 295126.54774301045, 761531.7946724296, 741444.101858762, 275505.7258835326],
+      // K22 / K24 (2026-11-14), was [913328.7246385348, 295126.54774301045, 761531.7946724296, 741444.101858762, 275505.7258835326]: cycle 4 only
+      // (+21221.87), all of it K24 (Entangled counts as a debuff after Tribbie's Quantum break); K22 on bounces and expected talent stacks 0, as above.
+      expected: [913328.7246385348, 295126.54774301045, 761531.7946724296, 762665.9727559718, 275505.7258835326],
     },
   ]
 

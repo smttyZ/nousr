@@ -18,6 +18,8 @@ import { ModifierStore } from './modifiers'
  * - A turn landing exactly on a cycle boundary counts in the cycle that is ending (CYCLE_INCLUSIVE).
  * - Equal AV: a unit advanced to 0 goes before a unit that reached 0 by waiting, the most recently
  *   advanced first (KQM); otherwise the unit added to the timeline earlier goes first (compareOrder).
+ * - A suspended unit (`suspend`) is outside the order: its gauge neither drains nor produces a turn. Advance and delay on it
+ *   move its frozen gauge (settled by Smitty for Robin Summeretto's Fever, DESIGN.md in-game check table). `resume` puts it back.
  * - The gauge refills after the turnStart event and before the unit acts. An advance during
  *   turnStart is therefore wasted (gauge already 0), and an advance during or after the unit's own
  *   action shortens its next turn.
@@ -29,6 +31,12 @@ export const ACTION_GAUGE = 10_000
 const EPSILON = 1e-9
 
 const CYCLE_INCLUSIVE = true
+
+/**
+ * Does an extra turn tick the durations clocked on its unit's turns (and fire their turnStart / turnEnd ticks)?
+ * Read as yes: the unit takes a turn. No source read settles it. IN-GAME CHECK; false makes extra turns invisible to durations.
+ */
+export const EXTRA_TURN_TICKS_MODIFIERS = true
 
 export interface CycleRules {
   firstCycleAv: number
@@ -60,6 +68,8 @@ interface Unit {
   /** Non-zero while the unit sits at 0 gauge because of an advance. Higher is more recent. */
   advancedStamp: number
   turnsTaken: number
+  /** True while the unit is suspended: it keeps its gauge but is not in the order and takes no turn (`Timeline.suspend`). */
+  suspended: boolean
 }
 
 export type TurnHandler = (turn: TurnInfo, timeline: Timeline) => void
@@ -91,6 +101,9 @@ export class Timeline {
   private nextStamp = 1
   private turnSerial = 0
   private active: TurnInfo | undefined
+  private extraQueue: UnitId[] = []
+  private activeCancelled = false
+  private readonly offTimelineTurns = new Map<UnitId, number>()
 
   constructor(options: { cycleRules?: CycleRules, bus?: EventBus<EngineEvents> } = {}) {
     this.cycleRules = options.cycleRules ?? MOC_CYCLES
@@ -138,6 +151,7 @@ export class Timeline {
       gauge,
       advancedStamp: 0,
       turnsTaken: 0,
+      suspended: false,
     })
     this.bus.emit('unitAdded', { unit: init.id, at: this.elapsed })
   }
@@ -145,6 +159,7 @@ export class Timeline {
   /** Takes a unit off the timeline (downed, or a summon that left) and drops the modifiers on it. */
   removeUnit(id: UnitId): void {
     this.unit(id)
+    this.cancelExtraTurns(id)
     this.unitMap.delete(id)
     this.modifiers.removeAllOn(id)
     this.bus.emit('unitRemoved', { unit: id, at: this.elapsed })
@@ -161,9 +176,43 @@ export class Timeline {
     return this.unit(id).gauge
   }
 
-  /** Action value until this unit's next turn, at its current SPD. */
+  /** Action value until this unit's next turn, at its current SPD. Infinity for a suspended unit: it has no next turn. */
   av(id: UnitId): number {
-    return this.unit(id).gauge / this.spd(id)
+    const u = this.unit(id)
+    return u.suspended ? Infinity : u.gauge / this.spd(id)
+  }
+
+  /**
+   * Takes a unit out of the order without removing it: it keeps its gauge, the gauge stops draining, and it takes no turn until
+   * `resume`. `advance` and `delay` still apply to the frozen gauge. A unit that is already suspended is left alone (no event).
+   * Extra turns granted to it are still taken (they never come from the gauge). For "will not enter her turn until Fever ends"
+   * (Robin Summeretto) and a memosprite that appears on the order only later (the Summer Songbirds).
+   */
+  suspend(id: UnitId): void {
+    const u = this.unit(id)
+    if (u.suspended) return
+    u.suspended = true
+    this.bus.emit('unitSuspended', { unit: id, at: this.elapsed })
+  }
+
+  /**
+   * Puts a suspended unit back in the order. It keeps its gauge unless `gauge` is given, which sets it (a full gauge for a unit
+   * that "appears on the Action Order"). A unit that is not suspended is left alone, `gauge` ignored (no event).
+   */
+  resume(id: UnitId, options: { gauge?: number } = {}): void {
+    const u = this.unit(id)
+    if (!u.suspended) return
+    if (options.gauge !== undefined) {
+      if (!(options.gauge >= 0)) throw new Error(`resume gauge must not be negative, got ${options.gauge}`)
+      u.gauge = options.gauge
+      u.advancedStamp = 0
+    }
+    u.suspended = false
+    this.bus.emit('unitResumed', { unit: id, at: this.elapsed, gauge: u.gauge })
+  }
+
+  isSuspended(id: UnitId): boolean {
+    return this.unit(id).suspended
   }
 
   /** Action advance. `fraction` 0.25 is "advance action by 25%". */
@@ -189,6 +238,7 @@ export class Timeline {
   /** The upcoming order: who acts next first, with the action value each still has to wait. */
   order(): { unit: UnitId, av: number }[] {
     return [...this.unitMap.values()]
+      .filter((u) => !u.suspended)
       .map((u) => ({ u, av: this.av(u.id) }))
       .sort((a, b) => compareOrder(a.u, a.av, b.u, b.av))
       .map(({ u, av }) => ({ unit: u.id, av }))
@@ -214,6 +264,10 @@ export class Timeline {
       })
     }
 
+    // Extra turns come first: they belong right after the action that granted them.
+    const queued = this.extraQueue.shift()
+    if (queued !== undefined) return this.runTurn(queued, takeTurn, true)
+
     const next = this.order()[0]
     const boundary = this.cycleEnd(this.currentCycle)
     const turnAt = next === undefined ? Infinity : this.elapsed + next.av
@@ -232,30 +286,66 @@ export class Timeline {
     this.drain(next.av)
     const u = this.unit(next.unit)
     u.gauge = 0
-    u.turnsTaken += 1
+    return this.runTurn(u.id, takeTurn, false)
+  }
+
+  /**
+   * An extra turn for `id`, taken right after the action in progress resolves (before the gauge moves again). The unit's
+   * gauge is untouched. `id` may be a unit that is not on the timeline (a memosprite with no SPD, whose turns only ever
+   * come this way). Extra turns queue in the order granted. See `EXTRA_TURN_TICKS_MODIFIERS`.
+   */
+  grantExtraTurn(id: UnitId): void {
+    this.extraQueue.push(id)
+  }
+
+  /** Drops the extra turns queued for `id`, and the one in progress if it is `id`'s. For a unit that left the field. */
+  cancelExtraTurns(id: UnitId): void {
+    this.extraQueue = this.extraQueue.filter((x) => x !== id)
+    if (this.active?.unit === id) this.activeCancelled = true
+  }
+
+  /** Extra turns waiting to be taken, in order. */
+  pendingExtraTurns(): readonly UnitId[] {
+    return this.extraQueue
+  }
+
+  private runTurn(id: UnitId, takeTurn: TurnHandler | undefined, extra: boolean): Step {
+    const u = this.unitMap.get(id)
+    let index: number
+    if (u) index = ++u.turnsTaken
+    else {
+      index = (this.offTimelineTurns.get(id) ?? 0) + 1
+      this.offTimelineTurns.set(id, index)
+    }
     const turn: TurnInfo = {
-      unit: u.id,
+      unit: id,
       serial: ++this.turnSerial,
-      index: u.turnsTaken,
+      index,
       at: this.elapsed,
       cycle: this.currentCycle,
+      ...(extra && { extra: true as const }),
     }
     this.active = turn
+    this.activeCancelled = false
+    const alive = () => (u ? this.unitMap.has(id) : !this.activeCancelled)
+    const ticks = !extra || EXTRA_TURN_TICKS_MODIFIERS
 
     // Listeners first, countdown second: an effect that triggers "at the start of the turn" still
     // sees a modifier on its last turn. Same order at the end of the turn.
     this.bus.emit('turnStart', turn)
-    this.modifiers.tick(turn, 'turnStart')
+    if (ticks) this.modifiers.tick(turn, 'turnStart')
 
     // Any of the above may have removed the unit (for example damage at turn start).
-    if (this.unitMap.has(u.id)) {
-      u.gauge = ACTION_GAUGE
-      u.advancedStamp = 0
+    if (alive()) {
+      if (u && !extra) {
+        u.gauge = ACTION_GAUGE
+        u.advancedStamp = 0
+      }
       takeTurn?.(turn, this)
     }
-    if (this.unitMap.has(u.id)) {
+    if (alive()) {
       this.bus.emit('turnEnd', turn)
-      this.modifiers.tick(turn, 'turnEnd')
+      if (ticks) this.modifiers.tick(turn, 'turnEnd')
     }
 
     this.active = undefined
@@ -287,6 +377,7 @@ export class Timeline {
   private drain(av: number): void {
     if (av <= 0) return
     for (const u of this.unitMap.values()) {
+      if (u.suspended) continue
       u.gauge = Math.max(0, u.gauge - av * this.spd(u.id))
     }
     this.elapsed += av

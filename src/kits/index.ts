@@ -1,7 +1,10 @@
 import { Acheron } from './acheron'
 import { DanHengPT } from './danHengPT'
+import { FuXuan } from './fuXuan'
 import { JingYuan } from './jingYuan'
+import { RobinSummeretto } from './robinSummeretto'
 import { SilverWolf } from './silverWolf'
+import { Sunday } from './sunday'
 import { Welt } from './welt'
 import type { Kit } from './kit'
 import { Tribbie } from './tribbie'
@@ -28,6 +31,10 @@ export const KITS: ReadonlyMap<string, RegisteredKit> = new Map(
     { name: 'Silver Wolf', kit: SilverWolf },
     { name: 'Welt', kit: Welt },
     { name: 'Dan Heng • Permansor Terrae', kit: DanHengPT },
+    // Reviewed 2026-11-14/15, then fixed. Readings awaiting an in-game check are marked IN-GAME CHECK.
+    { name: 'Sunday', kit: Sunday },
+    { name: 'Fu Xuan', kit: FuXuan },
+    { name: 'Robin • Summeretto', kit: RobinSummeretto },
   ].map((entry) => [entry.kit.characterId, entry]),
 )
 

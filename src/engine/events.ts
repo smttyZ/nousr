@@ -14,6 +14,8 @@ export interface TurnInfo {
   at: number
   /** Cycle the turn falls in. The first cycle is 1. */
   cycle: number
+  /** True for an extra turn (`Timeline.grantExtraTurn`): taken outside the gauge, right after an action. Absent otherwise. */
+  extra?: true
 }
 
 /**
@@ -30,6 +32,10 @@ export interface EngineEvents {
   turnEnd: TurnInfo
   unitAdded: { unit: UnitId, at: number }
   unitRemoved: { unit: UnitId, at: number }
+  /** `Timeline.suspend`: the unit left the order but keeps its gauge. */
+  unitSuspended: { unit: UnitId, at: number }
+  /** `Timeline.resume`: the unit is back in the order with `gauge`. */
+  unitResumed: { unit: UnitId, at: number, gauge: number }
   gaugeChanged: { unit: UnitId, before: number, after: number, cause: 'advance' | 'delay' }
   modifierApplied: { modifier: Modifier, previous: Modifier | undefined }
   modifierRemoved: { modifier: Modifier, reason: 'expired' | 'removed' | 'unitRemoved' }
@@ -45,6 +51,38 @@ export interface EngineEvents {
   /** `amount` is energy actually added, after Energy Regeneration Rate and the cap. */
   energyGained: { unit: UnitId, amount: number }
   unitDowned: { unit: UnitId, at: number }
+  /**
+   * A knockdown guard (`Party.addKnockdownGuard`) held `unit` at `hp` instead of letting it be downed. `hpLost` for the
+   * blow came just before it. `by` is the guard's id, `source` who caused the loss.
+   */
+  knockdownPrevented: { unit: UnitId, hp: number, by: string, source: UnitId }
+  /**
+   * A shield was applied or refreshed upward (`Party.setShield`): `amount` is the new value of the shield stored under `key`,
+   * `previous` what that key held before (0 for a new one). `source` is who provided it (the shielded unit itself when the
+   * caller did not say). Not emitted when a shield is removed, lowered, or set to the amount it already has.
+   */
+  shieldGranted: { unit: UnitId, key: string, amount: number, previous: number, source: UnitId }
+  /**
+   * A memosprite's HP reached 0 (src/battle/party.ts). The battle removes it and then emits `memospriteRemoved`. It is NOT a
+   * `unitDowned`: a memosprite is not a character, so it never fails the "no downed characters" objective.
+   */
+  memospriteDefeated: { unit: UnitId, at: number }
+  /** A memosprite joined the field (`Battle.addMemosprite`). */
+  memospriteAdded: { unit: UnitId, owner: UnitId, at: number }
+  /** A memosprite left the field: its HP reached 0, its owner was downed, or its kit removed it. */
+  memospriteRemoved: { unit: UnitId, owner: UnitId, reason: 'hp' | 'ownerDowned' | 'removed', at: number }
+  /**
+   * Damage moved from one ally to another by a redirect rule (`Party.addRedirect`; Fu Xuan's Matrix of Prescience).
+   * `amount` is what `from` would have taken and `to` is given instead (before `to`'s shields). `source` is the attacker.
+   */
+  damageRedirected: { from: UnitId, to: UnitId, amount: number, source: UnitId }
+  /**
+   * A backup rule (`Party.addBackup`; Netherwing) made `by` bear HP loss that `unit` could not: `unit` was held at 1 HP, `excess`
+   * is the part of the loss it did not take, `requested` is `excess` times the rule's multiplier, `lost` is what `by` actually
+   * lost. `by`'s own `hpLost` event comes just before this one (source: the original cause), so listeners that only count
+   * hpLost see both the covered unit's and the backup's loss.
+   */
+  hpBorne: { unit: UnitId, by: UnitId, excess: number, requested: number, lost: number, cause: 'damage' | 'consume', source: UnitId }
 
   // ---- ally actions (src/battle/battle.ts)
   /**
@@ -64,6 +102,11 @@ export interface EngineEvents {
    */
   actionUsed: {
     actor: UnitId
+    /**
+     * Set when the actor is a memosprite: the member that owns it. The damage is priced as, and credited to, the owner
+     * (`damageDealt.attacker` is the owner); `actor` is the memosprite so the log shows who acted.
+     */
+    owner?: UnitId
     action: string
     kind: 'basic' | 'skill' | 'ultimate' | 'followUp'
     serial: number
@@ -93,6 +136,11 @@ export interface EngineEvents {
     ability: string
     scaling: number
     damage: number
+    /**
+     * Set only for a flat amount of damage (`Battle.dealFlatDamage`), which the kernel did not price: 'TRUE' for True DMG.
+     * Absent for everything the kernel priced. A tally of "non-True DMG" skips `kind === 'TRUE'`.
+     */
+    kind?: 'TRUE' | 'FLAT'
     /**
      * The probability that the enemy was hit at least once by the attack call this event belongs to (K17): 1 for a
      * single, blast or AoE part or for Break DMG, below 1 for an enemy only random-target parts reach, and 0 for an

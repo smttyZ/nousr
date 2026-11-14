@@ -176,7 +176,7 @@ export const DanHengPT: Kit = {
       if (party.get(ally).downed) return
       // His own shield only: another source's (Texture of Memories) neither counts toward the cap nor is touched.
       const current = party.shieldOf(ally, SHIELD_KEY)
-      party.setShield(ally, SHIELD_KEY, Math.max(current, Math.min(current + amount, cap)))
+      party.setShield(ally, SHIELD_KEY, Math.max(current, Math.min(current + amount, cap)), me)
       timeline.modifiers.apply({ id: SHIELD_MODIFIER, target: ally, source: me, duration: { turns: SHIELD_TURNS, tick: 'turnEnd' } })
     }
 
@@ -310,7 +310,7 @@ export const DanHengPT: Kit = {
           canUse: () => battle.skillPoints >= 1,
           use: (target) => {
             if (target === undefined) throw new Error(`${me}'s Skill needs a target: the ally that becomes the Bondmate (the policy rule's "target")`)
-            if (!battle.isAlly(target)) throw new Error(`${me}'s Skill target "${target}" is not an ally`)
+            if (!battle.isCharacter(target)) throw new Error(`${me}'s Skill target "${target}" is not an ally`)
             if (target === me) {
               throw new Error(`${me}'s Skill on himself (as the Bondmate) is not modelled: his own Bondmate buffs have no path through the kernel`)
             }

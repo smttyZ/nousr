@@ -118,6 +118,62 @@ export interface SummonSpec {
   takeTurn(turn: TurnInfo): void
 }
 
+/**
+ * Memosprites whose default is untargetable (DESIGN.md K6, second kind). The key is `MemospriteSpec.name`.
+ * - netherwing, summer_songbirds: settled by Smitty (2026-11-14): enemies cannot target them. Netherwing has real HP
+ *   (it bears HP loss for allies); Summer Songbirds' HP (70% of Robin's Max HP) only scales their damage and is never lost.
+ * - little_ica, demiurge: hsr-simulator marks them "backup", i.e. untargetable. IN-GAME CHECK: can enemies target Little
+ *   Ica (Hyacine) and Cyrene's Demiurge? Delete the name from this set to make one targetable.
+ * A kit overrides it per memosprite with `MemospriteSpec.targetable`, and `Battle.setMemospriteTargetable` switches it later.
+ */
+export const UNTARGETABLE_MEMOSPRITES: Set<string> = new Set(['netherwing', 'summer_songbirds', 'little_ica', 'demiurge'])
+
+/**
+ * A memosprite (DESIGN.md, K6, second kind): a party member with its own HP and aggro, and, when it has SPD, a unit on the
+ * timeline. Its turn is run by the owner's kit through `takeTurn`, never by the policy. What it deals is priced as the owner's
+ * ability: the kit calls `performAction(spec.id, ...)` (the log's actor is the memosprite, with the owner recorded) and
+ * `attack({ attacker: owner, ability: 'MEMO_SKILL', ... })`, so the kernel prices it with the owner's stats and the damage is
+ * credited to the owner. The Ultimate window opens before and after its turn as around an ally's. It leaves when its HP reaches
+ * 0 (`memospriteRemoved` with reason 'hp'; it is not a downed character), when its owner is downed, or when the kit calls
+ * `removeMemosprite`.
+ *
+ * With no `baseSpd` it is not on the timeline and acts only through extra turns its owner grants (`Battle.grantExtraTurn`):
+ * Little Ica, Cyrene's Demiurge.
+ */
+export interface MemospriteSpec {
+  /** Its unit id; collides with nothing. Convention: `${owner}.${name}`. */
+  id: UnitId
+  /** The member that owns it, by key. */
+  owner: string
+  /** Which memosprite it is, for the targetability default (`UNTARGETABLE_MEMOSPRITES`): 'netherwing', 'little_ica', ... */
+  name: string
+  /** Max HP, as the owner's kit computes it from the owner's stats. */
+  maxHp: number
+  /** Starting HP. Defaults to max HP. */
+  hp?: number
+  /** Defaults to the owner's DEF. */
+  def?: number
+  /** In BASE_AGGRO points: the game data's memosprite Aggro over 25 (Netherwing's 100 is 4). */
+  baseAggro: number
+  /** SPD that percentage buffs scale from. Leave out for a memosprite that is not on the timeline (acts only on extra turns). */
+  baseSpd?: number
+  spdPct?: number
+  spdFlat?: number
+  /** Starting gauge. Defaults to a full gauge. */
+  gauge?: number
+  /**
+   * Put it on the timeline suspended (`Timeline.suspend`): it has its gauge but no place in the order until the kit calls
+   * `timeline.resume(id)`. Needs `baseSpd`. For a memosprite that only joins the Action Order later (Summer Songbirds: in Fever).
+   */
+  suspended?: boolean
+  /** Whether enemies can choose it. Defaults from `UNTARGETABLE_MEMOSPRITES` by `name`. */
+  targetable?: boolean
+  /** Position in the line (blasts); defaults to just after its owner (owner index + 0.5). */
+  position?: number
+  /** Runs its turn: a regular one when it has SPD, or an extra one. Called with the gauge already refilled, like an ally's turn. */
+  takeTurn(turn: TurnInfo): void
+}
+
 export interface BattleSetup {
   members: MemberSetup[]
   policy: Rule[]
@@ -277,6 +333,7 @@ export class Battle {
   private readonly downed: string[] = []
   private readonly tieRecords = new Map<string, TieRecord>()
   private readonly summonMap = new Map<UnitId, SummonSpec>()
+  private readonly memospriteMap = new Map<UnitId, MemospriteSpec>()
   /** True while `kernelResult` is collecting the kits' and modules' state: the kernel must not be asked from there. */
   private collectingState = false
   /**
@@ -313,7 +370,12 @@ export class Battle {
       this.downed.push(e.unit)
       // A summon leaves with its owner (Lightning-Lord's text: "when Jing Yuan is knocked down ... disappear").
       for (const summon of [...this.summonMap.values()]) if (summon.owner === e.unit) this.removeSummon(summon.id)
+      // A memosprite leaves with its owner. IN-GAME CHECK: assumed, as for the summon.
+      for (const memosprite of [...this.memospriteMap.values()]) if (memosprite.owner === e.unit) this.removeMemosprite(memosprite.id, 'ownerDowned')
     })
+    // A memosprite at 0 HP is removed, and it is not a downed character (the objective is about characters).
+    // Low priority: other listeners (a kit's Newbud, a relic) see the defeated memosprite before it is taken off the field.
+    this.timeline.bus.on('memospriteDefeated', (e) => this.removeMemosprite(e.unit, 'hp'), { priority: -100 })
 
     // Kits are created last: they may look at the whole field and subscribe to events.
     this.members = setup.members.map((m, index) => ({
@@ -369,6 +431,89 @@ export class Battle {
     return this.summonMap.has(id)
   }
 
+  /**
+   * Puts a memosprite on the field (see `MemospriteSpec`): a party member, and a timeline unit when it has SPD. A kit calls it
+   * when its ability summons one, and again for each new summoning (a removed id may be added again). Emits `memospriteAdded`.
+   */
+  addMemosprite(spec: MemospriteSpec): void {
+    const owner = this.members.find((m) => m.key === spec.owner)
+    if (!owner) throw new Error(`Memosprite ${spec.id}: no member "${spec.owner}" to own it`)
+    if (this.party.get(spec.owner).downed) throw new Error(`Memosprite ${spec.id}: its owner ${spec.owner} is downed`)
+    if (this.memospriteMap.has(spec.id) || this.summonMap.has(spec.id) || this.timeline.has(spec.id) || this.party.has(spec.id)) {
+      throw new Error(`Memosprite ${spec.id}: that unit is already on the field`)
+    }
+    if (spec.suspended && spec.baseSpd === undefined) {
+      throw new Error(`Memosprite ${spec.id}: suspended needs a baseSpd (it is not on the timeline)`)
+    }
+    this.party.add({
+      id: spec.id,
+      kind: 'memosprite',
+      maxHp: spec.maxHp,
+      def: spec.def ?? this.party.get(spec.owner).def,
+      baseAggro: spec.baseAggro,
+      position: spec.position ?? owner.index + 0.5,
+      targetable: spec.targetable ?? !UNTARGETABLE_MEMOSPRITES.has(spec.name),
+      ...(spec.hp !== undefined && { hp: spec.hp }),
+    })
+    this.memospriteMap.set(spec.id, spec)
+    if (spec.baseSpd !== undefined) {
+      this.timeline.addUnit({
+        id: spec.id,
+        baseSpd: spec.baseSpd,
+        ...(spec.spdPct !== undefined && { spdPct: spec.spdPct }),
+        ...(spec.spdFlat !== undefined && { spdFlat: spec.spdFlat }),
+        ...(spec.gauge !== undefined && { gauge: spec.gauge }),
+      })
+      if (spec.suspended) this.timeline.suspend(spec.id)
+    }
+    this.timeline.bus.emit('memospriteAdded', { unit: spec.id, owner: spec.owner, at: this.timeline.now })
+  }
+
+  /** Takes a memosprite off the field and drops its modifiers, redirect and backup rules and queued extra turns. One that is already gone is ignored. */
+  removeMemosprite(id: UnitId, reason: EngineEvents['memospriteRemoved']['reason'] = 'removed'): void {
+    const spec = this.memospriteMap.get(id)
+    if (!spec) return
+    this.memospriteMap.delete(id)
+    if (this.timeline.has(id)) this.timeline.removeUnit(id)
+    else {
+      this.timeline.cancelExtraTurns(id)
+      this.timeline.modifiers.removeAllOn(id)
+    }
+    if (this.party.has(id)) this.party.remove(id)
+    this.timeline.bus.emit('memospriteRemoved', { unit: id, owner: spec.owner, reason, at: this.timeline.now })
+  }
+
+  /** Whether enemies can choose the memosprite from now on (the per-memosprite switch; see `UNTARGETABLE_MEMOSPRITES`). */
+  setMemospriteTargetable(id: UnitId, targetable: boolean): void {
+    if (!this.memospriteMap.has(id)) throw new Error(`${id} is not a memosprite on the field`)
+    this.party.setTargetable(id, targetable)
+  }
+
+  isMemosprite(id: UnitId): boolean {
+    return this.memospriteMap.has(id)
+  }
+
+  /** The member key that owns a member (itself), a summon or a memosprite; undefined for anything else. */
+  ownerOf(id: UnitId): string | undefined {
+    if (this.members.some((m) => m.key === id)) return id
+    return this.summonMap.get(id)?.owner ?? this.memospriteMap.get(id)?.owner
+  }
+
+  /** The ids of the memosprites on the field that `owner` owns. Read-only. */
+  memospritesOf(owner: string): UnitId[] {
+    return [...this.memospriteMap.values()].filter((s) => s.owner === owner).map((s) => s.id)
+  }
+
+  /**
+   * Gives a unit (a member, a summon or a memosprite) an extra turn: taken right after the action in progress resolves, with
+   * the Ultimate window around it like any turn, and without touching its gauge. For a memosprite with no SPD it is the only
+   * way it acts. Several grants queue in order. A unit that has left the field by then does not take it.
+   */
+  grantExtraTurn(unit: UnitId): void {
+    if (!this.isAlly(unit) && !this.summonMap.has(unit)) throw new Error(`Extra turn for ${unit}: not an ally, memosprite or summon`)
+    this.timeline.grantExtraTurn(unit)
+  }
+
   /** The ids of the summons on the field that `owner` (a member key) owns, from each summon's `SummonSpec.owner`. Read-only. */
   summonsOf(owner: string): UnitId[] {
     return [...this.summonMap.values()].filter((s) => s.owner === owner).map((s) => s.id)
@@ -385,7 +530,16 @@ export class Battle {
     return m
   }
 
+  /**
+   * A character or a memosprite: anything on the allied side that "ally targets" covers. Summons are not (Lightning-Lord is
+   * not an ally). Use `isCharacter` where only the party's characters qualify.
+   */
   isAlly(id: UnitId): boolean {
+    return this.members.some((m) => m.key === id) || this.memospriteMap.has(id)
+  }
+
+  /** A party character (a member of the scenario), not a memosprite or a summon. */
+  isCharacter(id: UnitId): boolean {
     return this.members.some((m) => m.key === id)
   }
 
@@ -447,8 +601,10 @@ export class Battle {
     }
     const debuffChance: Record<UnitId, number> = {}
     for (const enemy of mine.debuffed) debuffChance[enemy] = Math.min(1, Math.max(0, 1 - (mine.debuffMiss.get(enemy) ?? 1)))
+    const owner = this.memospriteMap.get(actor)?.owner
     const event = {
       actor,
+      ...(owner !== undefined && { owner }),
       action,
       kind,
       serial: mine.serial,
@@ -746,7 +902,15 @@ export class Battle {
   }
 
   /** Books one enemy's damage: its HP, the attacker's and the cycle's totals, and the `damageDealt` event. */
-  private recordDamage(attacker: Member, enemy: UnitId, ability: string, scaling: number, damage: number, chance: number): void {
+  private recordDamage(
+    attacker: Member,
+    enemy: UnitId,
+    ability: string,
+    scaling: number,
+    damage: number,
+    chance: number,
+    kind?: 'TRUE' | 'FLAT',
+  ): void {
     this.enemies.takeDamage(enemy, damage)
     this.damageByMember[attacker.key]! += damage
     const cycleIndex = Math.min(this.timeline.cycle, this.setup.cycles) - 1
@@ -757,10 +921,27 @@ export class Battle {
       ability,
       scaling,
       damage,
+      ...(kind !== undefined && { kind }),
       chance,
       at: this.timeline.now,
       cycle: this.timeline.cycle,
     })
+  }
+
+  /**
+   * Deals a stated amount of damage that the kernel does not price (Robin Summeretto's E1 True DMG, computed from a tally).
+   * Booked like any hit: it lowers the enemy's HP, counts in the attacker's and the cycle's totals, and emits `damageDealt`
+   * (`ability` is `label`, `scaling` 0, `chance` 1, and `kind` says it was flat so tallies of "non-True DMG" can skip it).
+   * Nothing multiplies it and it takes no toughness. `attacker` is a member key; damage dealt by a summon or memosprite is
+   * credited to its owner as everywhere else. Returns the amount dealt.
+   */
+  dealFlatDamage(spec: { attacker: string, enemy: UnitId, amount: number, kind: 'TRUE' | 'FLAT', label: string }): number {
+    const attacker = this.member(spec.attacker)
+    if (!this.enemies.ids.includes(spec.enemy)) throw new Error(`dealFlatDamage: "${spec.enemy}" is not an enemy`)
+    if (!(spec.amount >= 0)) throw new Error(`dealFlatDamage: amount must not be negative, got ${spec.amount}`)
+    if (spec.amount === 0) return 0
+    this.recordDamage(attacker, spec.enemy, spec.label, 0, spec.amount, 1, spec.kind)
+    return spec.amount
   }
 
   /**
@@ -926,6 +1107,14 @@ export class Battle {
       // The owner's kit runs it; no policy rule is read for a summon.
       this.ultimateWindow()
       if (this.summonMap.has(summon.id)) summon.takeTurn(turn)
+      this.ultimateWindow()
+      return
+    }
+    const memosprite = this.memospriteMap.get(turn.unit)
+    if (memosprite) {
+      // Run by the owner's kit, like a summon; a regular turn (it has SPD) or an extra one.
+      this.ultimateWindow()
+      if (this.memospriteMap.has(memosprite.id)) memosprite.takeTurn(turn)
       this.ultimateWindow()
       return
     }

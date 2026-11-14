@@ -288,6 +288,7 @@ function memberSetup(
       baseSpd: basic.baseSPD,
       spdFlat: basic.SPD - basic.baseSPD,
       energyRegen: basic.ERR,
+      effectRes: basic.RES,
     },
     kernel: { unit, build },
     equipment,

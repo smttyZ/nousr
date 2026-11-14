@@ -54,7 +54,7 @@ const equipment = createRegistry([
 ])
 
 const BASIC: BasicStats = {
-  ATK: 3000, DEF: 1200, HP: 1_000_000, SPD: 134.5, CR: 0.5, CD: 1, EHR: 0, RES: 0, BE: 0, ERR: 0.194, OHB: 0, baseSPD: 101,
+  ATK: 3000, DEF: 1200, HP: 1_000_000, SPD: 134.5, CR: 0.5, CD: 1, EHR: 0, RES: 0.35, BE: 0, ERR: 0.194, OHB: 0, baseSPD: 101,
 }
 
 /** Knows character 9001 in versions 0 and 1. 1,000 damage per 100% ATK. */
@@ -134,7 +134,7 @@ describe('building a battle from a scenario', () => {
     const { scenario, options } = setup()
     const battle = buildBattleSetup(scenario, 'solo', 3, options)
     const member = battle.members[0]!
-    expect(member.stats).toEqual({ maxHp: 1_000_000, def: 1200, baseSpd: 101, spdFlat: 33.5, energyRegen: 0.194 })
+    expect(member.stats).toEqual({ maxHp: 1_000_000, def: 1200, baseSpd: 101, spdFlat: 33.5, energyRegen: 0.194, effectRes: 0.35 })
     expect(member.stats.baseSpd + member.stats.spdFlat!).toBe(BASIC.SPD)
   })
 

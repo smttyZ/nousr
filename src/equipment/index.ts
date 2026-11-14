@@ -4,9 +4,26 @@ import { createRegistry, setWithoutBehaviour } from './equipment'
 import { EternalCalculus } from './eternalCalculus'
 import { PioneerDiverOfDeadWaters } from './pioneerDiverOfDeadWaters'
 import { TodayIsAnotherPeacefulDay } from './todayIsAnotherPeacefulDay'
+// Relic sets written in the Haiku test wave, 2026-11-13 (see DESIGN.md); some refuse cases the engine cannot model yet.
+import { TheAshblazingGrandDuke } from './ashblazingGrandDuke'
+import { RutilantArena } from './rutilantArena'
+import { TheWondrousBananAmusementPark } from './wondrousBananAmusementPark'
+import { ScholarLostInErudition } from './scholarLostInErudition'
+import { GeniusOfBrilliantStars } from './geniusOfBrilliantStars'
+import { WarriorGoddessOfSunAndThunder } from './warriorGoddessOfSunAndThunder'
+import { BrokenKeel } from './brokenKeel'
+import { SacerdosRelivedOrdeal } from './sacerdosRelivedOrdeal'
+import { SelfEnshroudedRecluse } from './selfEnshroudedRecluse'
+import { LushakaTheSunkenSeas } from './lushakaTheSunkenSeas'
+import { BoneCollectionsSereneDemesne } from './boneCollectionsSereneDemesne'
+import { PoetOfMourningCollapse } from './poetOfMourningCollapse'
+import { GiantTreeOfRaptBrooding } from './giantTreeOfRaptBrooding'
+import { WorldRemakingDeliverer } from './worldRemakingDeliverer'
+import { AmphoreusTheEternalLand } from './amphoreusTheEternalLand'
 
 export * from './equipment'
 export { AlongThePassingShore, DanceDanceDance, EternalCalculus, PioneerDiverOfDeadWaters, TodayIsAnotherPeacefulDay }
+export { TheAshblazingGrandDuke, RutilantArena, TheWondrousBananAmusementPark, ScholarLostInErudition, GeniusOfBrilliantStars, WarriorGoddessOfSunAndThunder, BrokenKeel, SacerdosRelivedOrdeal, SelfEnshroudedRecluse, LushakaTheSunkenSeas, BoneCollectionsSereneDemesne, PoetOfMourningCollapse, GiantTreeOfRaptBrooding, WorldRemakingDeliverer, AmphoreusTheEternalLand }
 
 /**
  * Izumo Gensei and Takama Divine Realm (set 314): 2 pieces give +12% ATK, and +12% CRIT Rate when entering
@@ -48,4 +65,6 @@ export const InertSalsotto = setWithoutBehaviour({
  * Every light cone and set the simulator can run. An item not listed here stops a scenario (see
  * `resolveEquipment`). Add an item only once its text has been read in game.
  */
-export const EQUIPMENT = createRegistry([AlongThePassingShore, DanceDanceDance, EternalCalculus, TodayIsAnotherPeacefulDay, PioneerDiverOfDeadWaters, IzumoGensei, MusketeerOfWildWheat, InertSalsotto])
+export const EQUIPMENT = createRegistry([AlongThePassingShore, DanceDanceDance, EternalCalculus, TodayIsAnotherPeacefulDay, PioneerDiverOfDeadWaters, IzumoGensei, MusketeerOfWildWheat, InertSalsotto,
+  TheAshblazingGrandDuke, RutilantArena, TheWondrousBananAmusementPark, ScholarLostInErudition, GeniusOfBrilliantStars, WarriorGoddessOfSunAndThunder, BrokenKeel, SacerdosRelivedOrdeal, SelfEnshroudedRecluse, LushakaTheSunkenSeas, BoneCollectionsSereneDemesne, PoetOfMourningCollapse, GiantTreeOfRaptBrooding, WorldRemakingDeliverer, AmphoreusTheEternalLand,
+])

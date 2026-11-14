@@ -189,8 +189,10 @@ describe('a scenario on "standard" relics, end to end, with the real kernel', ()
     expect(warnings[0]!.message).toMatch(/target 133\.34 is missed by 23\.14: the build has 110\.20 out of combat/)
   })
 
-  it('a standard file whose set has no equipment module stops the run with the existing equipment error', () => {
-    // Jing Yuan: The Ashblazing Grand Duke and The Wondrous BananAmusement Park have no module yet.
+  it("Jing Yuan on his standard build runs: Ashblazing counts his Lightning-Lord's hits from the attack's parts", () => {
+    // Updated 2026-11-13: all roster sets now have modules (Haiku wave), so the old "no module" case is gone.
+    // His standard 4-piece is The Ashblazing Grand Duke. It used to refuse him; it now counts the Lord's hits from the
+    // attack's parts (src/equipment/ashblazingGrandDuke.ts).
     const file = {
       format: 'nousr-scenario', version: 1, game_version: '4.7',
       battle: { mode: 'moc', cycles: 1, period: null },
@@ -201,8 +203,8 @@ describe('a scenario on "standard" relics, end to end, with the real kernel', ()
         policy: [{ unit: 'jing_yuan', use: 'basic' }],
       }],
     } satisfies ScenarioFile
-    const attempt = () => planTeam(parseScenario(file), 'jy', 1, { kernel })
-    expect(attempt).toThrow(RunError)
-    expect(attempt).toThrow(/team "jy", member "jing_yuan": .*has no equipment module/)
+    const scenario = parseScenario(file)
+    expect(() => planTeam(scenario, 'jy', 1, { kernel })).not.toThrow()
+    expect(() => runScenario(scenario, { kernel })).not.toThrow()
   })
 })

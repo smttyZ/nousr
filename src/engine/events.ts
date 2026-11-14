@@ -1,3 +1,4 @@
+import type { HitPart } from '../battle/battle'
 import type { Modifier } from './modifiers'
 
 export type UnitId = string
@@ -71,6 +72,12 @@ export interface EngineEvents {
     expectedEnemiesHit: number
     debuffed: UnitId[]
   }
+  /**
+   * One `Battle.attack` call has resolved (after its `damageDealt` events), with the parts it was given, read-only.
+   * `damageDealt` is one event per enemy with the parts summed, so it cannot say how many hits an attack had; a
+   * listener that counts hits (The Ashblazing Grand Duke) reads the parts here. Do not mutate them.
+   */
+  attackResolved: { attacker: UnitId, ability: string, parts: readonly HitPart[] }
   /** One enemy's damage from one part of an attack. `scaling` is the ATK multiple that produced it. */
   damageDealt: {
     attacker: UnitId

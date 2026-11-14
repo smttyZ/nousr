@@ -40,7 +40,15 @@ export interface MemberSetup {
   eidolon: number
   affinitiveEidolon: boolean
   /** Out-of-combat stats. In-combat changes come from kits and modifiers. */
-  stats: { maxHp: number, def: number, baseSpd: number, spdFlat?: number, energyRegen?: number }
+  stats: {
+    maxHp: number
+    def: number
+    baseSpd: number
+    spdFlat?: number
+    energyRegen?: number
+    /** Basic (out-of-combat) Effect RES as a fraction, from the kernel's basic stats. For equipment modules (Broken Keel). */
+    effectRes?: number
+  }
   /** How the damage kernel knows this member. */
   kernel: { unit: KernelUnit, build: KernelBuild }
   /**
@@ -310,6 +318,16 @@ export class Battle {
     return this.summonMap.has(id)
   }
 
+  /** The ids of the summons on the field that `owner` (a member key) owns, from each summon's `SummonSpec.owner`. Read-only. */
+  summonsOf(owner: string): UnitId[] {
+    return [...this.summonMap.values()].filter((s) => s.owner === owner).map((s) => s.id)
+  }
+
+  /** The scenario's enemy weaknesses: 'all', or the list of elements every enemy is weak to. Read-only. */
+  get weaknesses(): 'all' | readonly Element[] {
+    return this.setup.weaknesses
+  }
+
   member(key: string): Member {
     const m = this.members.find((x) => x.key === key)
     if (!m) throw new Error(`No member "${key}"`)
@@ -480,6 +498,7 @@ export class Battle {
         if (this.enemies.reduceToughness(enemy, removed)) total += this.weaknessBreak(attacker, enemy)
       }
     }
+    this.timeline.bus.emit('attackResolved', { attacker: spec.attacker, ability: spec.ability, parts: spec.parts })
     return total
   }
 

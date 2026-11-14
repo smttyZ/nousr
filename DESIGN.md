@@ -365,8 +365,12 @@ the technique's Quadrivalent Ascendance stack is modelled.
 **Still missing before a scenario file can be run end to end:**
 
 - Standard builds (K14 family) and scanned relics (K5) both run. A standard build only runs once every relic set
-  it names has an equipment module: today Acheron's and Silver Wolf's. The other 12 roster files stop with the
-  missing-module error until their sets exist.
+  it names has an equipment module. Every set the 14 roster files name now has one (2026-11-14, written by Haiku
+  and reviewed). Some still refuse cases the engine cannot model, and stop the run with an error: World-Remaking
+  Deliverer 4-piece and Amphoreus for memosprite wearers, The Wondrous BananAmusement Park for memosprite wearers,
+  Sacerdos' Relived Ordeal 4-piece (the targeted ally is not recorded), Self-Enshrouded Recluse 4-piece (shield
+  sources are not recorded), Giant Tree's Outgoing Healing (at the wearer's first heal). Broken Keel's team buff
+  uses out-of-combat Effect RES.
 - Equipment modules for every light cone and relic set the roster wears. K4 is built (`src/equipment/`) with
   Along the Passing Shore, Dance! Dance! Dance!, Pioneer Diver of Dead Waters, and three items registered as
   having no conditional behaviour. A light cone or set with no module stops the run with an error, because

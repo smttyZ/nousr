@@ -1,0 +1,47 @@
+# Typecheck and tests on every pull request and on main.
+# The level-table regeneration test needs the git-ignored .gamedata/ folder and skips itself here; every other
+# test runs. Fribbels' own test suite (npm run test:fribbels) is not run: it needs Node 26 (CLAUDE.md).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            vendor/hsr-optimizer/package-lock.json
+
+      - name: Install NouSR
+        run: npm ci --no-audit --no-fund
+
+      - name: Install Fribbels (submodule) and generate its resource types
+        run: |
+          npm ci --prefix vendor/hsr-optimizer --no-audit --no-fund
+          npm run update-resources --prefix vendor/hsr-optimizer
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test

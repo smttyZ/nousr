@@ -237,7 +237,7 @@
           }
         },
         "relics": {
-          "description": "\"equipped\": the relics the account scan shows on this character. \"standard\": Fribbels' benchmark build for this character. A list: exactly these relics, each given either as the \"_uid\" of a relic in the account scan or as a full HSR-Scanner v4 relic object. Default: \"equipped\" when there is an account, otherwise \"standard\".",
+          "description": "\"equipped\": the relics the account scan shows on this character. \"standard\": NouSR's standard build for this character (data/standard-builds/, KQMS-style, DESIGN.md K14), adjustable with \"standard_build\". A list: exactly these relics, each given either as the \"_uid\" of a relic in the account scan or as a full HSR-Scanner v4 relic object. Default: \"equipped\" when there is an account, otherwise \"standard\".",
           "oneOf": [
             { "enum": ["equipped", "standard"] },
             {
@@ -251,6 +251,62 @@
               }
             }
           ]
+        },
+        "standard_build": {
+          "$ref": "#/$defs/standard_build",
+          "description": "Changes this member's standard build (DESIGN.md, K14c). Allowed only when the member's relics are \"standard\" (stated, or the default when there is no account); the loader rejects it otherwise, since there is no standard build to change."
+        },
+        "notes": { "$ref": "#/$defs/notes" }
+      }
+    },
+
+    "standard_build": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "anyOf": [
+        { "required": ["main_stats"] },
+        { "required": ["distributed"] }
+      ],
+      "description": "Overrides on the character's file in data/standard-builds (schema/standard-build.schema.json). Give main_stats, distributed, or both. A bare main_stats swap re-splits the file's 24 distributed rolls by one published rule: going once down the file's distributed.priority (most wanted first, SPD never in it), rolls above a stat's new cap (2 x the relics whose main stat is not that stat) move to the first stat lower in the list with room, each filled in turn; a stat not in the list never receives rolls, and rolls left over after the last stat are an error. SPD rolls are never touched by the rule. An explicit distributed replaces the file's split whole, with no re-split. A split that does not add up to 24 or breaks a cap is an error naming the stat, never silently fixed. When the Feet main stat changes the rolls stay as they are, the run uses the resulting SPD, and the run says the file's SPD target was missed and by how much (K14f). Sets are not overridable in v1. The run result echoes the split actually used.",
+      "properties": {
+        "main_stats": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "description": "New main stat for any of the four free slots; a slot left out keeps the file's value. Head (HP) and Hands (ATK) are fixed.",
+          "properties": {
+            "Body": { "enum": ["HP%", "ATK%", "DEF%", "CRIT Rate", "CRIT DMG", "Outgoing Healing Boost", "Effect Hit Rate"] },
+            "Feet": { "enum": ["HP%", "ATK%", "DEF%", "SPD"] },
+            "Planar Sphere": {
+              "enum": [
+                "HP%", "ATK%", "DEF%",
+                "Physical DMG Boost", "Fire DMG Boost", "Ice DMG Boost", "Lightning DMG Boost",
+                "Wind DMG Boost", "Quantum DMG Boost", "Imaginary DMG Boost"
+              ]
+            },
+            "Link Rope": { "enum": ["HP%", "ATK%", "DEF%", "Break Effect", "Energy Regeneration Rate"] }
+          }
+        },
+        "distributed": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["rolls"],
+          "description": "A whole split of the 24 distributed rolls, in the shape of the standard-build file's distributed. It replaces the file's split; nothing is merged stat by stat.",
+          "properties": {
+            "rolls": {
+              "type": "object",
+              "propertyNames": { "enum": ["ATK%", "ATK", "HP%", "HP", "DEF%", "DEF", "SPD", "CRIT Rate", "CRIT DMG", "Effect Hit Rate", "Effect RES", "Break Effect"] },
+              "additionalProperties": { "type": "integer", "minimum": 0, "maximum": 24 },
+              "description": "Substat type to number of distributed rolls; a type left out has 0. Must add up to 24 and respect each stat's cap."
+            },
+            "priority": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Accepted so a copy of the file's distributed block is valid here, and ignored: no re-split happens with an explicit split."
+            },
+            "notes": { "$ref": "#/$defs/notes" }
+          }
         },
         "notes": { "$ref": "#/$defs/notes" }
       }

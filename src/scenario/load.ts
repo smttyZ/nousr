@@ -11,6 +11,8 @@ import type {
   ScanRelic,
   Scenario,
   ScenarioFile,
+  StandardBuildOverride,
+  StandardBuildOverrideFile,
   Team,
   TeamFile,
 } from './types'
@@ -213,6 +215,12 @@ function resolveMember(
   }
 
   const relics = resolveRelics(member, account, at, problems)
+  if (member.standard_build !== undefined && relics !== undefined && relics !== 'standard') {
+    const given = member.relics === undefined
+      ? '"equipped" (the default when there is an account)'
+      : typeof member.relics === 'string' ? `"${member.relics}"` : 'a list'
+    problems.push(`${at}: standard_build changes a standard build, but this member's relics are ${given}; set relics to "standard" or remove standard_build`)
+  }
 
   if (problems.length > before) return undefined
   return {
@@ -223,6 +231,14 @@ function resolveMember(
     affinitiveEidolon: member.affinitive_eidolon ?? false,
     lightCone: lightCone!,
     relics: relics!,
+    ...(member.standard_build !== undefined && { standardBuild: resolveOverride(member.standard_build) }),
+  }
+}
+
+function resolveOverride(file: StandardBuildOverrideFile): StandardBuildOverride {
+  return {
+    ...(file.main_stats !== undefined && { mainStats: { ...file.main_stats } }),
+    ...(file.distributed !== undefined && { distributed: { ...file.distributed.rolls } }),
   }
 }
 

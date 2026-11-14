@@ -1,0 +1,134 @@
+{
+  "format": "nousr-level-table",
+  "version": 1,
+  "game_version": "4.7",
+  "game_data_commit": "fe15a954eba1f24bf1bcd4003848710eced44996",
+  "character": "1204",
+  "ability_version": 0,
+  "abilities": {
+    "basic": {
+      "point": 1204001,
+      "tree_max_level": 6,
+      "eidolon_levels": [
+        { "eidolon": 3, "levels": 1 }
+      ],
+      "skills": {
+        "120401": {
+          "levels": [
+            [0.5],
+            [0.6],
+            [0.7],
+            [0.8],
+            [0.9],
+            [1],
+            [1.1],
+            [1.2],
+            [1.3],
+            [1.4]
+          ]
+        }
+      }
+    },
+    "skill": {
+      "point": 1204002,
+      "tree_max_level": 10,
+      "eidolon_levels": [
+        { "eidolon": 5, "levels": 2 }
+      ],
+      "skills": {
+        "120402": {
+          "levels": [
+            [0.5, 2],
+            [0.55, 2],
+            [0.6, 2],
+            [0.65, 2],
+            [0.7, 2],
+            [0.75, 2],
+            [0.8125, 2],
+            [0.875, 2],
+            [0.9375, 2],
+            [1, 2],
+            [1.05, 2],
+            [1.1, 2],
+            [1.15, 2],
+            [1.2, 2],
+            [1.25, 2]
+          ]
+        }
+      }
+    },
+    "ult": {
+      "point": 1204003,
+      "tree_max_level": 10,
+      "eidolon_levels": [
+        { "eidolon": 3, "levels": 2 }
+      ],
+      "skills": {
+        "120403": {
+          "levels": [
+            [1.2, 3],
+            [1.28, 3],
+            [1.36, 3],
+            [1.44, 3],
+            [1.52, 3],
+            [1.6, 3],
+            [1.7, 3],
+            [1.8, 3],
+            [1.9, 3],
+            [2, 3],
+            [2.08, 3],
+            [2.16, 3],
+            [2.24, 3],
+            [2.32, 3],
+            [2.4, 3]
+          ]
+        }
+      }
+    },
+    "talent": {
+      "point": 1204004,
+      "tree_max_level": 10,
+      "eidolon_levels": [
+        { "eidolon": 5, "levels": 2 }
+      ],
+      "skills": {
+        "120404": {
+          "levels": [
+            [60, 0.33, 10, 3, 0.25, 10],
+            [60, 0.363, 10, 3, 0.25, 10],
+            [60, 0.396, 10, 3, 0.25, 10],
+            [60, 0.429, 10, 3, 0.25, 10],
+            [60, 0.462, 10, 3, 0.25, 10],
+            [60, 0.495, 10, 3, 0.25, 10],
+            [60, 0.53625, 10, 3, 0.25, 10],
+            [60, 0.5775, 10, 3, 0.25, 10],
+            [60, 0.61875, 10, 3, 0.25, 10],
+            [60, 0.66, 10, 3, 0.25, 10],
+            [60, 0.693, 10, 3, 0.25, 10],
+            [60, 0.726, 10, 3, 0.25, 10],
+            [60, 0.759, 10, 3, 0.25, 10],
+            [60, 0.792, 10, 3, 0.25, 10],
+            [60, 0.825, 10, 3, 0.25, 10]
+          ]
+        }
+      }
+    }
+  },
+  "major_traces": [
+    { "key": "B1", "point": 1204101, "requires": [] },
+    { "key": "B2", "point": 1204102, "requires": [] },
+    { "key": "B3", "point": 1204103, "requires": [] }
+  ],
+  "minor_traces": [
+    { "key": "S1", "point": 1204201, "requires": [], "stat": "AttackAddedRatio", "value": 0.04 },
+    { "key": "S2", "point": 1204202, "requires": [1204101], "stat": "CriticalChanceBase", "value": 0.026999999 },
+    { "key": "S3", "point": 1204203, "requires": [1204202], "stat": "AttackAddedRatio", "value": 0.04 },
+    { "key": "S4", "point": 1204204, "requires": [1204202], "stat": "DefenceAddedRatio", "value": 0.05 },
+    { "key": "S5", "point": 1204205, "requires": [1204102], "stat": "AttackAddedRatio", "value": 0.06 },
+    { "key": "S6", "point": 1204206, "requires": [1204205], "stat": "CriticalChanceBase", "value": 0.04 },
+    { "key": "S7", "point": 1204207, "requires": [1204205], "stat": "AttackAddedRatio", "value": 0.06 },
+    { "key": "S8", "point": 1204208, "requires": [1204103], "stat": "DefenceAddedRatio", "value": 0.075 },
+    { "key": "S9", "point": 1204209, "requires": [1204103], "stat": "CriticalChanceBase", "value": 0.053 },
+    { "key": "S10", "point": 1204210, "requires": [], "stat": "AttackAddedRatio", "value": 0.08 }
+  ]
+}

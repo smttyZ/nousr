@@ -47,8 +47,19 @@ export interface EngineEvents {
 
   // ---- ally actions (src/battle/battle.ts)
   /**
-   * An ally finished a Basic ATK, Skill, Ultimate or follow-up. `enemiesHit` lists the enemies it
-   * damaged and `debuffed` the enemies it put a debuff on. `serial` numbers actions from 1.
+   * An ally finished a Basic ATK, Skill, Ultimate or follow-up. `debuffed` lists the enemies it put a
+   * debuff on. `serial` numbers actions from 1.
+   *
+   * Two views of "who was hit" (DESIGN.md, K17):
+   * - `enemiesHit` is the set of enemies the action COULD have hit: every enemy any part of it reaches,
+   *   including every enemy a random-target part (a bounce, Lightning-Lord's hits) may land on. Use it where
+   *   the set itself matters (candidates for a choice, "does any hit enemy carry X").
+   * - `hitChance` is, per enemy of that set, the probability that the action hit it at least once. A
+   *   single, blast or AoE part hits with probability 1. Each random hit lands on a given enemy with
+   *   probability 1/N (a blast's splash also reaches the neighbours of the chosen enemy); an enemy missed by all
+   *   random hits has probability the product of (1 - p) over the hits, and any deterministic hit makes it 1.
+   *   `expectedEnemiesHit` is the sum of `hitChance`: use it for every effect that counts "per enemy hit".
+   *   For 3 random single hits on 5 enemies it is 5 x (1 - (4/5)^3) = 2.44, while `enemiesHit` has all 5.
    */
   actionUsed: {
     actor: UnitId
@@ -56,6 +67,8 @@ export interface EngineEvents {
     kind: 'basic' | 'skill' | 'ultimate' | 'followUp'
     serial: number
     enemiesHit: UnitId[]
+    hitChance: Record<UnitId, number>
+    expectedEnemiesHit: number
     debuffed: UnitId[]
   }
   /** One enemy's damage from one part of an attack. `scaling` is the ATK multiple that produced it. */

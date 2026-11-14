@@ -26,12 +26,22 @@
     "Link Rope": "ATK%",
     "notes": "Fribbels options: Body ATK%/CRIT Rate/CRIT DMG, Feet ATK%/SPD, Sphere ATK%/Lightning DMG, Rope ATK%. GUESS: Body CRIT Rate (proxy +4.1% over CRIT DMG body, +5.5% over ATK% body). GUESS: Feet SPD, because benchmarks.md:65 builds its 0% baseline with SPD boots and the timeline cares about SPD; Fribbels lists ATK% first. Sphere Lightning DMG over ATK% (proxy +10.7%). Rope ATK% is the only option."
   },
+  "spd_target": {
+    "value": 133.34,
+    "reason": "Turn breakpoint: 20000/150 = 133.33 SPD, so 133.34 gives 2 turns in the first 150 AV cycle (src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1). Fribbels sets no SPD target for Acheron (benchmarks.md:69, :82)."
+  },
   "distributed": {
     "rolls": {
       "SPD": 2,
       "CRIT DMG": 12,
       "CRIT Rate": 10
     },
-    "notes": "Fribbels substat list: CRIT DMG, CRIT Rate, ATK%, ATK. Rolls chosen with a throwaway proxy script (damage ~ scale stat x (1 + CR x CD) x (1 + DMG%), the 2 fixed rolls per stat, the per-relic cap, simple set and trace stats only, an assumed 635 ATK / 1058 HP light cone), not with Fribbels or the kernel. Treat it as a tie-breaker, not a result. Result: the crit rolls fill their caps (CRIT DMG 12, CRIT Rate 10 with a CRIT Rate body); ATK% and ATK get none. SPD: 2 rolls. 101 base + 25.032 (SPD boots) + 4.6 (2 fixed rolls) = 130.63, and 2 distributed rolls make 135.23, the fewest that pass 133.34. Fribbels has no SPD target for Acheron (its benchmark copies the scanned build's SPD, benchmarks.md:69 and :82). Later thresholds: 143 (cycles 1 and 3) needs about 6 rolls and 160 about 13; not taken. SPD arithmetic ignores light cone and team SPD buffs. The cycle-1 two-turn threshold is 133.34 (20000/150); src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1."
+    "priority": [
+      "CRIT DMG",
+      "CRIT Rate",
+      "ATK%",
+      "ATK"
+    ],
+    "notes": "Fribbels substat list: CRIT DMG, CRIT Rate, ATK%, ATK. Rolls chosen with a throwaway proxy script (damage ~ scale stat x (1 + CR x CD) x (1 + DMG%), the 2 fixed rolls per stat, the per-relic cap, simple set and trace stats only, an assumed 635 ATK / 1058 HP light cone), not with Fribbels or the kernel. Treat it as a tie-breaker, not a result. Result: the crit rolls fill their caps (CRIT DMG 12, CRIT Rate 10 with a CRIT Rate body); ATK% and ATK get none. SPD: target 133.34 (K14e, turn breakpoint). 101 base + 25.032 (SPD boots) + 4.6 (2 fixed rolls) = 130.632; 2 distributed rolls make 135.232 (margin 1.892), 1 roll makes 132.932 (short). 2 is under the cap of 10, so the K14e relaxation is not used. Fribbels has no SPD target for Acheron (its benchmark copies the scanned build's SPD, benchmarks.md:69 and :82). Later thresholds: 143 needs about 6 rolls and 160 about 13; not taken. Changed from the earlier draft: no change to the split; target and priority added. Priority: the file's own counts (CRIT DMG 12, CRIT Rate 10), then ATK% and ATK in Fribbels' list order. SPD arithmetic ignores light cone and team SPD buffs."
   }
 }

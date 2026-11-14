@@ -1,5 +1,5 @@
 import type { Battle, Member } from '../battle/battle'
-import type { UnitId } from '../engine/events'
+import type { EngineEvents, UnitId } from '../engine/events'
 import type { Kit, KitInstance } from './kit'
 
 /**
@@ -147,15 +147,25 @@ export const Tribbie: Kit = {
       })
     }
 
-    /** The same, after another ally's attack that hit `hit`. */
-    const allyZoneAdditional = (hit: readonly UnitId[]) => {
-      if (!zoneUp() || hit.length === 0) return
+    /**
+     * The same, after another ally's attack. One instance per enemy hit, counted as the expected number of
+     * distinct enemies (K17), so the multiple is `expectedEnemiesHit` times the per-instance value.
+     * The target is still chosen among every enemy the attack could have hit (`enemiesHit`): see the report
+     * note on K17 and K10 (the highest-HP choice over a random hit set is not probability-weighted).
+     */
+    const allyZoneAdditional = (action: EngineEvents['actionUsed']) => {
+      if (!zoneUp() || action.enemiesHit.length === 0 || !(action.expectedEnemiesHit > 0)) return
       // A bare attack, deliberately not an action. It is emitted after the ally's action has resolved, so
       // it is never counted into an action's hit list.
       battle.attack({
         attacker: me,
         ability: ALLY_ADDITIONAL_ABILITY,
-        parts: [{ shape: 'single', target: battle.highestHpAmong(hit, { attacker: me, ability: ALLY_ADDITIONAL_ABILITY, hit: 0 }), scaling: hit.length * tribbieZoneAdditional(e), hit: 0 }],
+        parts: [{
+          shape: 'single',
+          target: battle.highestHpAmong(action.enemiesHit, { attacker: me, ability: ALLY_ADDITIONAL_ABILITY, hit: 0 }),
+          scaling: action.expectedEnemiesHit * tribbieZoneAdditional(e),
+          hit: 0,
+        }],
       })
     }
 
@@ -184,8 +194,8 @@ export const Tribbie: Kit = {
     // energy, and, if it was an Ultimate, her talent (one follow-up per ally until she uses her own).
     timeline.bus.on('actionUsed', (action) => {
       if (action.actor === me || !battle.isAlly(action.actor)) return
-      allyZoneAdditional(action.enemiesHit)
-      battle.party.gainEnergy(me, PEBBLE_PER_HIT * action.enemiesHit.length)
+      allyZoneAdditional(action)
+      battle.party.gainEnergy(me, PEBBLE_PER_HIT * action.expectedEnemiesHit)
       if (action.kind === 'ultimate' && !talentUsedBy.has(action.actor)) {
         talentUsedBy.add(action.actor)
         talentFollowUp()

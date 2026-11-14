@@ -13,7 +13,7 @@ import {
 import { getGameMetadata } from '../../../vendor/hsr-optimizer/src/lib/state/gameMetadata'
 import { buildBattleSetup, runScenario } from '../../run/run'
 import { loadScenarioFile } from '../../scenario/load'
-import type { DamageRequest, KernelBuild, KernelTeammate, KernelUnit } from '../types'
+import type { DamageRequest, InjectedBuff, KernelBuild, KernelTeammate, KernelUnit } from '../types'
 import { FribbelsKernel } from './fribbelsKernel'
 
 // Fribbels ids. Characters: vendor/hsr-optimizer/src/lib/conditionals/character/**. Light cones: .../lightcone/**.
@@ -342,5 +342,58 @@ describe('bad input is refused', () => {
       .toThrow(/Unknown set/)
     expect(() => kernel.actionDamage({ ...acheronRequest(), teammates: [...acheronTeam, ...acheronTeam] }))
       .toThrow(/at most 3/)
+  })
+})
+
+describe('injected buffs: bad requests are errors that name the buff (K15a)', () => {
+  const withBuff = (buff: unknown) => () =>
+    kernel.actionDamage({ ...acheronRequest(), injectedBuffs: [buff as InjectedBuff] })
+
+  it('an unknown stat', () => {
+    expect(withBuff({ stat: 'LUCK', value: 0.1, target: 'self', label: 'Luck buff' })).toThrow(/Injected buff "Luck buff".*unknown stat "LUCK"/)
+  })
+
+  it('an unknown ability kind', () => {
+    expect(withBuff({ stat: 'TRUE_DMG', value: 0.1, target: 'team', abilityKind: 'ULTIMATE' })).toThrow(/unknown ability kind "ULTIMATE"/)
+  })
+
+  it('an unknown damage type', () => {
+    expect(withBuff({ stat: 'TRUE_DMG', value: 0.1, target: 'team', damageType: 'SPECIAL' })).toThrow(/unknown damage type "SPECIAL"/)
+  })
+
+  it('a damage type on a stat Fribbels keeps per action', () => {
+    for (const stat of ['ATK_PERCENT', 'HP_PERCENT', 'DEF_PERCENT', 'SPD_PERCENT', 'UNCONVERTIBLE_HP', 'UNCONVERTIBLE_CRIT_DMG']) {
+      expect(withBuff({ stat, value: 0.1, target: 'team', damageType: 'ULT' }), stat).toThrow(new RegExp(`${stat}.*per action, not per hit`))
+    }
+  })
+
+  it('a value that is not a finite number, and a target that is neither self nor team', () => {
+    expect(withBuff({ stat: 'TRUE_DMG', value: Number.NaN, target: 'team' })).toThrow(/value must be a finite number/)
+    expect(withBuff({ stat: 'TRUE_DMG', value: '0.1', target: 'team' })).toThrow(/value must be a finite number/)
+    expect(withBuff({ stat: 'TRUE_DMG', value: 0.1, target: 'enemy' })).toThrow(/target must be 'self' or 'team'/)
+  })
+
+  it('a stat name that is an Object prototype key is unknown, not a crash', () => {
+    expect(withBuff({ stat: 'constructor', value: 0.1, target: 'team' })).toThrow(/unknown stat "constructor"/)
+  })
+
+  it('maps every NouSR stat to a Fribbels key: a +0 and a non-zero buff of each both run', () => {
+    const stats = [
+      'DMG_PERCENT', 'CRIT_RATE', 'CRIT_DMG', 'RES_PEN', 'DEF_PEN', 'VULNERABILITY', 'TRUE_DMG', 'FINAL_DMG', 'BREAK_EFFECT',
+      'EFFECT_HIT_RATE', 'ATK_PERCENT', 'HP_PERCENT', 'DEF_PERCENT', 'SPD_PERCENT', 'ATK', 'HP', 'DEF', 'SPD', 'UNCONVERTIBLE_ATK',
+      'UNCONVERTIBLE_HP', 'UNCONVERTIBLE_DEF', 'UNCONVERTIBLE_SPD', 'UNCONVERTIBLE_CRIT_RATE', 'UNCONVERTIBLE_CRIT_DMG',
+      'UNCONVERTIBLE_BREAK_EFFECT', 'UNCONVERTIBLE_EFFECT_HIT_RATE',
+    ] as const
+    const base = kernel.actionDamage(acheronRequest())
+    for (const stat of stats) {
+      const zero = kernel.actionDamage({ ...acheronRequest(), injectedBuffs: [{ stat, value: 0, target: 'team' }] })
+      expect(zero.damage, stat).toEqual(base.damage)
+      expect(() => kernel.actionDamage({ ...acheronRequest(), injectedBuffs: [{ stat, value: 0.05, target: 'team' }] }), stat).not.toThrow()
+    }
+    // Each stat reaches Fribbels' own number it names: a few that change an Acheron Ultimate.
+    for (const [stat, key] of [['ATK_PERCENT', 'ATK'], ['CRIT_DMG', 'CD'], ['SPD_PERCENT', 'SPD']] as const) {
+      const up = kernel.actionDamage({ ...acheronRequest(), injectedBuffs: [{ stat, value: 0.05, target: 'self' }] })
+      expect(up.stats[key], stat).toBeGreaterThan(base.stats[key])
+    }
   })
 })

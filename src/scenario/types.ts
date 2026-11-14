@@ -50,6 +50,26 @@ export interface AccountScan {
   relics: ScanRelic[]
 }
 
+// ---------------------------------------------------------------- standard build overrides (K14c)
+
+/** A slot whose main stat the scenario may change. The values are Fribbels' stat names. */
+export type OverridableSlot = 'Body' | 'Feet' | 'Planar Sphere' | 'Link Rope'
+
+/** `standard_build` as the file writes it. */
+export interface StandardBuildOverrideFile {
+  main_stats?: Partial<Record<OverridableSlot, string>>
+  distributed?: { rolls: Record<string, number>, priority?: string[], notes?: string }
+  notes?: string
+}
+
+/** What a member's `standard_build` asks for. Checked against the character's file in src/standard. */
+export interface StandardBuildOverride {
+  /** Slots to change; the others keep the file's value. */
+  mainStats?: Partial<Record<OverridableSlot, string>>
+  /** A whole split of the 24 distributed rolls, replacing the file's. */
+  distributed?: Record<string, number>
+}
+
 // ---------------------------------------------------------------- the file as written
 
 export interface ConditionFile {
@@ -75,6 +95,7 @@ export interface MemberFile {
   affinitive_eidolon?: boolean
   light_cone?: { id: string, superimposition: number }
   relics?: 'equipped' | 'standard' | (string | ScanRelic)[]
+  standard_build?: StandardBuildOverrideFile
   notes?: string
 }
 
@@ -138,6 +159,8 @@ export interface Member {
   lightCone: { id: string, superimposition: number }
   /** 'standard' = Fribbels' benchmark build; otherwise the actual relics, at most one per slot. */
   relics: 'standard' | ScanRelic[]
+  /** Only with `relics: 'standard'` (K14c). */
+  standardBuild?: StandardBuildOverride
 }
 
 export interface Team {

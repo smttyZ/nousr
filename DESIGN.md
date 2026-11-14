@@ -93,6 +93,26 @@ Consequence of S6 to keep in mind: effects that trigger on a kill, overkill, and
   expected-value state. The average over real fights can differ (a threshold on an average is not the average
   of thresholds). If in-game results disagree, fix the model and log it here.
 - **Debuffs always land.** Effect Hit Rate keeps its stat value but never fails a roll.
+- **"Enemies hit" counts every enemy a random-target attack could reach.** Expected value spreads random hits
+  over all enemies (K2), so an action's `enemiesHit` lists all of them, even when a few random hits would on
+  average reach fewer. Example: a 3-hit Lightning-Lord action on 5 enemies counts as 5 enemies hit, where the
+  expected number of distinct enemies is 5 x (1 - (4/5)^3) = 2.44. Effects keyed on "per enemy hit" are biased
+  upward: Tribbie's Zone instances and Pebble energy, Eternal Calculus's stacks and its 3-enemy SPD buff. Size
+  Found by the Jing Yuan review, 2026-11-13. **Fixed by K17:** each action now records each enemy's chance of
+  being hit at least once (`actionUsed.hitChance`) and their sum (`expectedEnemiesHit`); `enemiesHit` stays
+  "could have been hit". Remaining: Tribbie's highest-HP choice still picks among every enemy a random-target
+  action could reach, not the ones it hit.
+- **"3 or more enemies hit" is a threshold on an expected count** (Eternal Calculus's SPD buff). Measured by the K17
+  build: at 3 enemies a Lightning-Lord action's expected count is 2.9997 and never reaches 3, though the chance of
+  hitting all three is about 1.000 from 8 hits on, so the buff never fires on those actions. Decided as K21
+  (apply the buff scaled by the chance), being built.
+- **Allies are never crowd-controlled,** so "Lightning-Lord cannot act while Jing Yuan is under Crowd Control" is
+  not modelled. The generic enemy applies no crowd control.
+- **Every character is simulated fully built: all traces unlocked, abilities at the kit text's levels.**
+  The scan's ability and trace levels are not read (nothing in `src/scenario` or `src/run` uses them), and
+  kits follow Fribbels in assuming everything unlocked. Found 2026-11-13: Smitty's Cyrene has three abilities
+  at level 1 and what look like four minor traces (CRIT DMG x3, HP x1) not unlocked, so a run with his scan
+  overstates her. To fix: read the levels from the scan and pass them to the kernel, if Fribbels accepts them.
 - **"Highest HP" ties go to the first enemy in standing order** when the primary target is not among the tied
   enemies (K10). The game text does not say how such a tie is broken. Implemented once for every kit in
   `Battle.highestHpAmong` (`src/battle/battle.ts`); first used by Tribbie's Zone Additional DMG. It happens right after an attack that hits the primary harder than its
@@ -124,6 +144,14 @@ Consequence of S6 to keep in mind: effects that trigger on a kill, overkill, and
 | Pioneer Diver | Does Acheron's E4 battle-start debuff count as the wearer inflicting one? | Yes |
 | Dance! Dance! Dance! | Does "all allies" include the wearer? | Yes |
 | Memosprites | Can enemies target Netherwing and Little Ica? (hsr-simulator says no) | Not built yet |
+| Break | Is Break DMG itself reduced by the 0.9 not-broken multiplier? | No (Fribbels' default: yes) |
+| Break | Does a frozen enemy stay broken through its skipped turn? | Yes |
+| Break | Does Acheron's own Lightning break count as inflicting a debuff for her talent? | No |
+| Acheron | Toughness of the Affinitive Eidolon follow-up | 30 to every enemy on the 300% part, none on the bounces |
+| Jing Yuan | Affinitive Eidolon "4 turns": the enhanced state, renewed after each Lightning-Lord action? | Yes, so it is nearly always on |
+| Jing Yuan | Is one Lightning-Lord action one "ally attack" (one Tribbie Zone instance), or is each hit? | One per action |
+| Jing Yuan | E6 Vulnerable: does the hit that applies a stack benefit, and do adjacent splash hits apply stacks? | No and no |
+| Eternal Calculus | Does Lightning-Lord's action count as the wearer's attack, and do stacks count distinct enemies? | Yes and yes |
 
 
 - **"Highest HP" tie-break** when the primary is not among the tied enemies: first in standing order (as
@@ -284,6 +312,18 @@ Affinitive Eidolon. This is the text kits are transcribed from. Game text is not
 | K13 | Kit versions (2026-11-13) | Each kit lists the ability versions it implements; a scenario naming another version stops with an error. Silver Wolf and Welt are written for version 1 (Nova Flare) |
 | K14 | Standard build (2026-11-13) | Deterministic and static, KQMS-style (after KQM's Genshin standard; KQM publishes no Star Rail one): 24 fixed rolls (2 on each of the 12 substat types) plus 24 distributed rolls, every roll at its average value, at most 2 distributed rolls of a stat per relic whose main stat is not that stat. The same build in every team; no search or optimizer. Prior work: hsr-simulator uses a fixed 50-roll total with hand-set SPD; Fribbels' 100% benchmark is a search over a team and a typed-in SPD; Prydwen's method could not be read |
 | K14b | Standard build files (2026-11-13) | NouSR ships one small file per character with its standard build's sets, main stats and the split of the 24 distributed rolls (SPD included), drafted from Fribbels' preset and reviewed by Smitty, so every choice is visible. A scenario can switch a standard member's main stats (for example CRIT Rate or CRIT DMG body), so one character can be compared across main-stat choices. That is a scenario schema addition, drafted for Smitty's review before it is built |
+| K14c | Standard-build override (2026-11-13) | A scenario member on `"standard"` relics may carry `standard_build` with `main_stats` (any of Body, Feet, Planar Sphere, Link Rope) and optionally `distributed` (a whole 24-roll split). A bare main-stat swap re-splits automatically by one published rule: rolls above the new cap move to the next stat in that character file's priority order. The run result echoes the split it actually used. An explicit `distributed` overrides the rule; a split that breaks the total or a cap is an error, never silently fixed. Sets are not overridable in v1. Draft: `docs/proposals/scenario-standard-build-override.md` (to be updated to this rule) |
+| K14d | Standard-build roll values (2026-11-13) | `BenchmarkBuild` gains two optional fields, roll quality and SPD roll value, which Fribbels' stat simulation already accepts. Standard builds set K14's averages (quality 0.9, SPD 2.3 per roll); anything that does not set them keeps today's high-roll defaults (1.0, 2.6) |
+| K14e | SPD in standard builds (2026-11-13) | Each standard-build file declares a SPD target with its reason (a breakpoint, a set threshold, or none). SPD rolls may pass the KQMS cap only as far as needed to reach it; every other stat keeps KQMS rules. KQMS was written for Genshin, which has no SPD stat; Fribbels also allocates SPD first to a target and only soft-penalizes it (`benchmarks.md:80-107`). Evidence: Smitty's Cyrene is 192 SPD out of combat, while strict KQMS caps top out at 162.6. Targets set with Smitty 2026-11-13: Cyrene 180 (her trace and Fribbels' breakpoint), Hyacine 200 (her Tempestuous Halt trace and Fribbels' breakpoint), most others 133.34 (two turns in cycle 1), Tribbie none, Castorice a ceiling under 95 |
+| K15 | Ability and trace levels (2026-11-13) | A member's ability levels and traces come from the scan by default, and a scenario can override them per member with any legal value: for example a character's current state or fully built. Never a blocker as long as the values are legal for that character. Scenario schema addition, drafted for Smitty's review before it is built |
+| K15a | Ability-level buffs (2026-11-13) | Option A: Fribbels applies level-dependent buffs at max level only (its ability helper is keyed on eidolon, `conditionalUtils.ts:36-40`). For a member below max, the kit switches Fribbels' copy of that buff off and supplies the level-scaled value itself, from the game data's per-level tables, through one generic kernel feature for injected buffs. Minor traces switch off through Fribbels' trace-override list; major traces and attack multipliers are kit-side. Proposal: `docs/proposals/scenario-ability-trace-levels.md`. **Mechanism (2026-11-13): delta injection.** Fribbels' switch stays on and NouSR injects the difference between the right level's value and the max-level value Fribbels applied (for a level-1 Cyrene Zone: +12% - 24% = -12%). Exact for every additive stat on the roster (DMG%, CRIT Rate, CRIT DMG, RES PEN, DEF PEN, Vulnerability, True DMG, ATK%, HP%), and safe where one switch gates several effects or there is no switch (Acheron's talent RES PEN). Verified: an injected buff matches Fribbels' own to 6 decimals on every ability (Acheron with a Cyrene teammate) |
+| K16 | Jing Yuan E6 (2026-11-13) | Vulnerable stacks build hit by hit, as the text says: each Lightning-Lord hit sees the stacks earlier hits left on its target (`E6_VULNERABILITY_RAMP` in `src/kits/jingYuan.ts`). Fribbels gives every hit all 3 stacks, which overstates E6 |
+| K17 | Enemies hit by random hits (2026-11-13) | Effects that count "per enemy hit" use the expected number of distinct enemies an action hits, not every enemy a random-target attack could reach (for 3 random hits on 5 enemies: 5 x (1 - (4/5)^3) = 2.44, not 5). Affects Tribbie's Zone instances and Pebble energy, Eternal Calculus's stacks and its 3-enemy SPD buff |
+| K14f | Swapping SPD boots away (2026-11-13) | Option A: a standard-build override that changes the Feet main stat leaves the distributed rolls as they are, runs at the resulting SPD, and reports in the run result that the SPD target was missed (by how much). SPD is never re-solved silently |
+| K18 | Schema drafts approved (2026-11-13) | Smitty approved `schema/standard-build.schema.json` with the 14 files in `data/standard-builds/`, the override proposal (`docs/proposals/scenario-standard-build-override.md`, with K14c's re-split rule) and the levels proposal (`docs/proposals/scenario-ability-trace-levels.md`) |
+| K19 | Warnings are structured (2026-11-13) | Every run warning carries a severity, a short stable code (e.g. `spd-target-missed`, `undecided-tie`, `spd-may-be-understated`), the message, and where it applies (team, enemy count, member). Front ends render them: the CLI in red with a warning sign, a web UI as a warning box. Part of the results format (K8) |
+| K20 | Level data in the repo (2026-11-13) | Ability max levels, per-level values (1 to 15) and trace lists are extracted by a script from the game data into a small committed file under `data/`, regenerated when the game version changes. Numbers only, no game text. Users need no game-data download |
+| K21 | Thresholds on random-hit counts (2026-11-13) | A buff that needs "N or more enemies hit" is applied scaled by the chance the condition holds (P(N or more) x the buff), the expected value of the buff itself, with no cliff. First case: Eternal Calculus's SPD buff |
 | K11 | Multi-hit pricing (2026-11-13) | The kernel returns damage per hit, not one number per ability, and a kit says which hit each attack part is. One reference multiple per ability gave every hit a blended rate wherever hits get different buffs (Tribbie's E6 follow-up came out at 0.689 of the correct total on 3 enemies) |
 
 K4, K6 and K7 were agreed before the prior-work check on them had come back; anything in srsim, hsr-simulator or
@@ -324,7 +364,9 @@ the technique's Quadrivalent Ascendance stack is modelled.
 
 **Still missing before a scenario file can be run end to end:**
 
-- `"standard"` relics (needs the standard-build rule) and scanned relics (K5).
+- Standard builds (K14 family) and scanned relics (K5) both run. A standard build only runs once every relic set
+  it names has an equipment module: today Acheron's and Silver Wolf's. The other 12 roster files stop with the
+  missing-module error until their sets exist.
 - Equipment modules for every light cone and relic set the roster wears. K4 is built (`src/equipment/`) with
   Along the Passing Shore, Dance! Dance! Dance!, Pioneer Diver of Dead Waters, and three items registered as
   having no conditional behaviour. A light cone or set with no module stops the run with an error, because
@@ -341,6 +383,9 @@ pipeline, and an `on_hp_loss` event lets other effects react. Enemy targeting is
 
 ## Roadmap
 
+- **User-facing documentation of standard builds** (Smitty, 2026-11-13). A rendered page (a wiki or docs site)
+  that shows, per character, the standard build's sets, main stats, roll split and SPD target with its reason,
+  in a form a player can read without opening JSON. Generated from `data/standard-builds/` so it cannot drift.
 - **Timeline-aware build optimizer** (after the MVP). Fribbels optimizes without a clock; NouSR can score a build
   by simulating it, so SPD breakpoints and rotation timing count. Constraints rather than "maximize damage" alone:
   - Turn order: a unit acts before or after another (a buffer ahead of its DPS, or a "-1 SPD" tune behind it).
@@ -348,6 +393,22 @@ pipeline, and an `on_hp_loss` event lets other effects react. Enemy targeting is
   - Breakpoints: maximize damage at a target turn count per cycle (e.g. 134 SPD for 2 turns in cycle 1).
   What it needs first: a way for a policy rule to be marked required (today a missing Skill quietly falls to the
   next rule, usually a basic attack), and the action log to carry each action's action value and skill points.
+- **Stochastic battle mode** (proposed by Smitty 2026-11-13). An opt-in mode beside the deterministic one, which
+  stays the default and keeps decision 4 ("no RNG"). Runs a configurable number of battles, each with its own
+  seed, so every fight is reproducible. Only mechanics the simulator explicitly models as random are sampled.
+  Reports the mean and spread of results, plus objective rates such as finishing with no downed allies.
+  - **Builds are compared on the same seeds** (common random numbers), and promising builds are then
+    re-evaluated on a separate seed set, to catch builds that only did well on the optimizer's sample.
+  - **Crits are sampled by default.** Crits are the largest source of damage variance; averaging them would
+    report a spread far too narrow. Non-crit and crit damage per hit follow from Fribbels' expected value and
+    the attacker's CRIT Rate and CRIT DMG.
+  - **Each random mechanic is its own decision:** crits, enemy targeting by aggro, bounce targets, debuff hit
+    chance (always lands today) and "a random enemy" for stacks (the primary, K2, today).
+  - **Clearing within the cycle limit needs enemies that die.** That is a separate roadmap item (kills, overkill
+    and wave changes; today enemies never die, S6), so this objective comes after it.
+  - **What it measures that expected value cannot:** the first "Known approximation" (thresholds evaluated on
+    expected values), directly, and objectives that are really probabilities.
+  - **Results are estimates.** Their precision depends on the number of runs and on the outcome measured.
 - Real MoC stage bosses
 - Pure Fiction, Apocalyptic Shadow, Anomaly Arbitration
 - Graphs and a readable action log

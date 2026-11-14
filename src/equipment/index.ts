@@ -1,10 +1,12 @@
 import { AlongThePassingShore } from './alongThePassingShore'
 import { DanceDanceDance } from './danceDanceDance'
 import { createRegistry, setWithoutBehaviour } from './equipment'
+import { EternalCalculus } from './eternalCalculus'
 import { PioneerDiverOfDeadWaters } from './pioneerDiverOfDeadWaters'
+import { TodayIsAnotherPeacefulDay } from './todayIsAnotherPeacefulDay'
 
 export * from './equipment'
-export { AlongThePassingShore, DanceDanceDance, PioneerDiverOfDeadWaters }
+export { AlongThePassingShore, DanceDanceDance, EternalCalculus, PioneerDiverOfDeadWaters, TodayIsAnotherPeacefulDay }
 
 /**
  * Izumo Gensei and Takama Divine Realm (set 314): 2 pieces give +12% ATK, and +12% CRIT Rate when entering
@@ -46,4 +48,4 @@ export const InertSalsotto = setWithoutBehaviour({
  * Every light cone and set the simulator can run. An item not listed here stops a scenario (see
  * `resolveEquipment`). Add an item only once its text has been read in game.
  */
-export const EQUIPMENT = createRegistry([AlongThePassingShore, DanceDanceDance, PioneerDiverOfDeadWaters, IzumoGensei, MusketeerOfWildWheat, InertSalsotto])
+export const EQUIPMENT = createRegistry([AlongThePassingShore, DanceDanceDance, EternalCalculus, TodayIsAnotherPeacefulDay, PioneerDiverOfDeadWaters, IzumoGensei, MusketeerOfWildWheat, InertSalsotto])

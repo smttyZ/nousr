@@ -26,6 +26,10 @@
     "Link Rope": "Energy Regeneration Rate",
     "notes": "Fribbels options: Body CRIT DMG, Feet SPD, Sphere HP%/DEF%, Rope Energy Regeneration Rate. One real choice, the Sphere: HP% (first-listed). GUESS only in that DEF% is the other option; his kit scales on CRIT DMG (his Ultimate gives the target 33.6% of his CRIT DMG plus 12.8%, kit text), not on either."
   },
+  "spd_target": {
+    "value": 133.34,
+    "reason": "Turn breakpoint: 20000/150 = 133.33 SPD, so 133.34 gives 2 turns in the first 150 AV cycle (src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1). Fribbels lists SPD in his substats (Sunday.ts:431-437) with no stated target."
+  },
   "distributed": {
     "rolls": {
       "CRIT DMG": 10,
@@ -33,6 +37,12 @@
       "HP%": 6,
       "DEF%": 7
     },
-    "notes": "Fribbels substat list: CRIT DMG, SPD, RES, HP%, DEF%; buffStat CRIT DMG. CRIT DMG is filled to its cap of 10 (CRIT DMG body). SPD: 1 roll: 96 base + 5.76 (Sacerdos 2-piece, 6% of base) + 25.032 + 4.6 = 131.39, 1 roll = 133.69. GUESS: HP% 6 and DEF% 7 for the 13 left, because the preset lists HP% and DEF% and survival is modelled; no RES, since the fixed rolls already clear Broken Keel's 30% and the generic enemy applies no debuffs to allies, so RES has no other use here. SPD arithmetic ignores light cone and team SPD buffs. The cycle-1 two-turn threshold is 133.34 (20000/150); src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1."
+    "priority": [
+      "CRIT DMG",
+      "DEF%",
+      "HP%",
+      "Effect RES"
+    ],
+    "notes": "Fribbels substat list: CRIT DMG, SPD, RES, HP%, DEF%; buffStat CRIT DMG. SPD: target 133.34 (K14e, turn breakpoint). 96 base + 5.76 (Sacerdos 2-piece, 6% of base) + 25.032 + 4.6 = 131.392; 1 distributed roll makes 133.692 (margin 0.352), 0 is short. Under the cap of 10. CRIT DMG is filled to its cap of 10 (CRIT DMG body). GUESS: HP% 6 and DEF% 7 for the 13 left, because the preset lists HP% and DEF% and survival is modelled; no RES, since the fixed rolls already clear Broken Keel's 30% and the generic enemy applies no debuffs to allies. Changed from the earlier draft: no change to the split. Priority: file counts (CRIT DMG 10, DEF% 7, HP% 6), then Effect RES (in Fribbels' list, 0 rolls). GUESS: DEF% ahead of HP% only because of the counts. SPD arithmetic ignores light cone and team SPD buffs."
   }
 }

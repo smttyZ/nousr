@@ -4,8 +4,9 @@ import { attackerEquipmentState, createEquipment, teammateEquipmentState } from 
 import type { ModifierSpec } from '../engine/modifiers'
 import { Timeline } from '../engine/timeline'
 import type { EnemyProfile } from '../enemy/profile'
-import type { DamageKernel, DamageRequest, DamageResult, HitResult, KernelBuild, KernelTeammate, KernelUnit } from '../kernel/types'
+import type { DamageKernel, DamageRequest, DamageResult, HitResult, InjectedBuff, KernelBuild, KernelTeammate, KernelUnit } from '../kernel/types'
 import type { Kit, KitInstance } from '../kits/kit'
+import type { RunWarning } from '../run/warnings'
 import type { Condition, Element, Rule } from '../scenario/types'
 import { BREAK_BASE_DELAY, ENTANGLEMENT_DELAY, Enemies, IMPRISONMENT_DELAY, IMPRISONMENT_SLOW } from './enemies'
 import { BASE_AGGRO, Party, removeDownedFromTimeline } from './party'
@@ -59,6 +60,30 @@ export interface Member extends MemberSetup {
   equipmentInstances: EquipmentInstance[]
 }
 
+/**
+ * An untargetable summon with its own action gauge (DESIGN.md, K6, first kind): Jing Yuan's Lightning-Lord.
+ * It is a timeline unit owned by one member. It has no HP, no aggro and no place in the party, so enemies
+ * never choose it and nothing damages it. Its turn is run by the owner's kit through `takeTurn`, never by the
+ * policy; the Ultimate window opens before and after it as it does around an ally's turn. What it deals is
+ * asked from the kernel as the owner's ability (`performAction` and `attack` with `attacker: owner`), so the
+ * damage and the action log are credited to the owner. It leaves the timeline when the owner is downed, or
+ * when the kit calls `removeSummon`.
+ */
+export interface SummonSpec {
+  /** Its timeline unit id. Must not collide with a member or an enemy. Convention: `${owner}.${name}`. */
+  id: UnitId
+  /** The member that owns it, by key. */
+  owner: string
+  /** The SPD that percentage buffs scale from. */
+  baseSpd: number
+  spdPct?: number
+  spdFlat?: number
+  /** Starting gauge. Defaults to a full gauge. */
+  gauge?: number
+  /** Runs the summon's turn. Called with the gauge already refilled, like an ally's turn. */
+  takeTurn(turn: TurnInfo): void
+}
+
 export interface BattleSetup {
   members: MemberSetup[]
   policy: Rule[]
@@ -91,6 +116,16 @@ export type HitShape =
  */
 export type HitPart = HitShape & {
   hit: number
+  /**
+   * Marks the part as one slice of random-target hits (K17), so the battle can tell how likely each enemy is to be
+   * hit at least once. Its damage and toughness are not changed: the kit still states them as the expected share.
+   * Parts of one group (default group 'random') are the disjoint choices of ONE random hit, one part per possible
+   * target: `chance` is the probability, per hit, that this part is the one that lands (1 / enemies), and `hits`
+   * is how many such random hits the family stands for (it may be fractional). The enemies a part reaches (its
+   * target, plus the neighbours if it is a blast with adjacent damage) are each hit by it with probability
+   * `chance` per hit. A 'bounce' needs none of this: it is random by shape.
+   */
+  random?: { hits: number, chance: number, group?: string }
   /**
    * Toughness this part removes from each enemy it reaches (the main target, for a blast; each hit, for a
    * bounce, split evenly like its damage), in INTERNAL units, the unit of the profile's `toughness` and of the
@@ -145,10 +180,11 @@ export interface BattleResult {
   downed: string[]
   kernelCalls: number
   /**
-   * What the run says about its own numbers, one sentence each. Today: an undecided "highest HP" tie that
-   * changed the price of a hit (`Battle.highestHpAmong`).
+   * What the run says about its own numbers (K19). Today: an undecided "highest HP" tie that changed the
+   * price of a hit (`Battle.highestHpAmong`), code `undecided-tie`. No team or enemy count is set here: the
+   * runner in src/run adds them.
    */
-  warnings: string[]
+  warnings: RunWarning[]
 }
 
 /** An undecided "highest HP" tie that priced differently, kept once per (attacker, ability, hit, tied set). */
@@ -166,6 +202,8 @@ interface ActionInProgress {
   serial: number
   enemiesHit: Set<UnitId>
   debuffed: Set<UnitId>
+  /** Per enemy, the probability that NO part of the action so far hit it (K17). Absent: not hit. */
+  miss: Map<UnitId, number>
 }
 
 export class Battle {
@@ -186,6 +224,7 @@ export class Battle {
   private readonly actionLog: EngineEvents['actionUsed'][] = []
   private readonly downed: string[] = []
   private readonly tieRecords = new Map<string, TieRecord>()
+  private readonly summonMap = new Map<UnitId, SummonSpec>()
 
   constructor(private readonly setup: BattleSetup) {
     if (setup.members.length === 0) throw new Error('A battle needs at least one member')
@@ -211,7 +250,11 @@ export class Battle {
     this.enemies = new Enemies(this.timeline, this.party, setup.profile, setup.enemyCount)
     this.primary = this.enemies.ids[Math.floor(setup.enemyCount / 2)]!
     removeDownedFromTimeline(this.timeline)
-    this.timeline.bus.on('unitDowned', (e) => this.downed.push(e.unit))
+    this.timeline.bus.on('unitDowned', (e) => {
+      this.downed.push(e.unit)
+      // A summon leaves with its owner (Lightning-Lord's text: "when Jing Yuan is knocked down ... disappear").
+      for (const summon of [...this.summonMap.values()]) if (summon.owner === e.unit) this.removeSummon(summon.id)
+    })
 
     // Kits are created last: they may look at the whole field and subscribe to events.
     this.members = setup.members.map((m, index) => ({
@@ -242,6 +285,31 @@ export class Battle {
     this.skillPointCount = Math.max(0, this.skillPointCount - n)
   }
 
+  /** Puts an untargetable summon on the timeline (see `SummonSpec`). */
+  addSummon(spec: SummonSpec): void {
+    if (!this.members.some((m) => m.key === spec.owner)) throw new Error(`Summon ${spec.id}: no member "${spec.owner}" to own it`)
+    if (this.party.get(spec.owner).downed) throw new Error(`Summon ${spec.id}: its owner ${spec.owner} is downed`)
+    if (this.summonMap.has(spec.id) || this.timeline.has(spec.id)) throw new Error(`Summon ${spec.id}: that unit is already on the timeline`)
+    this.summonMap.set(spec.id, spec)
+    this.timeline.addUnit({
+      id: spec.id,
+      baseSpd: spec.baseSpd,
+      ...(spec.spdPct !== undefined && { spdPct: spec.spdPct }),
+      ...(spec.spdFlat !== undefined && { spdFlat: spec.spdFlat }),
+      ...(spec.gauge !== undefined && { gauge: spec.gauge }),
+    })
+  }
+
+  /** Takes a summon off the timeline. A summon that is already gone is ignored. */
+  removeSummon(id: UnitId): void {
+    if (!this.summonMap.delete(id)) return
+    if (this.timeline.has(id)) this.timeline.removeUnit(id)
+  }
+
+  isSummon(id: UnitId): boolean {
+    return this.summonMap.has(id)
+  }
+
   member(key: string): Member {
     const m = this.members.find((x) => x.key === key)
     if (!m) throw new Error(`No member "${key}"`)
@@ -265,14 +333,30 @@ export class Battle {
    */
   performAction(actor: string, action: string, kind: EngineEvents['actionUsed']['kind'], body: () => void): void {
     const outer = this.current
-    const mine: ActionInProgress = { serial: ++this.actionSerial, enemiesHit: new Set(), debuffed: new Set() }
+    const mine: ActionInProgress = { serial: ++this.actionSerial, enemiesHit: new Set(), debuffed: new Set(), miss: new Map() }
     this.current = mine
     try {
       body()
     } finally {
       this.current = outer
     }
-    const event = { actor, action, kind, serial: mine.serial, enemiesHit: [...mine.enemiesHit], debuffed: [...mine.debuffed] }
+    const hitChance: Record<UnitId, number> = {}
+    let expectedEnemiesHit = 0
+    for (const enemy of mine.enemiesHit) {
+      const chance = Math.min(1, Math.max(0, 1 - (mine.miss.get(enemy) ?? 0)))
+      hitChance[enemy] = chance
+      expectedEnemiesHit += chance
+    }
+    const event = {
+      actor,
+      action,
+      kind,
+      serial: mine.serial,
+      enemiesHit: [...mine.enemiesHit],
+      hitChance,
+      expectedEnemiesHit,
+      debuffed: [...mine.debuffed],
+    }
     this.actionLog.push(event)
     this.timeline.bus.emit('actionUsed', event)
   }
@@ -304,11 +388,26 @@ export class Battle {
     const ids = this.enemies.ids
     /** Per enemy: the multiple each kernel hit is asked for. */
     const multiples = new Map<UnitId, Map<number, number>>()
-    const add = (enemy: UnitId, hit: number, scaling: number) => {
+    /** Enemies a deterministic part reaches. */
+    const certain = new Set<UnitId>()
+    /** Random-target groups (K17): per group, the hits it stands for and each enemy's chance per hit. */
+    const randomGroups = new Map<string, { hits: number, perHit: Map<UnitId, number> }>()
+    const add = (enemy: UnitId, hit: number, scaling: number, random?: { hits: number, chance: number, group?: string }) => {
       if (!(scaling > 0)) return
       const byHit = multiples.get(enemy) ?? new Map<number, number>()
       byHit.set(hit, (byHit.get(hit) ?? 0) + scaling)
       multiples.set(enemy, byHit)
+      if (random === undefined) {
+        certain.add(enemy)
+        return
+      }
+      const key = random.group ?? 'random'
+      const group = randomGroups.get(key) ?? { hits: random.hits, perHit: new Map<UnitId, number>() }
+      if (group.hits !== random.hits) {
+        throw new Error(`${spec.attacker}'s ${spec.ability} attack: random group "${key}" has parts with different hit counts`)
+      }
+      randomGroups.set(key, group)
+      group.perHit.set(enemy, (group.perHit.get(enemy) ?? 0) + random.chance)
     }
     for (const part of spec.parts) {
       if (!Number.isInteger(part.hit) || part.hit < 0) {
@@ -316,21 +415,38 @@ export class Battle {
       }
       switch (part.shape) {
         case 'single':
-          add(part.target ?? this.primary, part.hit, part.scaling)
+          add(part.target ?? this.primary, part.hit, part.scaling, part.random)
           break
         case 'blast': {
           const target = part.target ?? this.primary
-          add(target, part.hit, part.scaling)
-          for (const neighbour of this.adjacentEnemies(target)) add(neighbour, part.hit, part.adjacent)
+          add(target, part.hit, part.scaling, part.random)
+          for (const neighbour of this.adjacentEnemies(target)) add(neighbour, part.hit, part.adjacent, part.random)
           break
         }
         case 'aoe':
           for (const enemy of ids) add(enemy, part.hit, part.scaling)
           break
         case 'bounce':
-          for (const enemy of ids) add(enemy, part.hit, (part.scaling * part.hits) / ids.length)
+          // Each of the bounce's hits lands on a given enemy with probability 1 / enemies. One group per part.
+          for (const enemy of ids) {
+            add(enemy, part.hit, (part.scaling * part.hits) / ids.length, {
+              hits: part.hits,
+              chance: 1 / ids.length,
+              group: `bounce:${spec.parts.indexOf(part)}`,
+            })
+          }
           break
       }
+    }
+    /** The probability that none of this attack's parts hit the enemy (K17). */
+    const missChance = (enemy: UnitId): number => {
+      if (certain.has(enemy)) return 0
+      let miss = 1
+      for (const group of randomGroups.values()) {
+        const perHit = group.perHit.get(enemy)
+        if (perHit !== undefined) miss *= (1 - Math.min(1, perHit)) ** group.hits
+      }
+      return miss
     }
 
     const toughness = this.toughnessByEnemy(attacker, spec.parts)
@@ -352,7 +468,10 @@ export class Battle {
           scaling += multiple
         }
         total += damage
-        this.current?.enemiesHit.add(enemy)
+        if (this.current) {
+          this.current.enemiesHit.add(enemy)
+          this.current.miss.set(enemy, (this.current.miss.get(enemy) ?? 1) * missChance(enemy))
+        }
         this.recordDamage(attacker, enemy, spec.ability, scaling, damage)
       }
       if (base !== undefined && base > 0) {
@@ -527,16 +646,17 @@ export class Battle {
     this.tieRecords.set(key, { pricing, tied, prices, chosen, at: this.timeline.now, cycle: this.timeline.cycle, count: 1 })
   }
 
-  private tieWarnings(): string[] {
-    return [...this.tieRecords.values()].map((r) => {
+  private tieWarnings(): RunWarning[] {
+    return [...this.tieRecords.values()].map((r): RunWarning => {
       const prices = r.tied.map((enemy, i) => `${enemy} ${r.prices[i]!.toPrecision(7)}`).join(', ')
-      return (
+      const message = (
         `Undecided "highest HP" tie: ${r.pricing.attacker}'s ${r.pricing.ability} hit ${r.pricing.hit} had the enemies ` +
         `${r.tied.join(', ')} tied for the highest HP, the primary target not among them, and they price it differently ` +
         `(damage per 100% of the scaling stat: ${prices}). It went to ${r.chosen} (first in standing order); the game does ` +
         `not say how such a tie is broken, so this choice changes damage. First at AV ${r.at.toFixed(1)}, cycle ${r.cycle}; ` +
         `${r.count} time${r.count === 1 ? '' : 's'} in this battle. See DESIGN.md, "Known approximations".`
       )
+      return { severity: 'warning', code: 'undecided-tie', message }
     })
   }
 
@@ -562,6 +682,14 @@ export class Battle {
   private takeTurn(turn: TurnInfo): void {
     if (this.enemies.has(turn.unit)) {
       this.enemies.takeTurn(turn)
+      this.ultimateWindow()
+      return
+    }
+    const summon = this.summonMap.get(turn.unit)
+    if (summon) {
+      // The owner's kit runs it; no policy rule is read for a summon.
+      this.ultimateWindow()
+      if (this.summonMap.has(summon.id)) summon.takeTurn(turn)
       this.ultimateWindow()
       return
     }
@@ -652,10 +780,14 @@ export class Battle {
   private kernelResult(attacker: Member, enemy: UnitId): DamageResult {
     const state = attacker.instance.attackerState(enemy)
     const gear = attackerEquipmentState(attacker.equipmentInstances, enemy, attacker.key)
+    // Injected buffs (K15a): the attacker's own, then each teammate's that are aimed at the team. A teammate's
+    // 'self' buff changes only that teammate, so it does not reach the attacker's damage.
+    const injectedBuffs: InjectedBuff[] = [...(state.injectedBuffs ?? [])]
     const teammates: KernelTeammate[] = this.members
       .filter((m) => m !== attacker)
       .map((m) => {
         const own = m.instance.teammateState(attacker, enemy)
+        injectedBuffs.push(...(own.injectedBuffs ?? []).filter((b) => b.target === 'team'))
         const worn = teammateEquipmentState(m.equipmentInstances, attacker, enemy, m.key)
         return {
           ...m.kernel.unit,
@@ -675,6 +807,7 @@ export class Battle {
       teammates,
       build: attacker.kernel.build,
       ...(gear.setConditionals && { setConditionals: gear.setConditionals }),
+      ...(injectedBuffs.length > 0 && { injectedBuffs }),
       enemy: {
         count: enemyCount,
         level: profile.level,

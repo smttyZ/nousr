@@ -26,12 +26,22 @@
     "Link Rope": "ATK%",
     "notes": "Fribbels options: Body CRIT Rate/CRIT DMG, Feet ATK%/SPD, Sphere ATK%/Ice DMG, Rope ATK%. GUESS: Body CRIT Rate; the CRIT Rate and CRIT DMG bodies tie to the digit in the proxy because the other rolls rearrange to compensate. Feet SPD (GUESS, same reason as Acheron). Sphere Ice DMG (proxy +6.3% over ATK%). Rope ATK% only."
   },
+  "spd_target": {
+    "value": 133.34,
+    "reason": "Turn breakpoint: 20000/150 = 133.33 SPD, so 133.34 gives 2 turns in the first 150 AV cycle (src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1). Met with 0 distributed rolls; the margin is thin (see notes). Fribbels sets no stated target."
+  },
   "distributed": {
     "rolls": {
       "CRIT DMG": 12,
       "CRIT Rate": 9,
       "ATK%": 3
     },
-    "notes": "Fribbels substat list: CRIT DMG, CRIT Rate, ATK%, ATK. Rolls chosen with a throwaway proxy script (damage ~ scale stat x (1 + CR x CD) x (1 + DMG%), the 2 fixed rolls per stat, the per-relic cap, simple set and trace stats only, an assumed 635 ATK / 1058 HP light cone), not with Fribbels or the kernel. Treat it as a tie-breaker, not a result. Result: CRIT DMG 12, CRIT Rate 9, ATK% 3. SPD: 0 distributed. 99 base + 5 (trace) + 25.032 + 4.6 = 133.63, over 133.34 by 0.29; that margin is thin and depends on the trace being exactly +5 SPD. SPD arithmetic ignores light cone and team SPD buffs. The cycle-1 two-turn threshold is 133.34 (20000/150); src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1."
+    "priority": [
+      "CRIT DMG",
+      "CRIT Rate",
+      "ATK%",
+      "ATK"
+    ],
+    "notes": "Fribbels substat list: CRIT DMG, CRIT Rate, ATK%, ATK. Rolls chosen with a throwaway proxy script (damage ~ scale stat x (1 + CR x CD) x (1 + DMG%), the 2 fixed rolls per stat, the per-relic cap, simple set and trace stats only, an assumed 635 ATK / 1058 HP light cone), not with Fribbels or the kernel. Treat it as a tie-breaker, not a result. Result: CRIT DMG 12, CRIT Rate 9, ATK% 3. SPD: target 133.34 (K14e, turn breakpoint). 99 base + 5 (trace) + 25.032 + 4.6 = 133.632 with 0 distributed rolls (margin 0.292). That margin is thin and depends on the trace being exactly +5 SPD. Changed from the earlier draft: no change to the split. Priority: file counts (CRIT DMG 12, CRIT Rate 9, ATK% 3), then ATK from Fribbels' list. SPD arithmetic ignores light cone and team SPD buffs."
   }
 }

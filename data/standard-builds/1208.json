@@ -26,6 +26,10 @@
     "Link Rope": "HP%",
     "notes": "Fribbels options (FuXuan.ts:282-301): Body HP%/DEF%, Feet HP%/DEF%/SPD, Sphere HP%/DEF%, Rope HP%/DEF%/Energy Regeneration Rate. GUESS: HP% on the three non-Feet slots (HP% has the highest weight, 1, with DEF% at 0.75) and SPD boots. Rope Energy Regeneration Rate is the alternative and affects Ultimate timing; Smitty should decide it."
   },
+  "spd_target": {
+    "value": 133.34,
+    "reason": "Turn breakpoint: 20000/150 = 133.33 SPD, so 133.34 gives 2 turns in the first 150 AV cycle (src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1). No Fribbels SPD target (weights only, FuXuan.ts:268-281); already met."
+  },
   "distributed": {
     "rolls": {
       "HP%": 6,
@@ -33,6 +37,13 @@
       "DEF%": 10,
       "Effect RES": 2
     },
-    "notes": "All GUESS, from the scoring weights (FuXuan.ts:268-281): HP% 1, HP 1, DEF% 0.75, DEF 0.75, RES 0.5, SPD 1. Caps: HP% 6 (three HP% main stats), HP 10, DEF% 12. HP% is filled to its cap of 6, HP 6, DEF% 10, RES 2 (for Broken Keel's 30%). SPD: 0 distributed: 100 base + 6 (Warrior Goddess 2-piece, 6% of base) + 25.032 + 4.6 = 135.63, already over 133.34. SPD arithmetic ignores light cone and team SPD buffs. The cycle-1 two-turn threshold is 133.34 (20000/150); src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1."
+    "priority": [
+      "DEF%",
+      "HP%",
+      "HP",
+      "Effect RES",
+      "DEF"
+    ],
+    "notes": "All GUESS, from the scoring weights (FuXuan.ts:268-281): HP% 1, HP 1, DEF% 0.75, DEF 0.75, RES 0.5, SPD 1. Caps: HP% 6 (three HP% main stats), HP 10, DEF% 12. HP% is filled to its cap of 6, HP 6, DEF% 10, RES 2 (for Broken Keel's 30%). SPD: target 133.34 (K14e, turn breakpoint). 100 base + 6 (Warrior Goddess 2-piece, 6% of base) + 25.032 + 4.6 = 135.632 with 0 distributed rolls (margin 2.292). Changed from the earlier draft: no change to the split. Priority by the file's counts then weights (HP% 1, HP 1, DEF% 0.75, DEF 0.75, RES 0.5): DEF% 10, HP% 6, HP 6 (tie, list order), Effect RES 2, then DEF (0 rolls). GUESS: this puts DEF% ahead of HP% only because the file gave DEF% the most rolls (HP% is capped at 6); the weights would put HP% first. SPD arithmetic ignores light cone and team SPD buffs."
   }
 }

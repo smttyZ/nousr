@@ -2,10 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:nousr:schema:standard-build:1",
   "title": "NouSR standard build",
-  "description": "DRAFT for review. One character's standard build (DESIGN.md K14, K14b): the relic sets, the main stat of each free slot, and how the 24 distributed substat rolls are split. A scenario member on \"relics\": \"standard\" gets exactly this build, in every team. Rules that are the same for every character are stated here and not repeated per file. (1) Fixed rolls: every build has 2 rolls on each of the 12 substat types (ATK%, ATK, HP%, HP, DEF%, DEF, SPD, CRIT Rate, CRIT DMG, Effect Hit Rate, Effect RES, Break Effect), 24 rolls in all, whatever the file says. (2) Distributed rolls: the file splits 24 more rolls over the substat types. (3) Every roll, fixed or distributed, is worth its average value: the mean of the low, mid and high values of a 5-star substat (SubStatValues in vendor/hsr-optimizer/src/lib/constants/constants.ts; the three values are evenly spaced, so the mean is the mid value, e.g. 2.3 SPD, 2.916% CRIT Rate, 5.832% CRIT DMG, 3.888% ATK%). (4) Head always has HP as its main stat and Hands always ATK (flat), so neither is in this file. Rules a JSON Schema cannot express, which the loader must enforce: (a) the distributed rolls add up to exactly 24; (b) for each substat type, its distributed rolls are at most 2 times the number of the six relics whose main stat is not that stat (Head counts as HP and Hands as ATK; so with CRIT Rate on the Body the CRIT Rate cap is 10, with no CRIT Rate main stat it is 12, and with ATK% on three slots the ATK% cap is 6); (c) the two 2-piece sets, when used, are different sets; (d) set_id and name agree with the game data. Not stated by K14 and assumed by this draft: all six relics are 5-star and level 15, as in Fribbels' own stat simulation (Head HP 705.6 and Hands ATK 352.8 at vendor/hsr-optimizer/src/lib/simulations/statSimulation.ts:109-110; the other main stats at their 5-star +15 value from the maxedMainStats table in src/lib/relics/statCalculator.ts:11-26); and the set effects that need a condition (a debuff count, a memosprite on the field) take the conditional values the scenario and the kit give them, not values from this file. Stat names are Fribbels' own strings (the same ones BenchmarkBuild in src/kernel/types.ts uses); slot names and set_id are the HSR-Scanner v4 ones, so a standard build can be turned into scanner-style relic objects without a lookup.",
+  "description": "DRAFT for review. One character's standard build (DESIGN.md K14, K14b): the relic sets, the main stat of each free slot, and how the 24 distributed substat rolls are split. A scenario member on \"relics\": \"standard\" gets exactly this build, in every team. Rules that are the same for every character are stated here and not repeated per file. (1) Fixed rolls: every build has 2 rolls on each of the 12 substat types (ATK%, ATK, HP%, HP, DEF%, DEF, SPD, CRIT Rate, CRIT DMG, Effect Hit Rate, Effect RES, Break Effect), 24 rolls in all, whatever the file says. (2) Distributed rolls: the file splits 24 more rolls over the substat types. (3) Every roll, fixed or distributed, is worth its average value: the mean of the low, mid and high values of a 5-star substat (SubStatValues in vendor/hsr-optimizer/src/lib/constants/constants.ts; the three values are evenly spaced, so the mean is the mid value, e.g. 2.3 SPD, 2.916% CRIT Rate, 5.832% CRIT DMG, 3.888% ATK%). (4) Head always has HP as its main stat and Hands always ATK (flat), so neither is in this file. Rules a JSON Schema cannot express, which the loader must enforce: (a) the distributed rolls add up to exactly 24; (b) for each substat type, its distributed rolls are at most 2 times the number of the six relics whose main stat is not that stat (Head counts as HP and Hands as ATK; so with CRIT Rate on the Body the CRIT Rate cap is 10, with no CRIT Rate main stat it is 12, and with ATK% on three slots the ATK% cap is 6), except that SPD may exceed its cap as rule (f) allows; (c) the two 2-piece sets, when used, are different sets; (d) set_id and name agree with the game data; (e) distributed.priority lists each stat at most once, never SPD; (f) SPD (DESIGN.md K14e): spd_target declares the out-of-combat SPD the build must reach, or \"none\". Out-of-combat SPD here means what the loader can compute without a fight: the character's base SPD, plus the SPD from traces, plus the SPD% of the equipped sets (percent of base SPD) that needs no condition, plus the SPD main stat (25.032 on 5-star +15 boots), plus 2.3 per SPD roll (2 fixed plus the distributed ones); light cones, team buffs and conditional set effects (for example Warrior Goddess' \"Gentle Rain\") are not counted. Let n be the fewest distributed SPD rolls that reach the target (0 for \"none\"). The cap on distributed SPD rolls is then max(KQMS cap, n), never more than the physical limit, and the file's SPD rolls must be exactly n unless the file says otherwise in its notes. Every other stat keeps its KQMS cap, and the 24-roll total never changes. Physical limit: a 5-star relic at +15 has 4 substats and 5 upgrade events (+3, +6, +9, +12, +15), so at most 6 rolls of one substat on one piece (the creation roll plus all 5 upgrades; 5 if the piece was created with 3 substats). Total SPD rolls (2 fixed plus distributed) are therefore at most 6 times the number of the six relics whose main stat is not SPD: 30 with SPD boots, 36 without. Source: Fribbels' own \"possible distribution\" ceiling for its 200% build, maximumScoringParams in vendor/hsr-optimizer/src/lib/scoring/simScoringUtils.ts:204-213 (maxPerSub 36 = 6 pieces x 6 rolls, deductionPerMain 6) and relicRollGrader.ts:89 (floor(enhance/3) added rolls). The 6-per-piece figure assumes 9 rolls on that piece, more than this build's average of 8 per piece; at 8 rolls the ceiling is 5 per piece (25 with SPD boots). No build here comes near either. Not stated by K14 and assumed by this draft: all six relics are 5-star and level 15, as in Fribbels' own stat simulation (Head HP 705.6 and Hands ATK 352.8 at vendor/hsr-optimizer/src/lib/simulations/statSimulation.ts:109-110; the other main stats at their 5-star +15 value from the maxedMainStats table in src/lib/relics/statCalculator.ts:11-26); and the set effects that need a condition (a debuff count, a memosprite on the field) take the conditional values the scenario and the kit give them, not values from this file. Stat names are Fribbels' own strings (the same ones BenchmarkBuild in src/kernel/types.ts uses); slot names and set_id are the HSR-Scanner v4 ones, so a standard build can be turned into scanner-style relic objects without a lookup.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["format", "version", "game_version", "character", "ability_version", "relic_sets", "ornament_set", "main_stats", "distributed"],
+  "required": ["format", "version", "game_version", "character", "ability_version", "relic_sets", "ornament_set", "main_stats", "spd_target", "distributed"],
   "properties": {
     "$schema": {
       "type": "string",
@@ -92,17 +92,44 @@
         "notes": { "$ref": "#/$defs/notes" }
       }
     },
+    "spd_target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "reason"],
+      "description": "The out-of-combat SPD this build is built to reach (DESIGN.md K14e; see rule (f) in the schema description for what counts and how it relaxes the SPD cap). value is a number, or \"none\" when the character has no SPD requirement.",
+      "properties": {
+        "value": {
+          "oneOf": [
+            { "type": "number", "exclusiveMinimum": 0 },
+            { "const": "none" }
+          ],
+          "description": "Target SPD, e.g. 133.34 (20000/150, rounded up: 2 turns in the first 150 AV cycle), 180 (a set or kit threshold) or 200. \"none\" means no target."
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Why this target: a turn breakpoint, a set threshold, a kit threshold, a Fribbels breakpoint, or why there is none. Cite the source."
+        }
+      }
+    },
     "distributed": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["rolls"],
+      "required": ["rolls", "priority"],
       "description": "The split of the 24 distributed rolls (on top of the 2 fixed rolls per substat type, which every build has).",
       "properties": {
         "rolls": {
           "type": "object",
           "propertyNames": { "$ref": "#/$defs/substat" },
           "additionalProperties": { "type": "integer", "minimum": 0, "maximum": 24 },
-          "description": "Substat type -> number of distributed rolls. A type left out has 0. The counts must add up to 24 and respect the per-stat cap; the loader checks both (see the schema description)."
+          "description": "Substat type -> number of distributed rolls. A type left out has 0. The counts must add up to 24 and respect the per-stat cap (SPD: rule (f)); the loader checks both (see the schema description)."
+        },
+        "priority": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/substat_not_spd" },
+          "description": "Order in which this character wants distributed rolls, most wanted first, SPD never listed (SPD is set by spd_target). Used only when a scenario swaps a main stat and leaves the split alone (DESIGN.md K14c): going down the list once, rolls above a stat's new cap move to the first stat below it with room; a stat not listed never receives rolls; if the last stat still overflows, the scenario is an error. In these files: stats in descending order of the file's own distributed rolls (ties in Fribbels' list order), then listed stats with 0 rolls in Fribbels' list order."
         },
         "notes": { "$ref": "#/$defs/notes" }
       }
@@ -118,6 +145,12 @@
       "enum": [
         "ATK%", "ATK", "HP%", "HP", "DEF%", "DEF",
         "SPD", "CRIT Rate", "CRIT DMG", "Effect Hit Rate", "Effect RES", "Break Effect"
+      ]
+    },
+    "substat_not_spd": {
+      "enum": [
+        "ATK%", "ATK", "HP%", "HP", "DEF%", "DEF",
+        "CRIT Rate", "CRIT DMG", "Effect Hit Rate", "Effect RES", "Break Effect"
       ]
     },
     "set": {

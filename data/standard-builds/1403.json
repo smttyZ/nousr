@@ -26,12 +26,22 @@
     "Link Rope": "HP%",
     "notes": "Fribbels options: Body CRIT Rate/CRIT DMG/HP%, Feet HP%/SPD, Sphere HP%/Quantum DMG, Rope HP%. GUESS: Body CRIT Rate (proxy +7.0% over CRIT DMG and over HP%). GUESS: Feet SPD, though Fribbels lists HP% first and gives her no SPD substat. Sphere Quantum DMG. Rope HP% only."
   },
+  "spd_target": {
+    "value": "none",
+    "reason": "No target. Her Fribbels substat list has no SPD (Tribbie.ts:388-393) and SPD boots leave her at 125.632, under the 133.34 turn line; 4 distributed rolls would give 134.832. Whether she wants them changes how the team plays, so it is Smitty's call; until then no target."
+  },
   "distributed": {
     "rolls": {
       "CRIT DMG": 12,
       "CRIT Rate": 10,
       "HP%": 2
     },
-    "notes": "Fribbels substat list: CRIT DMG, CRIT Rate, HP%, HP. Rolls chosen with a throwaway proxy script (damage ~ scale stat x (1 + CR x CD) x (1 + DMG%), the 2 fixed rolls per stat, the per-relic cap, simple set and trace stats only, an assumed 635 ATK / 1058 HP light cone), not with Fribbels or the kernel. Treat it as a tie-breaker, not a result. Result: CRIT DMG 12, CRIT Rate 10, HP% 2. SPD: 0 distributed, following Fribbels' list. 96 + 25.032 + 4.6 = 125.63; 4 rolls would give 134.83, over 133.34. GUESS that she does not want it: her Zone and Ultimate timing should show whether she does. It is the one choice in this file that changes how the team plays, so Smitty should decide it. SPD arithmetic ignores light cone and team SPD buffs. The cycle-1 two-turn threshold is 133.34 (20000/150); src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1."
+    "priority": [
+      "CRIT DMG",
+      "CRIT Rate",
+      "HP%",
+      "HP"
+    ],
+    "notes": "Fribbels substat list: CRIT DMG, CRIT Rate, HP%, HP. Rolls chosen with a throwaway proxy script (damage ~ scale stat x (1 + CR x CD) x (1 + DMG%), the 2 fixed rolls per stat, the per-relic cap, simple set and trace stats only, an assumed 635 ATK / 1058 HP light cone), not with Fribbels or the kernel. Treat it as a tie-breaker, not a result. Result: CRIT DMG 12, CRIT Rate 10, HP% 2. SPD: target none (K14e). 96 + 25.032 + 4.6 = 125.632 with 0 distributed rolls; 4 rolls would give 134.832 (over 133.34). GUESS that she does not want it: her Zone and Ultimate timing should show whether she does. It is the one choice in this file that changes how the team plays, so Smitty should decide it. Changed from the earlier draft: no change to the split. Priority: file counts (CRIT DMG 12, CRIT Rate 10, HP% 2), then HP from Fribbels' list. SPD arithmetic ignores light cone and team SPD buffs."
   }
 }

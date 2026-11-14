@@ -1,0 +1,134 @@
+{
+  "format": "nousr-level-table",
+  "version": 1,
+  "game_version": "4.7",
+  "game_data_commit": "fe15a954eba1f24bf1bcd4003848710eced44996",
+  "character": "1208",
+  "ability_version": 0,
+  "abilities": {
+    "basic": {
+      "point": 1208001,
+      "tree_max_level": 6,
+      "eidolon_levels": [
+        { "eidolon": 5, "levels": 1 }
+      ],
+      "skills": {
+        "120801": {
+          "levels": [
+            [0.25],
+            [0.3],
+            [0.35],
+            [0.4],
+            [0.45],
+            [0.5],
+            [0.55],
+            [0.6],
+            [0.65],
+            [0.7]
+          ]
+        }
+      }
+    },
+    "skill": {
+      "point": 1208002,
+      "tree_max_level": 10,
+      "eidolon_levels": [
+        { "eidolon": 3, "levels": 2 }
+      ],
+      "skills": {
+        "120802": {
+          "levels": [
+            [0.65, 0, 3, 0.03, 0.06],
+            [0.65, 0, 3, 0.033, 0.066],
+            [0.65, 0, 3, 0.036, 0.072],
+            [0.65, 0, 3, 0.039, 0.078],
+            [0.65, 0, 3, 0.042, 0.084],
+            [0.65, 0, 3, 0.044999998, 0.09],
+            [0.65, 0, 3, 0.048750002, 0.0975],
+            [0.65, 0, 3, 0.052500002, 0.105],
+            [0.65, 0, 3, 0.05625, 0.1125],
+            [0.65, 0, 3, 0.06, 0.12],
+            [0.65, 0, 3, 0.063, 0.126],
+            [0.65, 0, 3, 0.066, 0.132],
+            [0.65, 0, 3, 0.069, 0.138],
+            [0.65, 0, 3, 0.072, 0.144],
+            [0.65, 0, 3, 0.075, 0.15]
+          ]
+        }
+      }
+    },
+    "ult": {
+      "point": 1208003,
+      "tree_max_level": 10,
+      "eidolon_levels": [
+        { "eidolon": 5, "levels": 2 }
+      ],
+      "skills": {
+        "120803": {
+          "levels": [
+            [0.6],
+            [0.64],
+            [0.68],
+            [0.72],
+            [0.76],
+            [0.8],
+            [0.85],
+            [0.9],
+            [0.95],
+            [1],
+            [1.04],
+            [1.08],
+            [1.12],
+            [1.16],
+            [1.2]
+          ]
+        }
+      }
+    },
+    "talent": {
+      "point": 1208004,
+      "tree_max_level": 10,
+      "eidolon_levels": [
+        { "eidolon": 3, "levels": 2 }
+      ],
+      "skills": {
+        "120804": {
+          "levels": [
+            [0.1, 0.5, 0.8],
+            [0.108, 0.5, 0.81],
+            [0.116, 0.5, 0.82],
+            [0.124, 0.5, 0.83],
+            [0.132, 0.5, 0.84],
+            [0.14, 0.5, 0.85],
+            [0.15, 0.5, 0.8625],
+            [0.16, 0.5, 0.875],
+            [0.17, 0.5, 0.8875],
+            [0.18, 0.5, 0.9],
+            [0.188, 0.5, 0.91],
+            [0.196, 0.5, 0.92],
+            [0.204, 0.5, 0.93],
+            [0.212, 0.5, 0.94],
+            [0.22, 0.5, 0.95]
+          ]
+        }
+      }
+    }
+  },
+  "major_traces": [
+    { "key": "B1", "point": 1208101, "requires": [1208201] },
+    { "key": "B2", "point": 1208102, "requires": [1208201] },
+    { "key": "B3", "point": 1208103, "requires": [] }
+  ],
+  "minor_traces": [
+    { "key": "S1", "point": 1208201, "requires": [], "stat": "CriticalChanceBase", "value": 0.026999999 },
+    { "key": "S2", "point": 1208202, "requires": [1208101], "stat": "HPAddedRatio", "value": 0.04 },
+    { "key": "S3", "point": 1208203, "requires": [1208202], "stat": "CriticalChanceBase", "value": 0.026999999 },
+    { "key": "S4", "point": 1208204, "requires": [], "stat": "StatusResistanceBase", "value": 0.04 },
+    { "key": "S5", "point": 1208205, "requires": [1208102], "stat": "CriticalChanceBase", "value": 0.04 },
+    { "key": "S6", "point": 1208206, "requires": [1208205], "stat": "HPAddedRatio", "value": 0.06 },
+    { "key": "S7", "point": 1208207, "requires": [], "stat": "CriticalChanceBase", "value": 0.04 },
+    { "key": "S8", "point": 1208208, "requires": [1208103], "stat": "StatusResistanceBase", "value": 0.06 },
+    { "key": "S9", "point": 1208209, "requires": [1208208], "stat": "HPAddedRatio", "value": 0.08 },
+    { "key": "S10", "point": 1208210, "requires": [1208208], "stat": "CriticalChanceBase", "value": 0.053 }
+  ]
+}

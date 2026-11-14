@@ -1,7 +1,7 @@
 import type { Battle, Member } from '../battle/battle'
 import type { Path } from '../battle/party'
 import type { UnitId } from '../engine/events'
-import type { ConditionalValues } from '../kernel/types'
+import type { ConditionalValues, InjectedBuff } from '../kernel/types'
 import type { Element } from '../scenario/types'
 
 /**
@@ -45,11 +45,23 @@ export interface KitAction {
 export interface AttackerState {
   /** Fribbels conditional values for the character, laid over its defaults. */
   characterConditionals?: ConditionalValues
+  /**
+   * Buffs this character adds on top of the kernel's own (DESIGN.md, K15a), for example the
+   * difference between its level-scaled value and the maximum-level value the kernel applied. A
+   * `'self'` or `'team'` target both reach the attacker here.
+   */
+  injectedBuffs?: InjectedBuff[]
 }
 
 /** What the damage kernel needs to know about this character when a teammate attacks. */
 export interface TeammateState {
   characterConditionals?: ConditionalValues
+  /**
+   * Buffs this character adds on top of the kernel's own (DESIGN.md, K15a). Only those targeted at
+   * the `'team'` reach the attacker; a `'self'` buff of a teammate is dropped, since it changes only
+   * that teammate.
+   */
+  injectedBuffs?: InjectedBuff[]
 }
 
 export interface KitInstance {

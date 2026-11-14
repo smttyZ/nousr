@@ -26,6 +26,10 @@
     "Link Rope": "ATK%",
     "notes": "Fribbels options: Body ATK%, Feet SPD/ATK%, Sphere ATK%, Rope ATK%. Only Feet has a choice: SPD (first-listed), because the preset's buffStat is ATK (his Shield is 21.2% of his ATK plus 445, kit text) and a trace gives him +5 SPD, so SPD boots put him at the 133 line for one roll. GUESS only in that ATK% boots are the other option."
   },
+  "spd_target": {
+    "value": 133.34,
+    "reason": "Turn breakpoint: 20000/150 = 133.33 SPD, so 133.34 gives 2 turns in the first 150 AV cycle (src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1). His Fribbels list has SPD (PermansorTerrae.ts:346-352) with no stated target."
+  },
   "distributed": {
     "rolls": {
       "ATK%": 6,
@@ -34,6 +38,12 @@
       "HP%": 4,
       "DEF%": 3
     },
-    "notes": "Fribbels substat list: ATK%, ATK, SPD, HP%, DEF%, and buffStat ATK. Caps: ATK% 6 (three ATK% main stats), ATK 10 (Hands main). ATK% and ATK are filled to their caps because the Shield and the buff scale on his ATK. SPD: 1 roll; 97 base + 5 (trace) + 25.032 + 4.6 = 131.63, 1 roll = 133.93. GUESS: HP% 4 and DEF% 3 for the 7 leftover rolls; the preset lists HP% and DEF% but not which is worth more, and survival is modelled (K8). SPD arithmetic ignores light cone and team SPD buffs. The cycle-1 two-turn threshold is 133.34 (20000/150); src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1."
+    "priority": [
+      "ATK",
+      "ATK%",
+      "HP%",
+      "DEF%"
+    ],
+    "notes": "Fribbels substat list: ATK%, ATK, SPD, HP%, DEF%, and buffStat ATK. Caps: ATK% 6 (three ATK% main stats), ATK 10 (Hands main). ATK% and ATK are filled to their caps because the Shield and the buff scale on his ATK. SPD: target 133.34 (K14e, turn breakpoint). 97 base + 5 (trace) + 25.032 + 4.6 = 131.632; 1 distributed roll makes 133.932 (margin 0.592), 0 is short. Caps: ATK% 6 (three ATK% main stats), ATK 10 (Hands main). ATK% and ATK are filled to their caps because the Shield and the buff scale on his ATK. GUESS: HP% 4 and DEF% 3 for the 7 leftover rolls; the preset lists HP% and DEF% but not which is worth more, and survival is modelled (K8). Changed from the earlier draft: no change to the split. Priority: file counts (ATK 10, ATK% 6, HP% 4, DEF% 3). GUESS: ATK ahead of ATK% only because of the counts (ATK is capped at 10 and does not change with main-stat swaps, so it never overflows). SPD arithmetic ignores light cone and team SPD buffs."
   }
 }

@@ -6,7 +6,7 @@
   "character": "1415",
   "ability_version": 0,
   "name": "Cyrene",
-  "notes": "DRAFT. Source: Fribbels Cyrene scoring.simulation(). FINDING: her hardBreakpoint is SPD 180 (Cyrene.ts:478-480) and benchmarks.md:147 says missing it scores 0%; under K14's cap this build reaches at most 162.6 SPD by itself. Biggest guess: SPD 10 (the cap), which is not enough. Fribbels file: vendor/hsr-optimizer/src/lib/conditionals/character/1400/Cyrene.ts. Fribbels line numbers in Cyrene.ts: simulation 451-505, parts 453-470, substats 471-477. Facts about set effects and kits come from tools/gamedata/lc-text.mjs --set <id> and kit-text.mjs output. Written 2026-11-13 as a draft for Smitty to review; every GUESS is a choice Fribbels does not make.",
+  "notes": "DRAFT. Source: Fribbels Cyrene scoring.simulation(). SPD: target 180 (a kit threshold and a Fribbels hard breakpoint, Cyrene.ts:478-480; benchmarks.md:147 scores a miss as 0%), reached by 18 distributed SPD rolls under K14e's relaxed cap (see spd_target and distributed.notes). Fribbels file: vendor/hsr-optimizer/src/lib/conditionals/character/1400/Cyrene.ts. Fribbels line numbers in Cyrene.ts: simulation 451-505, parts 453-470, substats 471-477. Facts about set effects and kits come from tools/gamedata/lc-text.mjs --set <id> and kit-text.mjs output. Written 2026-11-13 as a draft for Smitty to review; every GUESS is a choice Fribbels does not make.",
   "relic_sets": {
     "four_piece": {
       "set_id": "127",
@@ -26,12 +26,22 @@
     "Link Rope": "HP%",
     "notes": "Fribbels options: Body CRIT Rate/CRIT DMG/HP%, Feet HP%/SPD, Sphere HP%/Ice DMG, Rope HP%. Feet SPD because of the 180 target. GUESS: Body CRIT Rate (proxy +4.5% over HP% body, +4.7% over CRIT DMG body). Sphere Ice DMG (proxy +14.7% over HP%). Rope HP% only."
   },
+  "spd_target": {
+    "value": 180,
+    "reason": "Kit threshold and Fribbels hard breakpoint, both 180: her trace Causality in Trichotomy gives all allies +20% DMG at 180 SPD or more and Ice RES PEN per excess SPD up to 60 (kit-text.mjs 1415), and Cyrene.ts:478-480 sets hardBreakpoints SPD 180 (benchmarks.md:147: missing a SPD breakpoint scores 0%). Smitty's Cyrene shows 192 out of combat (2026-11-13), so the target is reachable. The Ice RES PEN above 180 is a bonus, not a threshold."
+  },
   "distributed": {
     "rolls": {
-      "SPD": 10,
-      "CRIT DMG": 5,
-      "CRIT Rate": 9
+      "SPD": 18,
+      "CRIT DMG": 3,
+      "CRIT Rate": 3
     },
-    "notes": "Fribbels substat list: CRIT DMG, CRIT Rate, HP%, HP, SPD. SPD: 10 distributed, the cap (SPD boots leave 5 relics without an SPD main stat, 2 each). 101 base + 9 (trace) + 25.032 + 4.6 + 23.0 = 162.63. The 180 breakpoint is out of reach by about 17 SPD (8 more rolls than the cap allows); Fribbels judges it on in-combat SPD, which includes teammates' buffs that a per-character file cannot know. Either the cap is relaxed for SPD, or her teammates supply the rest, or the 180 line is not a NouSR requirement: Smitty's call. The other 14 rolls follow the proxy. Rolls chosen with a throwaway proxy script (damage ~ scale stat x (1 + CR x CD) x (1 + DMG%), the 2 fixed rolls per stat, the per-relic cap, simple set and trace stats only, an assumed 635 ATK / 1058 HP light cone), not with Fribbels or the kernel. Treat it as a tie-breaker, not a result. SPD arithmetic ignores light cone and team SPD buffs. The cycle-1 two-turn threshold is 133.34 (20000/150); src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1."
+    "priority": [
+      "CRIT DMG",
+      "CRIT Rate",
+      "HP%",
+      "HP"
+    ],
+    "notes": "Fribbels substat list: CRIT DMG, CRIT Rate, HP%, HP, SPD. SPD: target 180 (K14e). 101 base + 9 (traces) + 25.032 + 4.6 = 139.632; 17 rolls make 178.732 (short), 18 make 181.032 (margin 1.032). The KQMS cap for SPD with SPD boots is 10, so K14e lets SPD pass it by 8 rolls; total SPD rolls 20, under the physical limit of 30. Smitty's account shows 192 out of combat, so 181 is below what his relics reach. The earlier draft stopped at the cap (10 rolls, 162.632) and had CRIT DMG 5 and CRIT Rate 9; 8 of those 14 rolls are cut. GUESS: CRIT Rate 3 and CRIT DMG 3, from a marginal check on the 6 spare rolls (CRIT Rate 5 + 8 (2-piece) + 32.4 (body) + 5.832 (2 fixed rolls) = 51.2%; CRIT DMG 50 + 37.3 (traces) + 11.664 (2 fixed rolls) = 99.0%; a CRIT DMG roll adds 5.832 x 51.2% to the crit multiplier, a CRIT Rate roll 2.916 x 99.0%, so they balance near CRIT DMG = 2 x CRIT Rate; 3 + 3 has the best CRIT Rate x CRIT DMG product of the 6-roll splits, Computed in the scratch script). HP% was NOT tested here: her basic ATK is 50% of Max HP, so HP% rolls may beat crit for her; Smitty should say. Priority: file counts (CRIT DMG 3 and CRIT Rate 3 tie, Fribbels' list order puts CRIT DMG first), then HP% and HP (0 rolls). SPD arithmetic ignores light cone and team SPD buffs."
   }
 }

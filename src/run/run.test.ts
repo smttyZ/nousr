@@ -239,9 +239,16 @@ describe('warnings from the battle', () => {
     expect(runs.map((r) => r.result.warnings.length)).toEqual([0, 1])
     expect(runs[0]!.warnings).toEqual([])
     expect(runs[1]!.warnings).toEqual([
-      expect.stringMatching(/^team "solo", 3 enemies: Undecided "highest HP" tie: striker's BASIC hit 0 .*DESIGN.md, "Known approximations"/),
+      {
+        severity: 'warning',
+        code: 'undecided-tie',
+        message: expect.stringMatching(/^Undecided "highest HP" tie: striker's BASIC hit 0 .*DESIGN.md, "Known approximations"/),
+        team: 'solo',
+        enemyCount: 3,
+      },
     ])
-    expect(runs[1]!.warnings[0]).toBe(`team "solo", 3 enemies: ${runs[1]!.result.warnings[0]}`)
+    // The battle's own record carries no team or enemy count; the runner adds them.
+    expect(runs[1]!.result.warnings[0]).toEqual({ severity: 'warning', code: 'undecided-tie', message: runs[1]!.warnings[0]!.message })
   })
 
   it('a plain run has none', () => {
@@ -261,11 +268,11 @@ describe('what cannot be run yet is refused clearly', () => {
     expect(() => buildBattleSetup(scenario, 'solo', 1, options)).toThrow(/No kit for character 1006\. Kits that exist: 9001 \(Striker\)/)
   })
 
-  it('the real registry lists Acheron and Tribbie', () => {
+  it('the real registry lists Acheron, Tribbie and Jing Yuan', () => {
     const file = scenarioFile()
     file.teams[0]!.members[0]!.character = '1006'
     const { scenario, options } = setup(file)
-    expect(() => buildBattleSetup(scenario, 'solo', 1, { ...options, kits: undefined })).toThrow(/Kits that exist: 1308 \(Acheron\), 1403 \(Tribbie\)$/m)
+    expect(() => buildBattleSetup(scenario, 'solo', 1, { ...options, kits: undefined })).toThrow(/Kits that exist: 1308 \(Acheron\), 1403 \(Tribbie\), 1204 \(Jing Yuan\)$/m)
   })
 
   describe('scanned relics', () => {
@@ -312,13 +319,21 @@ describe('what cannot be run yet is refused clearly', () => {
     it('carry a warning naming the member when the scanner writes rounded SPD', () => {
       const { warnings } = planWith('HSR-Scanner', 'HSR-Scanner')
       expect(warnings).toEqual([
-        expect.stringMatching(/^team "solo", member "striker": SPD may be understated by up to just under 1 \(1 SPD substat.*HSR-Scanner/),
+        {
+          severity: 'warning',
+          code: 'spd-may-be-understated',
+          message: expect.stringMatching(/^SPD may be understated by up to just under 1 \(1 SPD substat.*HSR-Scanner/),
+          team: 'solo',
+          member: 'striker',
+        },
       ])
     })
 
     it("take the account scan's own source when the caller gives none", () => {
       expect(planWith('reliquary_archiver', undefined).warnings).toEqual([])
-      expect(planWith('HSR-Scanner', undefined).warnings).toEqual([expect.stringMatching(/HSR-Scanner scanner writes SPD rounded down/)])
+      expect(planWith('HSR-Scanner', undefined).warnings).toEqual([
+        expect.objectContaining({ code: 'spd-may-be-understated', message: expect.stringMatching(/HSR-Scanner scanner writes SPD rounded down/) }),
+      ])
     })
 
     it("let the caller's scan source override the account's", () => {
@@ -331,7 +346,9 @@ describe('what cannot be run yet is refused clearly', () => {
       const { scenario, options } = setup(file)
       delete scenario.scanSource
       const { warnings } = planTeam(scenario, 'solo', 1, options)
-      expect(warnings).toEqual([expect.stringMatching(/source was not given.*HSR-Scanner/)])
+      expect(warnings).toEqual([
+        expect.objectContaining({ code: 'spd-may-be-understated', message: expect.stringMatching(/source was not given.*HSR-Scanner/) }),
+      ])
     })
 
     it('give no warning when no relic has an SPD substat', () => {
@@ -358,10 +375,10 @@ describe('what cannot be run yet is refused clearly', () => {
     })
   })
 
-  it('standard relics with no standard build source', () => {
+  it('standard relics for a character with no standard-build file read the files, and name the character', () => {
     const { scenario, options } = setup()
     expect(() => buildBattleSetup(scenario, 'solo', 1, { ...options, standardBuild: undefined }))
-      .toThrow(/needs a standard build source/)
+      .toThrow(/team "solo", member "striker": no standard build for character 9001, ability_version 1 in .*standard-builds/)
   })
 
   it('an ability version the kernel does not have', () => {

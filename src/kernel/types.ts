@@ -45,7 +45,16 @@ export interface BenchmarkBuild {
   feet: string
   planarSphere: string
   linkRope: string
+  /** Rolls per substat type. A type left out has none. */
   substatRolls: Record<string, number>
+  /**
+   * Value of one roll of every substat but SPD, as Fribbels' stat simulation takes it (its `quality`):
+   * 1 is the high value of a 5-star roll, 0.9 the mid value (the average, K14), 0.8 the low value.
+   * Left out: 1, the high value. (K14d)
+   */
+  rollQuality?: number
+  /** Value of one SPD roll (Fribbels' `speedRollValue`). Left out: 2.6, the high value. K14's average is 2.3. (K14d) */
+  speedRollValue?: number
 }
 
 /**
@@ -100,6 +109,78 @@ export interface KernelEnemy {
   weaknessBroken: boolean
 }
 
+/**
+ * A stat an injected buff can change. Names are NouSR's own; each kernel maps them to its stat keys
+ * and stops with an error naming the buff when it cannot (DESIGN.md, K15a).
+ *
+ * Fractions are fractions (0.24 is +24%). Flat stats (ATK, HP, DEF, SPD) are in points.
+ * `UNCONVERTIBLE_*` is the companion a stat-to-stat conversion cannot read: a teammate buff to HP or
+ * CRIT DMG that is meant to be copied into a conversion must be given on both the stat and its
+ * companion, as the kernel's own characters do (e.g. Fu Xuan's HP, Bronya's CRIT DMG).
+ */
+export type InjectedStat =
+  | 'DMG_PERCENT'
+  | 'CRIT_RATE'
+  | 'CRIT_DMG'
+  | 'RES_PEN'
+  | 'DEF_PEN'
+  | 'VULNERABILITY'
+  | 'TRUE_DMG'
+  | 'FINAL_DMG'
+  | 'BREAK_EFFECT'
+  | 'EFFECT_HIT_RATE'
+  | 'ATK_PERCENT'
+  | 'HP_PERCENT'
+  | 'DEF_PERCENT'
+  | 'SPD_PERCENT'
+  | 'ATK'
+  | 'HP'
+  | 'DEF'
+  | 'SPD'
+  | 'UNCONVERTIBLE_ATK'
+  | 'UNCONVERTIBLE_HP'
+  | 'UNCONVERTIBLE_DEF'
+  | 'UNCONVERTIBLE_SPD'
+  | 'UNCONVERTIBLE_CRIT_RATE'
+  | 'UNCONVERTIBLE_CRIT_DMG'
+  | 'UNCONVERTIBLE_BREAK_EFFECT'
+  | 'UNCONVERTIBLE_EFFECT_HIT_RATE'
+
+/** The kind of damage a hit-level filter selects. Only stats that apply per hit accept one. */
+export type InjectedDamageType =
+  | 'BASIC'
+  | 'SKILL'
+  | 'ULT'
+  | 'FUA'
+  | 'DOT'
+  | 'BREAK'
+  | 'SUPER_BREAK'
+  | 'MEMO'
+  | 'ADDITIONAL'
+  | 'ELATION'
+  | 'ASSIST'
+
+/**
+ * A buff the sim adds on top of whatever the kernel already applies (DESIGN.md, K15a). `value` may be
+ * negative: a kit that models a level below the maximum injects the difference between the right
+ * level's value and the maximum-level value the kernel applied itself.
+ */
+export interface InjectedBuff {
+  stat: InjectedStat
+  value: number
+  /** `'self'` is the attacker; `'team'` is everyone, so the attacker too. */
+  target: 'self' | 'team'
+  /**
+   * Only for the kernel's ability of this kind ('BASIC', 'SKILL', 'ULT', 'FUA', 'BREAK', ...); the
+   * same strings as `DamageResult.damage`. Valid on every stat.
+   */
+  abilityKind?: string
+  /** Only for hits of this damage type. A stat the kernel cannot filter by hit makes the request an error. */
+  damageType?: InjectedDamageType
+  /** Free text for error messages, e.g. the ability the buff belongs to. */
+  label?: string
+}
+
 export interface DamageRequest {
   attacker: KernelUnit
   /** Up to three. */
@@ -109,6 +190,11 @@ export interface DamageRequest {
   setConditionals?: ConditionalValues
   /** Laid over Fribbels' default enemy (level 95, one target, weak to the element, not broken). */
   enemy?: Partial<KernelEnemy>
+  /**
+   * Buffs added after the kernel has built its own (DESIGN.md, K15a). Part of the request, so two
+   * requests that differ only here are different requests (the battle runner caches by request).
+   */
+  injectedBuffs?: InjectedBuff[]
 }
 
 export interface CombatStats {
@@ -126,7 +212,7 @@ export interface CombatStats {
   /**
    * Weakness Break Efficiency as a fraction (0.5 is +50%): what a part's toughness is multiplied by, plus 1
    * (K7). Optional: a kernel that does not report it counts as 0. Fribbels has it as
-   * `StatKey.BREAK_EFFICIENCY_BOOST`; `FribbelsKernel` does not copy it into `stats` yet (see the K7 report).
+   * `StatKey.BREAK_EFFICIENCY_BOOST`, and `FribbelsKernel` copies it into `stats`.
    */
   breakEfficiency?: number
 }

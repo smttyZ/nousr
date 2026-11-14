@@ -1,4 +1,5 @@
 import { Acheron } from './acheron'
+import { JingYuan } from './jingYuan'
 import type { Kit } from './kit'
 import { Tribbie } from './tribbie'
 
@@ -18,6 +19,8 @@ export const KITS: ReadonlyMap<string, RegisteredKit> = new Map(
     { name: 'Acheron', kit: Acheron },
     // Reviewed 2026-11-13 (two reviews; see DESIGN.md). Readings awaiting an in-game check are marked IN-GAME CHECK.
     { name: 'Tribbie', kit: Tribbie },
+    // Reviewed 2026-11-13. Readings awaiting an in-game check are marked IN-GAME CHECK.
+    { name: 'Jing Yuan', kit: JingYuan },
   ].map((entry) => [entry.kit.characterId, entry]),
 )
 

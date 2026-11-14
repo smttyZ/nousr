@@ -6,7 +6,7 @@
   "character": "1409",
   "ability_version": 0,
   "name": "Hyacine",
-  "notes": "DRAFT. Source: Fribbels Hyacine scoring.simulation() (Hyacine.ts:522-607); her healSimulation (:609-669) lists the same sets and an Outgoing Healing Boost-only body. FINDING: her hardBreakpoint is SPD 200 (Hyacine.ts:559-561), which the K14 cap cannot reach (see distributed.notes). Biggest guess: Outgoing Healing Boost body, and zero crit rolls. Fribbels file: vendor/hsr-optimizer/src/lib/conditionals/character/1400/Hyacine.ts. Fribbels line numbers in Hyacine.ts: simulation 522-607, parts 524-541, substats 542-548. Facts about set effects and kits come from tools/gamedata/lc-text.mjs --set <id> and kit-text.mjs output. Written 2026-11-13 as a draft for Smitty to review; every GUESS is a choice Fribbels does not make.",
+  "notes": "DRAFT. Source: Fribbels Hyacine scoring.simulation() (Hyacine.ts:522-607); her healSimulation (:609-669) lists the same sets and an Outgoing Healing Boost-only body. SPD: target 200 (kit trace Tempestuous Halt and Fribbels hardBreakpoint, Hyacine.ts:559-561), reached by 15 distributed SPD rolls under K14e's relaxed cap; 180 would be 6. Biggest guess: that 200 rather than 180 is the target, then Outgoing Healing Boost body and zero crit rolls. Fribbels file: vendor/hsr-optimizer/src/lib/conditionals/character/1400/Hyacine.ts. Fribbels line numbers in Hyacine.ts: simulation 522-607, parts 524-541, substats 542-548. Facts about set effects and kits come from tools/gamedata/lc-text.mjs --set <id> and kit-text.mjs output. Written 2026-11-13 as a draft for Smitty to review; every GUESS is a choice Fribbels does not make.",
   "relic_sets": {
     "four_piece": {
       "set_id": "125",
@@ -26,12 +26,22 @@
     "Link Rope": "HP%",
     "notes": "Fribbels options: Body CRIT DMG/HP%/Outgoing Healing Boost, Feet SPD/HP%, Sphere HP%/Wind DMG, Rope HP%. GUESS: Body Outgoing Healing Boost. Her damage is 20% of the healing tally (kit text), so healing is both her job and her damage. By rough, unchecked arithmetic OHB body (+34.56% healing) and HP% body (about +36% HP, which healing and her basic attack scale on) are close, and Fribbels' own healSimulation picks OHB. Sphere HP% over Wind DMG, GUESS, for the same reason. Feet SPD (first-listed). Rope HP% only."
   },
+  "spd_target": {
+    "value": 200,
+    "reason": "Kit threshold and Fribbels hard breakpoint, both 200: her trace Tempestuous Halt gives +20% Max HP above 200 SPD and +1% Outgoing Healing per excess SPD (kit-text.mjs 1409), and Hyacine.ts:559-561 sets hardBreakpoints SPD 200 (benchmarks.md:147: missing a SPD breakpoint scores 0%). This also clears Giant Tree of Rapt Brooding's 135/180 lines (lc-text.mjs --set 320). The 180 alternative is 6 distributed rolls (180.632)."
+  },
   "distributed": {
     "rolls": {
-      "SPD": 6,
+      "SPD": 15,
       "HP%": 8,
-      "HP": 10
+      "HP": 1
     },
-    "notes": "Fribbels substat list: CRIT DMG, CRIT Rate, HP%, HP, SPD. GUESS: no crit rolls, because nothing in her kit text says she crits for her healing; check in-game. HP% 8 (cap: sphere and rope are HP%) and HP 10 (cap) are filled, then SPD 6. SPD: 110 base + 14 (trace) + 6.6 (Warrior 2-piece) + 6.6 (Giant Tree 2-piece) + 25.032 + 4.6 = 166.83; 6 rolls give 180.63, which crosses Giant Tree's 180 line (20% Outgoing Healing instead of 12%). The 200 hard breakpoint is not reachable: 10 rolls (the cap) give 189.83, or 196.4 with the Warrior 4-piece's extra +6% (6.6) while \"Gentle Rain\" is up. Smitty's call, as for Cyrene. SPD arithmetic ignores light cone and team SPD buffs. The cycle-1 two-turn threshold is 133.34 (20000/150); src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1."
+    "priority": [
+      "HP%",
+      "HP",
+      "CRIT DMG",
+      "CRIT Rate"
+    ],
+    "notes": "Fribbels substat list: CRIT DMG, CRIT Rate, HP%, HP, SPD. GUESS: no crit rolls, because nothing in her kit text says she crits for her healing; check in-game. HP% 8 (cap: sphere and rope are HP%) and HP 10 (cap) are filled, then SPD 6. SPD: target 200 (K14e). 110 base + 14 (traces) + 6.6 (Warrior Goddess 2-piece) + 6.6 (Giant Tree 2-piece) + 25.032 + 4.6 = 166.832; 14 rolls make 199.032 (short), 15 make 201.332 (margin 1.332). The KQMS cap for SPD with SPD boots is 10, so K14e lets SPD pass it by 5 rolls; total SPD rolls 17, under the physical limit of 30. Not counted: the Warrior 4-piece's extra +6% (6.6) while \"Gentle Rain\" is up, which would give 207.9 in combat. Her earlier draft took 6 rolls for Giant Tree's 180 (180.632); the 200 line needs 9 more, taken from flat HP (10 down to 1) because HP% is already at its cap of 8. GUESS: that 200 rather than 180 is the target; with 180 the split would be SPD 6, HP% 8, HP 10 as before. Smitty's account shows 176 out of combat (2026-11-13; his relics are below what is achievable). Still GUESS: no crit rolls (nothing in her kit text says she crits for her healing; her E4 adds CRIT DMG per excess SPD, so check in-game). Priority: HP% 8, HP 1, then CRIT DMG and CRIT Rate from Fribbels' list (0 rolls). SPD arithmetic ignores light cone and team SPD buffs."
   }
 }

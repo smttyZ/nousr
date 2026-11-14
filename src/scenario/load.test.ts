@@ -332,3 +332,58 @@ describe('what the cross-reference checks reject', () => {
     expect(problemsOf({ ...withAccount(), account: './scan.json' })[0]).toMatch(/account is the path ".\/scan.json"/)
   })
 })
+
+describe('standard_build on a member (K14c)', () => {
+  const withOverride = (override: unknown, relics?: unknown): ScenarioFile => {
+    const file = minimal()
+    Object.assign(file.teams[0]!.members[0]!, { standard_build: override, ...(relics !== undefined && { relics }) })
+    return file
+  }
+
+  it('is read as main stats and/or a whole split', () => {
+    const scenario = parseScenario(withOverride({
+      notes: 'CRIT DMG body',
+      main_stats: { Body: 'CRIT DMG', Feet: 'ATK%' },
+      distributed: { rolls: { SPD: 2, 'CRIT DMG': 6, 'CRIT Rate': 12, 'ATK%': 4 }, notes: 'x' },
+    }))
+    const member = scenario.teams[0]!.members[0]!
+    expect(member.relics).toBe('standard')
+    expect(member.standardBuild).toEqual({
+      mainStats: { Body: 'CRIT DMG', Feet: 'ATK%' },
+      distributed: { SPD: 2, 'CRIT DMG': 6, 'CRIT Rate': 12, 'ATK%': 4 },
+    })
+    expect(parseScenario(withOverride({ main_stats: { Body: 'CRIT DMG' } })).teams[0]!.members[0]!.standardBuild).toEqual({ mainStats: { Body: 'CRIT DMG' } })
+    expect(parseScenario(minimal()).teams[0]!.members[0]!.standardBuild).toBeUndefined()
+  })
+
+  it('may be written with relics "standard" stated', () => {
+    expect(parseScenario(withOverride({ main_stats: { Body: 'CRIT DMG' } }, 'standard')).teams[0]!.members[0]!.standardBuild).toBeDefined()
+  })
+
+  it.each([
+    ['an empty standard_build', {}],
+    ['only notes', { notes: 'nothing' }],
+    ['an empty main_stats', { main_stats: {} }],
+    ['Head, which is fixed', { main_stats: { Head: 'HP%' } }],
+    ['a stat that slot cannot have', { main_stats: { Feet: 'CRIT Rate' } }],
+    ['an unknown key', { main_stats: { Body: 'CRIT DMG' }, sets: [] }],
+    ['an unknown substat', { distributed: { rolls: { Luck: 24 } } }],
+    ['a negative count', { distributed: { rolls: { SPD: -1 } } }],
+    ['a fractional count', { distributed: { rolls: { SPD: 1.5 } } }],
+    ['a distributed with no rolls', { distributed: {} }],
+  ])('rejects %s', (_name, override) => {
+    expect(() => parseScenario(withOverride(override))).toThrow(ScenarioError)
+  })
+
+  it('is refused on equipped or listed relics, naming the member', () => {
+    const file = withAccount()
+    file.teams[0]!.members[0]!.standard_build = { main_stats: { Body: 'CRIT DMG' } }
+    expect(problemsOf(file)).toEqual([
+      'team "duo", member "acheron": standard_build changes a standard build, but this member\'s relics are "equipped" (the default when there is an account); set relics to "standard" or remove standard_build',
+    ])
+    file.teams[0]!.members[0]!.relics = ['r1']
+    expect(problemsOf(file)[0]).toContain('relics are a list')
+    file.teams[0]!.members[0]!.relics = 'equipped'
+    expect(problemsOf(file)[0]).toContain('relics are "equipped";')
+  })
+})

@@ -254,7 +254,15 @@ describe('real Fribbels: a member on equipped relics', () => {
       { kernel, scanSource: scan.source },
     ).warnings
     expect(plan(archiver)).toEqual([])
-    expect(plan(hsrScanner)).toEqual([expect.stringMatching(/^team "solo", member "acheron": SPD may be understated by up to just under 1 /)])
+    expect(plan(hsrScanner)).toEqual([
+      {
+        severity: 'warning',
+        code: 'spd-may-be-understated',
+        message: expect.stringMatching(/^SPD may be understated by up to just under 1 /),
+        team: 'solo',
+        member: 'acheron',
+      },
+    ])
   })
 
   it('damage for a scanned build comes through the same path: hits per ability and in-combat stats', () => {

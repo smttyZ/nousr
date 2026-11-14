@@ -119,8 +119,10 @@ describe('the "highest HP" tie guard, with the real kernel', () => {
   })
 
   it('warns, once per hit and tied set with a count, when a debuff on one tied neighbour changes the price', () => {
-    const { warnings } = run(true)
-    expect(warnings.length).toBeGreaterThan(0)
+    const { warnings: records } = run(true)
+    expect(records.length).toBeGreaterThan(0)
+    expect(records.every((r) => r.severity === 'warning' && r.code === 'undecided-tie')).toBe(true)
+    const warnings = records.map((r) => r.message)
     for (const w of warnings) {
       expect(w).toContain('Undecided "highest HP" tie')
       expect(w).toContain('enemy1, enemy3 tied')
@@ -132,7 +134,7 @@ describe('the "highest HP" tie guard, with the real kernel', () => {
     const heads = warnings.map((w) => /([a-z]+'s [A-Z]+ hit \d+)/.exec(w)![1])
     expect(new Set(heads).size).toBe(heads.length)
     // Deterministic: the same battle gives the same sentences.
-    expect(run(true).warnings).toEqual(warnings)
+    expect(run(true).warnings.map((r) => r.message)).toEqual(warnings)
     // For example: "Undecided "highest HP" tie: tribbie's UNIQUE hit 0 had the enemies enemy1, enemy3 tied ... (damage
     // per 100% of the scaling stat: enemy1 22405.21, enemy3 21970.33). It went to enemy1 ..."
     const prices = /enemy1 (\d+\.\d+), enemy3 (\d+\.\d+)\)/.exec(warnings[0]!)!

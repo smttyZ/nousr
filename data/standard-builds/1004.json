@@ -26,6 +26,10 @@
     "Link Rope": "ATK%",
     "notes": "Fribbels options: Body CRIT Rate/CRIT DMG, Feet ATK%/SPD, Sphere ATK%/Imaginary DMG, Rope ATK%. GUESS: Body CRIT Rate; with the EHR rolls the proxy has the CRIT Rate and CRIT DMG bodies within 0.4% of each other, so this is a coin flip. Feet SPD (GUESS, same reason as Acheron). Sphere Imaginary DMG. Rope ATK% only."
   },
+  "spd_target": {
+    "value": 133.34,
+    "reason": "Turn breakpoint: 20000/150 = 133.33 SPD, so 133.34 gives 2 turns in the first 150 AV cycle (src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1). His Fribbels substat list has no SPD, so this is NouSR's choice (GUESS)."
+  },
   "distributed": {
     "rolls": {
       "SPD": 1,
@@ -33,6 +37,13 @@
       "CRIT DMG": 9,
       "CRIT Rate": 2
     },
-    "notes": "Fribbels substat list: CRIT DMG, CRIT Rate, Effect Hit Rate, ATK%, ATK. His trace: above 40% Effect Hit Rate, +20% ATK per full 10% over, max +80% (kit text; code WeltB1.ts:355-379: min(0.80, 0.20 x floor((EHR - 0.40)/0.10)) x base ATK). The trace gives 28% EHR and the 2 fixed rolls 7.8%, so 11 distributed rolls reach 78.5% (3 steps, +60%) and 12 reach 82.4% (4 steps, +80%, the cap): the step function makes it all or nothing at 12. Rolls chosen with a throwaway proxy script (damage ~ scale stat x (1 + CR x CD) x (1 + DMG%), the 2 fixed rolls per stat, the per-relic cap, simple set and trace stats only, an assumed 635 ATK / 1058 HP light cone), not with Fribbels or the kernel. Treat it as a tie-breaker, not a result. (For this one the proxy tried every EHR count, because a greedy fill cannot see the steps.) SPD: 1 roll. 102 + 25.032 + 4.6 = 131.63, and 1 roll makes 133.93, the first count past 133.34. SPD arithmetic ignores light cone and team SPD buffs. The cycle-1 two-turn threshold is 133.34 (20000/150); src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1."
+    "priority": [
+      "Effect Hit Rate",
+      "CRIT DMG",
+      "CRIT Rate",
+      "ATK%",
+      "ATK"
+    ],
+    "notes": "Fribbels substat list: CRIT DMG, CRIT Rate, Effect Hit Rate, ATK%, ATK. His trace: above 40% Effect Hit Rate, +20% ATK per full 10% over, max +80% (kit text; code WeltB1.ts:355-379: min(0.80, 0.20 x floor((EHR - 0.40)/0.10)) x base ATK). The trace gives 28% EHR and the 2 fixed rolls 7.8%, so 11 distributed rolls reach 78.5% (3 steps, +60%) and 12 reach 82.4% (4 steps, +80%, the cap): the step function makes it all or nothing at 12. Rolls chosen with a throwaway proxy script (damage ~ scale stat x (1 + CR x CD) x (1 + DMG%), the 2 fixed rolls per stat, the per-relic cap, simple set and trace stats only, an assumed 635 ATK / 1058 HP light cone), not with Fribbels or the kernel. Treat it as a tie-breaker, not a result. (For this one the proxy tried every EHR count, because a greedy fill cannot see the steps.) SPD: target 133.34 (K14e, turn breakpoint). 102 + 25.032 + 4.6 = 131.632; 1 distributed roll makes 133.932 (margin 0.592), 0 rolls is short. Under the cap of 10. Changed from the earlier draft: no change to the split. Priority: file counts (Effect Hit Rate 12, CRIT DMG 9, CRIT Rate 2), then ATK% and ATK from Fribbels' list. GUESS: Effect Hit Rate first only because the file's count says so; its 12 is a trace step (see above), so it should not be an overflow source in practice. SPD arithmetic ignores light cone and team SPD buffs."
   }
 }

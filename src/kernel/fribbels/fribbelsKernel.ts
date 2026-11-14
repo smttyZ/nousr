@@ -10,7 +10,10 @@ import { BasicKey } from '../../../vendor/hsr-optimizer/src/lib/optimization/bas
 import { DamageFunctionType } from '../../../vendor/hsr-optimizer/src/lib/optimization/engine/damage/damageCalculator'
 import { OutputTag } from '../../../vendor/hsr-optimizer/src/lib/optimization/engine/config/tag'
 import { generateContext } from '../../../vendor/hsr-optimizer/src/lib/optimization/context/calculateContext'
-import { StatKey } from '../../../vendor/hsr-optimizer/src/lib/optimization/engine/config/keys'
+import { AToHKey, StatKey } from '../../../vendor/hsr-optimizer/src/lib/optimization/engine/config/keys'
+import { Source } from '../../../vendor/hsr-optimizer/src/lib/optimization/buffSource'
+import { DamageTag, TargetTag } from '../../../vendor/hsr-optimizer/src/lib/optimization/engine/config/tag'
+import { AbilityKind } from '../../../vendor/hsr-optimizer/src/lib/optimization/rotation/turnAbilityConfig'
 import { resetConditionalState } from '../../../vendor/hsr-optimizer/src/lib/optimization/conditionalStateUtils'
 import { simulateBuild } from '../../../vendor/hsr-optimizer/src/lib/simulations/simulateBuild'
 import { runStatSimulations } from '../../../vendor/hsr-optimizer/src/lib/simulations/statSimulation'
@@ -29,6 +32,9 @@ import type {
   DamageRequest,
   DamageResult,
   HitResult,
+  InjectedBuff,
+  InjectedDamageType,
+  InjectedStat,
   KernelBuild,
   BenchmarkBuild,
   KernelTeammate,
@@ -132,7 +138,7 @@ export class FribbelsKernel implements ScenarioKernel {
     if (enemy.elementalWeak !== undefined) form.enemyElementalWeak = enemy.elementalWeak
     if (enemy.weaknessBroken !== undefined) form.enemyWeaknessBroken = enemy.weaknessBroken
 
-    const { x, actionDamage, context } = simulate(form, request.build)
+    const { x, actionDamage, context } = simulate(form, request.build, request.injectedBuffs)
 
     // x is a buffer Fribbels reuses on the next run, so copy the numbers out now.
     const stats: CombatStats = {
@@ -147,6 +153,8 @@ export class FribbelsKernel implements ScenarioKernel {
       BE: x.a[StatKey.BE]!,
       ERR: x.a[StatKey.ERR]!,
       OHB: x.a[StatKey.OHB]!,
+      // Weakness Break Efficiency as a fraction, which the runner multiplies an attack's toughness damage by (K7).
+      breakEfficiency: x.a[StatKey.BREAK_EFFICIENCY_BOOST]!,
     }
     const damage: Record<string, number> = {}
     for (const [ability, value] of Object.entries(actionDamage ?? {})) {
@@ -193,14 +201,125 @@ function hitScaling(hit: Hit): number | undefined {
  * read, the call its character preview and optimizer make for a character's real relics. Both end in
  * the same function, so the two paths differ only in where the relic stats come from.
  */
-function simulate(form: Form, build: KernelBuild) {
+function simulate(form: Form, build: KernelBuild, injectedBuffs?: readonly InjectedBuff[]) {
   const context = generateContext(form)
+  injectBuffs(context, injectedBuffs ?? [])
   if (isScannedBuild(build)) {
     for (const action of context.allActions) resetConditionalState(action)
     const { x, actionDamage } = simulateBuild(scannedRelicsByPart(build), context, null)
     return { x, actionDamage, context }
   }
   return { ...simulateBenchmark(form, build, context), context }
+}
+
+/**
+ * NouSR stat to Fribbels' stat key (config/statsConfig.ts, `newStatsConfig`; keys.ts: `StatKey`).
+ * Percent stats of ATK, HP, DEF and SPD are separate keys from the flat ones.
+ */
+const INJECTED_STAT_KEYS: Record<InjectedStat, number> = {
+  DMG_PERCENT: StatKey.BOOST,
+  CRIT_RATE: StatKey.CR,
+  CRIT_DMG: StatKey.CD,
+  RES_PEN: StatKey.RES_PEN,
+  DEF_PEN: StatKey.DEF_PEN,
+  VULNERABILITY: StatKey.VULNERABILITY,
+  TRUE_DMG: StatKey.TRUE_DMG_MODIFIER,
+  FINAL_DMG: StatKey.FINAL_DMG_BOOST,
+  BREAK_EFFECT: StatKey.BE,
+  EFFECT_HIT_RATE: StatKey.EHR,
+  ATK_PERCENT: StatKey.ATK_P,
+  HP_PERCENT: StatKey.HP_P,
+  DEF_PERCENT: StatKey.DEF_P,
+  SPD_PERCENT: StatKey.SPD_P,
+  ATK: StatKey.ATK,
+  HP: StatKey.HP,
+  DEF: StatKey.DEF,
+  SPD: StatKey.SPD,
+  UNCONVERTIBLE_ATK: StatKey.UNCONVERTIBLE_ATK_BUFF,
+  UNCONVERTIBLE_HP: StatKey.UNCONVERTIBLE_HP_BUFF,
+  UNCONVERTIBLE_DEF: StatKey.UNCONVERTIBLE_DEF_BUFF,
+  UNCONVERTIBLE_SPD: StatKey.UNCONVERTIBLE_SPD_BUFF,
+  UNCONVERTIBLE_CRIT_RATE: StatKey.UNCONVERTIBLE_CR_BUFF,
+  UNCONVERTIBLE_CRIT_DMG: StatKey.UNCONVERTIBLE_CD_BUFF,
+  UNCONVERTIBLE_BREAK_EFFECT: StatKey.UNCONVERTIBLE_BE_BUFF,
+  UNCONVERTIBLE_EFFECT_HIT_RATE: StatKey.UNCONVERTIBLE_EHR_BUFF,
+}
+
+/** NouSR damage type to Fribbels' `DamageTag` (config/tag.ts). */
+const INJECTED_DAMAGE_TAGS: Record<InjectedDamageType, DamageTag> = {
+  BASIC: DamageTag.BASIC,
+  SKILL: DamageTag.SKILL,
+  ULT: DamageTag.ULT,
+  FUA: DamageTag.FUA,
+  DOT: DamageTag.DOT,
+  BREAK: DamageTag.BREAK,
+  SUPER_BREAK: DamageTag.SUPER_BREAK,
+  MEMO: DamageTag.MEMO,
+  ADDITIONAL: DamageTag.ADDITIONAL,
+  ELATION: DamageTag.ELATION,
+  ASSIST: DamageTag.ASSIST,
+}
+
+/**
+ * Adds the request's injected buffs to every action's precomputed stats, after `generateContext` and
+ * before the simulation reads them (`simulateBuild` copies `action.precomputedStats` in with
+ * `setPrecompute`, simulateBuild.ts:160 and :221, on both the benchmark and the scanned-relic path).
+ * This is the same call Fribbels' own characters make: `x.buff(stat, value, x.targets(..).source(..))`.
+ *
+ * A stat Fribbels keeps only per action (the percent stats, the UNCONVERTIBLE_* companions) cannot
+ * take a damage type filter: `internalBuff` throws for it (computedStatsContainer.ts:511-519), so that
+ * is checked here and named. An ability kind filter works on every stat (computedStatsContainer.ts:490).
+ */
+function injectBuffs(context: ReturnType<typeof generateContext>, buffs: readonly InjectedBuff[]): void {
+  const abilityKinds = new Set<string>(Object.values(AbilityKind))
+  const resolved = buffs.map((buff) => {
+    const name = describeBuff(buff)
+    const key = Object.hasOwn(INJECTED_STAT_KEYS, buff.stat) ? INJECTED_STAT_KEYS[buff.stat] : undefined
+    if (key === undefined) {
+      throw new Error(`Injected buff ${name}: unknown stat "${String(buff.stat)}". Known: ${Object.keys(INJECTED_STAT_KEYS).join(', ')}`)
+    }
+    if (typeof buff.value !== 'number' || !Number.isFinite(buff.value)) {
+      throw new Error(`Injected buff ${name}: value must be a finite number, got ${String(buff.value)}`)
+    }
+    if (buff.target !== 'self' && buff.target !== 'team') {
+      throw new Error(`Injected buff ${name}: target must be 'self' or 'team', got ${String(buff.target)}`)
+    }
+    if (buff.abilityKind !== undefined && !abilityKinds.has(buff.abilityKind)) {
+      throw new Error(`Injected buff ${name}: unknown ability kind "${buff.abilityKind}". Known: ${[...abilityKinds].join(', ')}`)
+    }
+    let damageTag: DamageTag | undefined
+    if (buff.damageType !== undefined) {
+      damageTag = Object.hasOwn(INJECTED_DAMAGE_TAGS, buff.damageType) ? INJECTED_DAMAGE_TAGS[buff.damageType] : undefined
+      if (damageTag === undefined) {
+        throw new Error(`Injected buff ${name}: unknown damage type "${String(buff.damageType)}". Known: ${Object.keys(INJECTED_DAMAGE_TAGS).join(', ')}`)
+      }
+      if (AToHKey[key as keyof typeof AToHKey] === undefined) {
+        throw new Error(
+          `Injected buff ${name}: Fribbels keeps ${buff.stat} per action, not per hit, so it cannot be limited to a damage type. ` +
+            'Limit it by abilityKind instead, or drop the filter.',
+        )
+      }
+    }
+    return { buff, key, damageTag }
+  })
+
+  for (const { buff, key, damageTag } of resolved) {
+    if (buff.value === 0) continue
+    const target = buff.target === 'team' ? TargetTag.FullTeam : TargetTag.SelfAndPet
+    for (const action of context.allActions) {
+      const x = action.precomputedStats
+      // The builder is one shared object that `x.targets` resets, so each filter is chained fresh.
+      let config = x.targets(target) as any
+      if (buff.abilityKind !== undefined) config = config.actionKind(buff.abilityKind)
+      if (damageTag !== undefined) config = config.damageType(damageTag)
+      x.buff(key as any, buff.value, config.source(Source.NONE))
+    }
+  }
+}
+
+function describeBuff(buff: InjectedBuff): string {
+  const { label, ...rest } = buff
+  return `${label !== undefined ? `"${label}" ` : ''}${JSON.stringify(rest)}`
 }
 
 function simulateBenchmark(form: Form, build: BenchmarkBuild, context: ReturnType<typeof generateContext>) {
@@ -218,7 +337,13 @@ function simulateBenchmark(form: Form, build: BenchmarkBuild, context: ReturnTyp
     },
   } as Simulation
 
-  const result = runStatSimulations([simulation], form, context)[0]!
+  // K14d: roll values go in only when the build sets them; Fribbels' own defaults (1, 2.6) stay otherwise.
+  // (Spreading an undefined would overwrite its default.)
+  const params = {
+    ...(build.rollQuality !== undefined && { quality: build.rollQuality }),
+    ...(build.speedRollValue !== undefined && { speedRollValue: build.speedRollValue }),
+  }
+  const result = runStatSimulations([simulation], form, context, params)[0]!
   return { x: result.x, actionDamage: result.actionDamage }
 }
 

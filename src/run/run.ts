@@ -5,6 +5,8 @@ import { ENEMY_PROFILE_DIR, type EnemyProfile, loadEnemyProfile } from '../enemy
 import type { KernelBuild, KernelUnit, ScannedRelic, ScenarioKernel } from '../kernel/types'
 import { KITS, kitFor, type RegisteredKit } from '../kits/index'
 import type { Member, Scenario, Team } from '../scenario/types'
+import { loadStandardBuild, resolveStandardBuild, type StandardBuildReport, StandardBuildError } from '../standard/index'
+import type { RunWarning } from './warnings'
 
 /**
  * Turns a loaded scenario into battles and runs them: one battle per team and enemy count
@@ -23,13 +25,18 @@ import type { Member, Scenario, Team } from '../scenario/types'
  * - Light cone and relic sets: id and superimposition go to the kernel, and each item's equipment module
  *   (src/equipment, K4) is resolved from `options.equipment`. An item with no module stops the run: the
  *   kernel's defaults would count its conditional buffs as always on.
- * - Relics: `"standard"` asks `options.standardBuild` for the build. No rule for turning Fribbels'
- *   benchmark data into one build has been chosen yet, so there is no default. Scanned relics
+ * - Relics: `"standard"` is the character's file in data/standard-builds (K14b), read by src/standard,
+ *   with the member's `standard_build` override applied (K14c). The build goes to the kernel with K14d's
+ *   average roll values, and `TeamRun.standardBuilds` echoes the split actually used. The kernel's own
+ *   out-of-combat SPD is read for the file's SPD target (K14e); a build that ends below it carries an
+ *   `spd-target-missed` warning (K14f). `options.standardBuild` replaces all of this for a caller that
+ *   supplies the build itself (the tests with a fake kernel). Scanned relics
  *   (`"equipped"` or a list) go to the kernel as they are in the scan file and its importer reads
  *   them (K5). A scan file's SPD is exact only when the scanner writes exact values
- *   (`ScenarioKernel.scanSource`); otherwise the result carries a warning naming each member whose
- *   relics have an SPD substat, since the game shows SPD rounded down and each such substat can hide
- *   just under 1 SPD.
+ *   (`ScenarioKernel.scanSource`); otherwise the result carries a `spd-may-be-understated` warning naming
+ *   each member whose relics have an SPD substat, since the game shows SPD rounded down and each such
+ *   substat can hide just under 1 SPD.
+ * - Warnings are records (K19, src/run/warnings.ts).
  */
 
 /** Everything needed to pick a member's standard build. */
@@ -44,10 +51,22 @@ export interface StandardBuildRequest {
 
 export type StandardBuildSource = (request: StandardBuildRequest) => KernelBuild
 
+/** The split a `"standard"` member ran with. */
+export interface MemberStandardBuild {
+  member: string
+  report: StandardBuildReport
+}
+
 export interface RunOptions {
   kernel: ScenarioKernel
-  /** Builds for members on `"standard"` relics. Required while a scenario uses them. */
+  /**
+   * Replaces the standard-build files for members on `"standard"` relics: the caller supplies the kernel build
+   * itself, and there is no report or SPD check. For tests with a fake kernel. Without it, the files in
+   * `standardBuildDir` are used.
+   */
   standardBuild?: StandardBuildSource
+  /** Where standard-build files are read from. Defaults to data/standard-builds. */
+  standardBuildDir?: string
   /** Defaults to the kits in src/kits/index.ts. */
   kits?: ReadonlyMap<string, RegisteredKit>
   /** Light cone and set modules. Defaults to the registry in src/equipment/index.ts. */
@@ -62,13 +81,15 @@ export interface RunOptions {
   scanSource?: string
 }
 
-/** What a run says about its own numbers. Each entry is one sentence naming what it is about. */
-export type RunWarnings = string[]
+/** What a run says about its own numbers (K19). */
+export type RunWarnings = RunWarning[]
 
 /** A team ready to run, with what to tell the user about it. */
 export interface TeamPlan {
   setup: BattleSetup
   warnings: RunWarnings
+  /** One per member on `"standard"` relics (none when `options.standardBuild` supplies them). */
+  standardBuilds: MemberStandardBuild[]
 }
 
 export interface TeamRun {
@@ -76,10 +97,12 @@ export interface TeamRun {
   enemyCount: number
   result: BattleResult
   /**
-   * The team's setup warnings (the same for every enemy count), then the battle's own
-   * (`BattleResult.warnings`) prefixed with the team and enemy count.
+   * The team's setup warnings (the same for every enemy count, with `team` set), then the battle's own
+   * (`BattleResult.warnings`) with `team` and `enemyCount` set.
    */
   warnings: RunWarnings
+  /** The relics each `"standard"` member ran with: the split used, and any re-split moves (K14c). */
+  standardBuilds: MemberStandardBuild[]
 }
 
 /** Everything that stops a team from being run, reported together. */
@@ -111,8 +134,13 @@ export function runScenario(scenario: Scenario, options: RunOptions): TeamRun[] 
   if (problems.length > 0) throw new RunError([...new Set(problems)])
   return planned.map(({ team, enemyCount, plan }) => {
     const result = runBattle(plan.setup)
-    const prefix = `team "${team}", ${enemyCount} enem${enemyCount === 1 ? 'y' : 'ies'}: `
-    return { team, enemyCount, result, warnings: [...plan.warnings, ...result.warnings.map((w) => prefix + w)] }
+    return {
+      team,
+      enemyCount,
+      result,
+      warnings: [...plan.warnings, ...result.warnings.map((w): RunWarning => ({ ...w, team, enemyCount }))],
+      standardBuilds: plan.standardBuilds,
+    }
   })
 }
 
@@ -160,6 +188,7 @@ function buildSetup(
 ): TeamPlan {
   const problems: string[] = []
   const warnings: RunWarnings = []
+  const standardBuilds: MemberStandardBuild[] = []
   if (!Number.isInteger(enemyCount) || enemyCount < 1 || enemyCount > 5) {
     problems.push(`enemy count must be a whole number from 1 to 5, got ${enemyCount}`)
   }
@@ -172,7 +201,7 @@ function buildSetup(
 
   const members: MemberSetup[] = []
   for (const member of team.members) {
-    const setup = memberSetup(scenario, team, member, options, problems, warnings)
+    const setup = memberSetup(scenario, team, member, options, problems, warnings, standardBuilds)
     if (setup) members.push(setup)
   }
   if (problems.length > 0) throw new RunError(problems)
@@ -189,6 +218,7 @@ function buildSetup(
       kernel: options.kernel,
     },
     warnings,
+    standardBuilds,
   }
 }
 
@@ -199,6 +229,7 @@ function memberSetup(
   options: RunOptions,
   problems: string[],
   warnings: RunWarnings,
+  standardBuilds: MemberStandardBuild[],
 ): MemberSetup | undefined {
   const at = `team "${team.id}", member "${member.key}"`
   const before = problems.length
@@ -222,11 +253,6 @@ function memberSetup(
     }
   }
 
-  if (member.relics === 'standard' && !options.standardBuild) {
-    problems.push(
-      `${at}: relics "standard" needs a standard build source, and no rule for Fribbels' benchmark build has been chosen yet`,
-    )
-  }
   if (problems.length > before) return undefined
 
   const unit: KernelUnit = {
@@ -236,14 +262,15 @@ function memberSetup(
     lightConeId: member.lightCone.id,
     superimposition: member.lightCone.superimposition,
   }
-  const build = attempt(
-    () =>
-      member.relics === 'standard'
-        ? options.standardBuild!({ characterId: characterId!, unit, member, team, scenario })
-        : scannedBuild(member.relics, at, scenario.scanSource, options, warnings),
-    at,
-    problems,
-  )
+  let build: KernelBuild | undefined
+  if (member.relics !== 'standard') {
+    const relics = member.relics
+    build = attempt(() => scannedBuild(relics, team.id, member.key, scenario.scanSource, options, warnings), at, problems)
+  } else if (options.standardBuild) {
+    build = attempt(() => options.standardBuild!({ characterId: characterId!, unit, member, team, scenario }), at, problems)
+  } else {
+    build = standardBuildFor(member, team, unit, abilityVersionOf(characterId!), options, at, problems, warnings, standardBuilds)
+  }
   if (!build) return undefined
   const equipment = attempt(() => resolveEquipment(unit, build, options.equipment ?? EQUIPMENT), at, problems)
   if (!equipment) return undefined
@@ -277,9 +304,55 @@ function abilityVersionOf(kernelId: string): number {
  * The member's scanned relics as a kernel build, and the SPD warning when the scanner's SPD is not
  * verified. Throws when the kernel does not read the scan source.
  */
+/**
+ * The member's standard build (K14b): the character's file with the member's override, checked against the
+ * kernel's own out-of-combat SPD. Every problem is reported on its own line, naming the file and the rule.
+ */
+function standardBuildFor(
+  member: Member,
+  team: Team,
+  unit: KernelUnit,
+  abilityVersion: number,
+  options: RunOptions,
+  at: string,
+  problems: string[],
+  warnings: RunWarnings,
+  standardBuilds: MemberStandardBuild[],
+): KernelBuild | undefined {
+  try {
+    const file = loadStandardBuild(member.character, abilityVersion, { ...(options.standardBuildDir !== undefined && { dir: options.standardBuildDir }) })
+    const { build, report } = resolveStandardBuild(file, {
+      ...(member.standardBuild !== undefined && { override: member.standardBuild }),
+      spd: (candidate) => options.kernel.basicStats(unit, candidate).SPD,
+    })
+    standardBuilds.push({ member: member.key, report })
+    const spd = report.spd
+    if (spd?.missedBy !== undefined) {
+      const swapped = report.swaps.map((s) => `${s.slot} ${s.from} -> ${s.to}`)
+      const rolls = report.path === 'explicit' ? 'the scenario gave the split' : "the file's SPD rolls stay as they are"
+      warnings.push({
+        severity: 'warning',
+        code: 'spd-target-missed',
+        message:
+          `The standard build's SPD target ${spd.target} is missed by ${spd.missedBy.toFixed(2)}: the build has ${spd.outOfCombat.toFixed(2)} out of combat` +
+          `${swapped.length > 0 ? ` after the main-stat change (${swapped.join(', ')})` : ''}. The distributed rolls were not re-solved for it ` +
+          `(${rolls}, K14f).`,
+        team: team.id,
+        member: member.key,
+      })
+    }
+    return build
+  } catch (cause) {
+    if (cause instanceof StandardBuildError) problems.push(...cause.problems.map((p) => `${at}: ${p}`))
+    else problems.push(`${at}: ${(cause as Error).message}`)
+    return undefined
+  }
+}
+
 function scannedBuild(
   relics: ScannedRelic[],
-  at: string,
+  team: string,
+  member: string,
   accountSource: string | undefined,
   options: RunOptions,
   warnings: RunWarnings,
@@ -293,9 +366,13 @@ function scannedBuild(
       const why = given === undefined
         ? `the scan's source was not given, so its relics are read as ${source}'s`
         : `the ${source} scanner writes SPD rounded down, as the game shows it`
-      warnings.push(
-        `${at}: SPD may be understated by up to just under ${spdSubstats} (${spdSubstats} SPD substat${spdSubstats === 1 ? '' : 's'}, each can hide just under 1): ${why}`,
-      )
+      warnings.push({
+        severity: 'warning',
+        code: 'spd-may-be-understated',
+        message: `SPD may be understated by up to just under ${spdSubstats} (${spdSubstats} SPD substat${spdSubstats === 1 ? '' : 's'}, each can hide just under 1): ${why}`,
+        team,
+        member,
+      })
     }
   }
   return { source, relics }

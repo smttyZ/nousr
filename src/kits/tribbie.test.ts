@@ -62,7 +62,7 @@ function fakeKernel() {
   return { kernel, requests }
 }
 
-type Step = { shape: 'single', target?: string, scaling?: number } | { shape: 'aoe' } | { shape: 'none' }
+type Step = { shape: 'single', target?: string, scaling?: number } | { shape: 'aoe' } | { shape: 'bounce', hits: number } | { shape: 'none' }
 
 /**
  * A made-up ally. Each Basic ATK it uses takes the next step of `script` (a single-target hit on the primary
@@ -89,7 +89,9 @@ const ally = (allowance: { n: number }, script: Step[] = []): Kit => ({
               parts: [
                 step.shape === 'aoe'
                   ? { shape: 'aoe', scaling: 1, hit: 0 }
-                  : { shape: 'single', scaling: step.scaling ?? 1, hit: 0, ...(step.target && { target: step.target }) },
+                  : step.shape === 'bounce'
+                    ? { shape: 'bounce', scaling: 1, hits: step.hits, hit: 0 }
+                    : { shape: 'single', scaling: step.scaling ?? 1, hit: 0, ...(step.target && { target: step.target }) },
               ],
             })
           }),
@@ -238,6 +240,21 @@ describe('energy and skill points', () => {
       battle.run()
       expect(gains[1], `regen ${regen}, ${step}`).toBeCloseTo(1.5 * perHit * (1 + regen), 9)
     }
+  })
+
+  it('Pebble at Crossroads: random hits count the expected distinct enemies (K17): 3 hits on 5 enemies are 2.44, not 5', () => {
+    const { battle } = setup({
+      members: [tribbie(0, 0.2), helper('h1', noAllowance, [{ shape: 'bounce', hits: 3 }])],
+      enemyCount: 5,
+      policy: [rule('tribbie', 'basic'), rule('h1', 'basic')],
+    })
+    const gains: number[] = []
+    battle.timeline.bus.on('energyGained', (e) => {
+      if (e.unit === 'tribbie') gains.push(e.amount)
+    })
+    const action = battle.run().actions.find((a) => a.actor === 'h1')!
+    expect(action.enemiesHit).toHaveLength(5)
+    expect(gains[1]).toBeCloseTo(1.5 * 5 * (1 - (4 / 5) ** 3) * 1.2, 9)
   })
 
   it('Pebble at Crossroads: an ally action that hits nothing gives no energy', () => {
@@ -558,6 +575,30 @@ describe('the Zone\'s Additional DMG after another ally attacks', () => {
     expect(result.actions.map((a) => `${a.actor}:${a.action}`).slice(0, 3)).toEqual(['tribbie:ultimate', 'h1:basic', 'tribbie:basic'])
     // The ally's own record of what it hit is just what it attacked.
     expect(result.actions.find((a) => a.actor === 'h1')!.enemiesHit).toEqual(['enemy1', 'enemy2', 'enemy3'])
+  })
+
+  it('random hits give one instance per EXPECTED distinct enemy (K17): 3 hits on 5 enemies are 2.44 instances', () => {
+    const { battle, dealt } = setup({
+      members: [tribbie(), helper('h1', noAllowance, [{ shape: 'bounce', hits: 3 }])],
+      enemyCount: 5,
+      start: fullEnergy,
+      policy: zoneThenHelper,
+    })
+    battle.run()
+    const unique = dealt.find((d) => d.ability === 'UNIQUE')!
+    expect(unique.scaling).toBeCloseTo(5 * (1 - (4 / 5) ** 3) * 0.12, 12)
+    expect(unique.damage).toBeCloseTo(RATE.unique * 2.44 * 0.12, 9)
+  })
+
+  it('an ally AoE is unchanged: every enemy counts once', () => {
+    const { battle, dealt } = setup({
+      members: [tribbie(), helper('h1', noAllowance, [{ shape: 'aoe' }])],
+      enemyCount: 5,
+      start: fullEnergy,
+      policy: zoneThenHelper,
+    })
+    battle.run()
+    expect(dealt.find((d) => d.ability === 'UNIQUE')!.scaling).toBeCloseTo(5 * 0.12, 12)
   })
 
   it('E2 prices each instance at 2.4 times the base', () => {

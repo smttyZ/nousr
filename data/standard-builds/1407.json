@@ -26,12 +26,22 @@
     "Link Rope": "HP%",
     "notes": "Fribbels options: Body CRIT Rate/CRIT DMG/HP%, Feet HP%/SPD, Sphere HP%/Quantum DMG, Rope HP%. Feet HP% (first-listed), and not SPD: Poet of Mourning Collapse gives her +32% CRIT Rate only under 95 SPD, and SPD boots would end that. GUESS: Body CRIT DMG. Sphere Quantum DMG (proxy +11% over HP%). Rope HP% only."
   },
+  "spd_target": {
+    "value": "none",
+    "reason": "No target, and a ceiling instead: Poet of Mourning Collapse 4-piece gives +32% CRIT Rate only if SPD is under 95 before battle (lc-text.mjs --set 124), and her Fribbels list has no SPD. The file keeps HP% boots and 0 SPD rolls at 92.0; spd_target cannot express a ceiling, so it is said here and in the notes."
+  },
   "distributed": {
     "rolls": {
       "CRIT DMG": 10,
       "CRIT Rate": 12,
       "HP%": 2
     },
-    "notes": "Fribbels substat list: CRIT DMG, CRIT Rate, HP%, HP; no SPD. Rolls chosen with a throwaway proxy script (damage ~ scale stat x (1 + CR x CD) x (1 + DMG%), the 2 fixed rolls per stat, the per-relic cap, simple set and trace stats only, an assumed 635 ATK / 1058 HP light cone), not with Fribbels or the kernel. Treat it as a tie-breaker, not a result. Result: CRIT DMG 10, CRIT Rate 12, HP% 2. SPD: 0 distributed. 95 base + 4.6 (2 fixed rolls) = 99.6; the Poet 4-piece takes 8% of base (7.6), so 92.0, under 95. One distributed roll would still pass (94.3), two would not (96.6). GUESS: that Poet's \"SPD lower than 95\" check includes the -8% and the fixed rolls as modelled here; read it against Fribbels' implementation before anyone relies on the margin of 3."
+    "priority": [
+      "CRIT Rate",
+      "CRIT DMG",
+      "HP%",
+      "HP"
+    ],
+    "notes": "Fribbels substat list: CRIT DMG, CRIT Rate, HP%, HP; no SPD. Rolls chosen with a throwaway proxy script (damage ~ scale stat x (1 + CR x CD) x (1 + DMG%), the 2 fixed rolls per stat, the per-relic cap, simple set and trace stats only, an assumed 635 ATK / 1058 HP light cone), not with Fribbels or the kernel. Treat it as a tie-breaker, not a result. Result: CRIT DMG 10, CRIT Rate 12, HP% 2. SPD: target none (K14e); a ceiling applies instead. 95 base + 4.6 (2 fixed rolls) = 99.6; the Poet 4-piece takes 8% of base (7.6), so 92.0, under 95 (margin 3.0 to the ceiling). One distributed roll would still pass (94.3), two would not (96.6). GUESS: that Poet's \"SPD lower than 95\" check includes the -8% and the fixed rolls as modelled here; read it against Fribbels' implementation before anyone relies on the margin of 3. Changed from the earlier draft: no change to the split. Priority: file counts (CRIT Rate 12, CRIT DMG 10, HP% 2), then HP from Fribbels' list. SPD arithmetic ignores light cone and team SPD buffs."
   }
 }

@@ -26,6 +26,10 @@
     "Link Rope": "ATK%",
     "notes": "Fribbels options: Body CRIT Rate/CRIT DMG/ATK%, Feet ATK%/SPD, Sphere ATK%/Wind DMG, Rope ATK%. GUESS: Body CRIT DMG (proxy +0.6% over CRIT Rate body, +1.3% over ATK% body); with it the CRIT Rate rolls reach Rutilant Arena's 70%. Feet SPD (GUESS). Sphere Wind DMG (proxy only +1.3% over ATK%, so close). Rope ATK% only."
   },
+  "spd_target": {
+    "value": 133.34,
+    "reason": "Turn breakpoint: 20000/150 = 133.33 SPD, so 133.34 gives 2 turns in the first 150 AV cycle (src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1). Fribbels lists no SPD target (Anaxa.ts:369-374 has no SPD substat); chosen by NouSR (GUESS)."
+  },
   "distributed": {
     "rolls": {
       "SPD": 3,
@@ -33,6 +37,12 @@
       "CRIT Rate": 12,
       "ATK%": 4
     },
-    "notes": "Fribbels substat list: CRIT DMG, CRIT Rate, ATK%, ATK. Rolls chosen with a throwaway proxy script (damage ~ scale stat x (1 + CR x CD) x (1 + DMG%), the 2 fixed rolls per stat, the per-relic cap, simple set and trace stats only, an assumed 635 ATK / 1058 HP light cone), not with Fribbels or the kernel. Treat it as a tie-breaker, not a result. Result: CRIT Rate 12 (cap), CRIT DMG 5, ATK% 4, SPD 3. SPD: 3 rolls. 97 base + 25.032 + 4.6 = 126.63; 2 rolls make 131.23 (under 133.34), 3 make 133.53. SPD arithmetic ignores light cone and team SPD buffs. The cycle-1 two-turn threshold is 133.34 (20000/150); src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1."
+    "priority": [
+      "CRIT Rate",
+      "CRIT DMG",
+      "ATK%",
+      "ATK"
+    ],
+    "notes": "Fribbels substat list: CRIT DMG, CRIT Rate, ATK%, ATK. Rolls chosen with a throwaway proxy script (damage ~ scale stat x (1 + CR x CD) x (1 + DMG%), the 2 fixed rolls per stat, the per-relic cap, simple set and trace stats only, an assumed 635 ATK / 1058 HP light cone), not with Fribbels or the kernel. Treat it as a tie-breaker, not a result. Result: CRIT Rate 12 (cap), CRIT DMG 5, ATK% 4, SPD 3. SPD: target 133.34 (K14e, turn breakpoint). 97 base + 25.032 + 4.6 = 126.632; 3 distributed rolls make 133.532 (margin 0.192), 2 make 131.232 (short). Under the cap of 10. Changed from the earlier draft: no change to the split. Priority: file counts (CRIT Rate 12, CRIT DMG 5, ATK% 4), then ATK from Fribbels' list. With a CRIT Rate body (cap 10) the 2 extra CRIT Rate rolls would go to CRIT DMG. SPD arithmetic ignores light cone and team SPD buffs."
   }
 }

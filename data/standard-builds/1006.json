@@ -26,12 +26,23 @@
     "Link Rope": "ATK%",
     "notes": "Fribbels main-stat options (SilverWolfB1.ts:353-373, a scoring list, not a simulation): Body CRIT DMG/CRIT Rate/Effect Hit Rate, Feet SPD, Sphere Quantum DMG/ATK%/HP%/DEF%, Rope Energy Regeneration Rate/ATK%/Break Effect. GUESS: Body CRIT Rate (proxy +4.3% over CRIT DMG, +12.6% over Effect Hit Rate). Feet SPD is the only option. Sphere Quantum DMG. GUESS: Rope ATK%; the proxy has no energy model, so it cannot weigh the Energy Regeneration Rate rope that Fribbels lists first, and Ultimate timing is exactly what NouSR simulates. Smitty should decide this one."
   },
+  "spd_target": {
+    "value": 133.34,
+    "reason": "Turn breakpoint: 20000/150 = 133.33 SPD, so 133.34 gives 2 turns in the first 150 AV cycle (src/engine/breakpoints.test.ts pins 134 as 2 turns and 133 as 1). No Fribbels SPD target exists for her (no simulation, only weights with SPD 1, SilverWolfB1.ts:339-352); already met by boots and fixed rolls."
+  },
   "distributed": {
     "rolls": {
       "Effect Hit Rate": 4,
       "CRIT DMG": 12,
       "CRIT Rate": 8
     },
-    "notes": "No Fribbels substat list; the scoring weights (SilverWolfB1.ts:339-352) give ATK 0.75, SPD 1, CRIT Rate 1, CRIT DMG 1, Effect Hit Rate 1. Her trace gives +10% ATK per 10% Effect Hit Rate, max +50% (kit text, kit-text.mjs 1006 --version 1; code SilverWolfB1.ts:303-318: floor(EHR/10%) steps). The trace gives 18% EHR and the 2 fixed rolls 7.8%, so 4 distributed rolls reach 41.3% (4 steps, +40% ATK); the next step is at 50%. Rolls chosen with a throwaway proxy script (damage ~ scale stat x (1 + CR x CD) x (1 + DMG%), the 2 fixed rolls per stat, the per-relic cap, simple set and trace stats only, an assumed 635 ATK / 1058 HP light cone), not with Fribbels or the kernel. Treat it as a tie-breaker, not a result. SPD: 0 distributed. 107 base + 25.032 + 4.6 = 136.63, already over 133.34."
+    "priority": [
+      "CRIT DMG",
+      "CRIT Rate",
+      "Effect Hit Rate",
+      "ATK%",
+      "ATK"
+    ],
+    "notes": "No Fribbels substat list; the scoring weights (SilverWolfB1.ts:339-352) give ATK 0.75, SPD 1, CRIT Rate 1, CRIT DMG 1, Effect Hit Rate 1. Her trace gives +10% ATK per 10% Effect Hit Rate, max +50% (kit text, kit-text.mjs 1006 --version 1; code SilverWolfB1.ts:303-318: floor(EHR/10%) steps). The trace gives 18% EHR and the 2 fixed rolls 7.8%, so 4 distributed rolls reach 41.3% (4 steps, +40% ATK); the next step is at 50%. Rolls chosen with a throwaway proxy script (damage ~ scale stat x (1 + CR x CD) x (1 + DMG%), the 2 fixed rolls per stat, the per-relic cap, simple set and trace stats only, an assumed 635 ATK / 1058 HP light cone), not with Fribbels or the kernel. Treat it as a tie-breaker, not a result. SPD: target 133.34 (K14e, turn breakpoint). 107 base + 25.032 + 4.6 = 136.632 with 0 distributed rolls (margin 3.292). Changed from the earlier draft: no change to the split. Priority: file counts (CRIT DMG 12, CRIT Rate 8, Effect Hit Rate 4), then ATK% and ATK, which her scoring weights give 0.75 each (SilverWolfB1.ts:339-352; their order is GUESS). SPD arithmetic ignores light cone and team SPD buffs."
   }
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { EngineEvents } from '../engine'
 import { loadEnemyProfile } from '../enemy/profile'
 import { fakeResult } from '../kernel/testing'
-import type { DamageKernel, DamageRequest } from '../kernel/types'
+import type { DamageKernel, DamageRequest, InjectedBuff } from '../kernel/types'
 import type { Kit } from '../kits/kit'
 import type { Rule } from '../scenario/types'
 import { Battle, HP_TIE } from './battle'
@@ -443,15 +443,16 @@ describe('highestHpAmong: the undecided tie-break is guarded', () => {
     b.highestHpAmong(ids, { ...pricing, hit: 0, ability: 'SKILL' })
     const { warnings } = b.run()
     expect(warnings).toHaveLength(2)
-    const [basic] = warnings
+    expect(warnings.every((w) => w.severity === 'warning' && w.code === 'undecided-tie')).toBe(true)
+    const basic = warnings[0]!.message
     expect(basic).toContain("a's BASIC hit 0")
     expect(basic).toContain('enemy1, enemy3 tied')
     expect(basic).toContain('enemy1 1000.000, enemy3 2000.000')
     expect(basic).toContain('went to enemy1')
     expect(basic).toMatch(/First at AV 0\.0, cycle 1; 3 times in this battle/)
     expect(basic).toContain('DESIGN.md, "Known approximations"')
-    expect(warnings[1]).toContain("a's SKILL hit 0")
-    expect(warnings[1]).toContain('1 time in this battle')
+    expect(warnings[1]!.message).toContain("a's SKILL hit 0")
+    expect(warnings[1]!.message).toContain('1 time in this battle')
   })
 
   it('records the battle time of the first occurrence', () => {
@@ -467,7 +468,7 @@ describe('highestHpAmong: the undecided tie-break is guarded', () => {
     })
     const { warnings } = b.run()
     expect(warnings).toHaveLength(1)
-    expect(warnings[0]).toContain(`First at AV ${at.toFixed(1)}, cycle 2; 1 time in this battle`)
+    expect(warnings[0]!.message).toContain(`First at AV ${at.toFixed(1)}, cycle 2; 1 time in this battle`)
   })
 })
 
@@ -475,5 +476,47 @@ describe('existing battles are quiet', () => {
   it('a battle of identical enemies that never reaches an undecided tie has no warnings', () => {
     const { b } = battle({ enemyCount: 3, cycles: 5, policy: [{ unit: 'a', use: 'skill', when: [] }, ...basicOnly] })
     expect(b.run().warnings).toEqual([])
+  })
+})
+
+describe('injected buffs in the kernel request (K15a)', () => {
+  const buff = (stat: InjectedBuff['stat'], value: number, target: InjectedBuff['target']): InjectedBuff => ({ stat, value, target })
+  /** A Striker whose states carry the given injected buffs. */
+  const withBuffs = (own?: InjectedBuff[], asTeammate?: InjectedBuff[]): Kit => ({
+    ...Striker,
+    create: (b, self) => ({
+      ...Striker.create(b, self),
+      attackerState: () => ({ injectedBuffs: own }),
+      teammateState: () => ({ injectedBuffs: asTeammate }),
+    }),
+  })
+  const sent = (members: MemberSetup[]) => {
+    const requests: DamageRequest[] = []
+    const { b } = battle({ members, kernel: { actionDamage: (r) => (requests.push(r), kernel.actionDamage(r)) } })
+    b.run()
+    return requests
+  }
+
+  it('sends the attacker\'s own buffs, and a teammate\'s buffs aimed at the team', () => {
+    const own = [buff('CRIT_RATE', -0.1, 'self')]
+    const mate = [buff('TRUE_DMG', -0.12, 'team'), buff('HP', 480, 'team')]
+    const requests = sent([{ ...striker('a'), kit: withBuffs(own) }, { ...striker('b', 1), kit: withBuffs(undefined, mate) }])
+    expect(requests[0]!.injectedBuffs).toEqual([...own, ...mate])
+  })
+
+  it('drops a teammate\'s buff aimed at that teammate itself', () => {
+    const mate = [buff('TRUE_DMG', 0.24, 'self'), buff('CRIT_DMG', 0.3, 'team')]
+    const requests = sent([{ ...striker('a'), kit: withBuffs() }, { ...striker('b', 1), kit: withBuffs(undefined, mate) }])
+    expect(requests[0]!.injectedBuffs).toEqual([buff('CRIT_DMG', 0.3, 'team')])
+  })
+
+  it('leaves the request without the field when nobody injects anything', () => {
+    const requests = sent([striker('a'), striker('b', 1)])
+    expect(requests[0]).not.toHaveProperty('injectedBuffs')
+  })
+
+  it('the buffs are part of the request JSON the cache keys on', () => {
+    const requests = sent([{ ...striker('a'), kit: withBuffs([buff('DMG_PERCENT', 0.1, 'self')]) }])
+    expect(JSON.stringify(requests[0])).toContain('"DMG_PERCENT"')
   })
 })

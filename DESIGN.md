@@ -104,8 +104,20 @@ Consequence of S6 to keep in mind: effects that trigger on a kill, overkill, and
   action could reach, not the ones it hit.
 - **"3 or more enemies hit" is a threshold on an expected count** (Eternal Calculus's SPD buff). Measured by the K17
   build: at 3 enemies a Lightning-Lord action's expected count is 2.9997 and never reaches 3, though the chance of
-  hitting all three is about 1.000 from 8 hits on, so the buff never fires on those actions. Decided as K21
-  (apply the buff scaled by the chance), being built.
+  hitting all three is 1 - 2/3^n (0.9997 at 8 hits), so the buff never fired on those actions. Decided as K21
+  (apply the buff scaled by the chance). Built: `src/battle/hitProbability.ts` computes the exact chance of N or more
+  distinct enemies hit from an action's attacks, and Eternal Calculus applies SPD% x that chance. Small open gap:
+  for fractional hit counts (Jing Yuan's E6 ramp) it treats the fraction as one extra hit with that probability,
+  while `hitChance` raises the miss chance to the fractional power; the two agree for whole hits.
+- **Uncertain debuffs are priced by enumerating states (K22).** Each uncertain debuff or buff around an enemy is
+  present or absent; the kernel prices every combination and weights it by the chances, so every consumer reads the
+  same state. Up to 14 uncertain modifiers per enemy, then a clear error. Approximations inside it: re-applying a
+  debuff unions the chances and takes the newer duration; Silver Wolf's three Bugs are independent modifiers at 1/3
+  each, so after one application "has any Bug" reads 0.70 where the game has exactly one (expected counts are
+  exact); Acheron's talent treats enemies as independent for "a debuff landed"; Pioneer Diver's doubling and its
+  triggering debuff are independent states (exact when the wearer's debuffs are certain).
+- **Acheron's Ultimate waits for an expected 9 Slashed Dream** (a threshold on an expected value: an action cannot
+  be scaled by a chance). Exact whenever her stacks are whole, which is every case in the repo today.
 - **Allies are never crowd-controlled,** so "Lightning-Lord cannot act while Jing Yuan is under Crowd Control" is
   not modelled. The generic enemy applies no crowd control.
 - **Every character is simulated fully built: all traces unlocked, abilities at the kit text's levels.**
@@ -152,6 +164,18 @@ Consequence of S6 to keep in mind: effects that trigger on a kill, overkill, and
 | Jing Yuan | Is one Lightning-Lord action one "ally attack" (one Tribbie Zone instance), or is each hit? | One per action |
 | Jing Yuan | E6 Vulnerable: does the hit that applies a stack benefit, and do adjacent splash hits apply stacks? | No and no |
 | Eternal Calculus | Does Lightning-Lord's action count as the wearer's attack, and do stacks count distinct enemies? | Yes and yes |
+| Break | Does a break effect (e.g. Entanglement) trigger Acheron's talent, as "a debuff inflicted during an ability"? Large: one Acheron-with-Tribbie battle's cycle 5 goes from 308,839 to 1,276,193 | No |
+| Welt | Skill energy: 30 in total (the data prints 6 per hit over 5 hits) | 30 |
+| Welt | Ultimate as 2 hits (10%/90%, from Fribbels, not the text): sets Talent triggers, E2 energy and Weightless delays | 2 hits |
+| Welt | Weightless delay per hit, cap 8 per target per turn, reset at that enemy's turn start | As written |
+| Welt | Retribution: one stack per attack, given after it | As written |
+| Silver Wolf | Does her E2 Vulnerability count as a debuff (adds 1 to every count from battle start)? | Yes |
+| Silver Wolf | E2: one Bug per enemy per action, or per attack call? | Per action |
+| Silver Wolf | Is trace and eidolon energy scaled by Energy Regeneration Rate? | Yes |
+| Dan Heng PT | Souldragon Follow-Up toughness: 60 (text) or 30 (Fribbels) | 60 |
+| Dan Heng PT | Does Lightning-Lord's action trigger Sylvanity as the Bondmate attacking? | Yes |
+| Dan Heng PT | E2 doubling also applies to Sublimity's Additional DMG | Yes |
+| Texture of Memories | Is the hit that grants the shield already reduced? | Yes |
 
 
 - **"Highest HP" tie-break** when the primary is not among the tied enemies: first in standing order (as
@@ -324,6 +348,9 @@ Affinitive Eidolon. This is the text kits are transcribed from. Game text is not
 | K19 | Warnings are structured (2026-11-13) | Every run warning carries a severity, a short stable code (e.g. `spd-target-missed`, `undecided-tie`, `spd-may-be-understated`), the message, and where it applies (team, enemy count, member). Front ends render them: the CLI in red with a warning sign, a web UI as a warning box. Part of the results format (K8) |
 | K20 | Level data in the repo (2026-11-13) | Ability max levels, per-level values (1 to 15) and trace lists are extracted by a script from the game data into a small committed file under `data/`, regenerated when the game version changes. Numbers only, no game text. Users need no game-data download |
 | K21 | Thresholds on random-hit counts (2026-11-13) | A buff that needs "N or more enemies hit" is applied scaled by the chance the condition holds (P(N or more) x the buff), the expected value of the buff itself, with no cliff. First case: Eternal Calculus's SPD buff |
+| K22 | Random-target debuffs (2026-11-14) | A debuff from a random-target hit is present on each enemy with the chance it landed there (expected value), not on every enemy the hit could reach. Debuff counts become expected values; thresholds on them use K21's scaled form; "once per action" triggers use the chance. Silver Wolf's random Bug is each of ATK, DEF and SPD at 1/3. Affects Silver Wolf, Welt's Skill slow, Along the Passing Shore on bounces, and every debuff consumer (Acheron's talent, Pioneer Diver, Good Night and Sleep Well, Silver Wolf E1/E4/E6) |
+| K23 | Extra hits for teammates (2026-11-14) | A damage request can carry extra Additional DMG hits. A kit hands one to a teammate through its teammate state, and it is priced in that teammate's own request (the teammate's ATK, crits, element and buffs). First use: Dan Heng • Permansor Terrae's Bondmate Additional DMG (enhanced Souldragon, Sublimity, E6), which Fribbels does not price. Built 2026-11-14: Fribbels builds all hits in one pass inside `generateContext`, so the adapter adds the extra hit through Fribbels' own per-character `actionModifiers` hook (the extension point its Hidden Shadow light cone uses), for one synchronous call, restored afterwards, and reports it as ability `EXTRA`. Priced exactly as Fribbels' own Additional hits (tested against Pela with Hidden Shadow and Tribbie's Zone) |
+| K24 | Break effects are debuffs (2026-11-14) | Each break effect NouSR models (Entanglement and Imprisonment delays, Imprisonment's slow, Freeze) counts as a debuff while it lasts, and one shared Imprisoned state serves both a break and Welt. Damage over time stays out (K7b) |
 | K11 | Multi-hit pricing (2026-11-13) | The kernel returns damage per hit, not one number per ability, and a kit says which hit each attack part is. One reference multiple per ability gave every hit a blended rate wherever hits get different buffs (Tribbie's E6 follow-up came out at 0.689 of the correct total on 3 enemies) |
 
 K4, K6 and K7 were agreed before the prior-work check on them had come back; anything in srsim, hsr-simulator or

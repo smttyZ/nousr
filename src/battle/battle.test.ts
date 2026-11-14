@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { EngineEvents } from '../engine'
 import { loadEnemyProfile } from '../enemy/profile'
-import { fakeResult } from '../kernel/testing'
-import type { DamageKernel, DamageRequest, InjectedBuff } from '../kernel/types'
+import { fakeResult, ZERO_STATS } from '../kernel/testing'
+import type { DamageKernel, DamageRequest, ExtraHit, InjectedBuff } from '../kernel/types'
 import type { Kit } from '../kits/kit'
 import type { Rule } from '../scenario/types'
-import { Battle, HP_TIE } from './battle'
+import { Battle, certain, HP_TIE } from './battle'
 import type { BattleSetup, MemberSetup } from './battle'
 
 const profile = loadEnemyProfile('generic-moc')
@@ -56,9 +56,9 @@ const Striker: Kit = {
           }),
       },
     },
-    quantities: { marked: () => battle.hasDebuff(battle.primary) },
+    quantities: { marked: () => (battle.debuffChance(battle.primary) > 0) },
     attackerState: (enemy) => ({
-      characterConditionals: { targetMarked: battle.hasDebuff(enemy) },
+      characterConditionals: { targetMarked: certain(battle.debuffChance(enemy)) },
     }),
     teammateState: () => ({}),
   }),
@@ -518,5 +518,136 @@ describe('injected buffs in the kernel request (K15a)', () => {
   it('the buffs are part of the request JSON the cache keys on', () => {
     const requests = sent([{ ...striker('a'), kit: withBuffs([buff('DMG_PERCENT', 0.1, 'self')]) }])
     expect(JSON.stringify(requests[0])).toContain('"DMG_PERCENT"')
+  })
+})
+
+describe('combatStats: the kernel\'s in-combat stats for a member', () => {
+  const stats = { ...ZERO_STATS, ATK: 3210, HP: 40000, DEF: 900, SPD: 134, CR: 0.7, CD: 1.5, RES: 0.1, BE: 0.4 }
+  const statKernel: DamageKernel & { requests: DamageRequest[] } = {
+    requests: [],
+    actionDamage(request) {
+      this.requests.push(request)
+      return fakeResult({ BASIC: [{ damage: 1000, scaling: 1 }] }, request.attacker.characterConditionals?.big ? { ...stats, ATK: 9999 } : stats)
+    },
+  }
+
+  it('returns the stats of the kernel result the runner prices with, as a copy, through the same cache', () => {
+    statKernel.requests.length = 0
+    const { b } = battle({ kernel: statKernel })
+    const first = b.combatStats('a')
+    expect(first).toEqual(stats)
+    first.ATK = 1
+    expect(b.combatStats('a').ATK).toBe(3210)
+    b.member('a').instance.actions.basic!.use()
+    expect(statKernel.requests).toHaveLength(1) // combatStats and the attack share one cached request
+  })
+
+  it('is for the member as the attacker: it carries that member\'s own state', () => {
+    const big: Kit = { ...Striker, create: (bt, self) => ({ ...Striker.create(bt, self), attackerState: () => ({ characterConditionals: { big: true } }) }) }
+    const { b } = battle({ members: [striker('a'), { ...striker('b', 90), kit: big }], kernel: statKernel })
+    expect(b.combatStats('a').ATK).toBe(3210)
+    expect(b.combatStats('b').ATK).toBe(9999)
+    expect(() => b.combatStats('nobody')).toThrow(/No member/)
+  })
+
+  it('throws a clear error, not a loop, when a kit asks from its own attackerState or teammateState', () => {
+    const fromAttackerState: Kit = {
+      ...Striker,
+      create: (bt, self) => {
+        const base = Striker.create(bt, self)
+        return { ...base, attackerState: () => ({ characterConditionals: { atk: bt.combatStats(self.key).ATK } }) }
+      },
+    }
+    const { b } = battle({ members: [{ ...striker('a'), kit: fromAttackerState }], kernel: statKernel })
+    expect(() => b.combatStats('a')).toThrow(/must not ask the kernel from its own attackerState or teammateState/)
+
+    const fromTeammateState: Kit = {
+      ...Striker,
+      create: (bt, self) => ({ ...Striker.create(bt, self), teammateState: () => ({ characterConditionals: { atk: bt.combatStats(self.key).ATK } }) }),
+    }
+    const two = battle({ members: [striker('a'), { ...striker('b', 90), kit: fromTeammateState }], kernel: statKernel })
+    expect(() => two.b.combatStats('a')).toThrow(/while the battle was collecting/)
+    // The guard resets: asking from an action afterwards works for a kit that does not loop.
+    const ok = battle({ kernel: statKernel })
+    expect(ok.b.combatStats('a').ATK).toBe(3210)
+  })
+})
+
+describe('extra hits for teammates (K23)', () => {
+  const hit = (id: string, multiple = 1): ExtraHit => ({ id, damageType: 'ADDITIONAL', scalingStat: 'ATK', multiple })
+  const giving = (hits: ExtraHit[] | undefined): Kit => ({
+    ...Striker,
+    create: (bt, self) => ({ ...Striker.create(bt, self), teammateState: () => ({ ...(hits && { extraHits: hits }) }) }),
+  })
+  /** 1,000 per 100% on the ordinary hit; the extra hits come back as ability EXTRA at 700 per 100%. */
+  const extraKernel = (requests: DamageRequest[] = []): DamageKernel => ({
+    actionDamage(request) {
+      requests.push(request)
+      return fakeResult({
+        BASIC: [{ damage: 1000, scaling: 1 }],
+        ...(request.extraHits && { EXTRA: request.extraHits.map((h) => ({ damage: 700 * h.multiple, scaling: h.multiple })) }),
+      })
+    },
+  })
+
+  it('merges every teammate\'s extra hits into the attacker\'s request, in teammate order; none leaves the field out', () => {
+    const requests: DamageRequest[] = []
+    const { b } = battle({
+      members: [striker('a'), { ...striker('b', 90), kit: giving([hit('b.one'), hit('b.two', 0.5)]) }, { ...striker('c', 80), kit: giving([hit('c.one')]) }],
+      kernel: extraKernel(requests),
+    })
+    b.member('a').instance.actions.basic!.use()
+    expect(requests[0]!.extraHits!.map((h) => h.id)).toEqual(['b.one', 'b.two', 'c.one'])
+    expect(b.extraHitIndex('a', 'b.two')).toBe(1)
+    expect(b.extraHitIndex('a', 'c.one')).toBe(2)
+    expect(() => b.extraHitIndex('a', 'nobody.one')).toThrow(/No extra hit "nobody.one" for a/)
+
+    const plain = battle({ members: [striker('a'), striker('b', 90)], kernel: extraKernel(requests) })
+    requests.length = 0
+    plain.b.member('a').instance.actions.basic!.use()
+    expect(requests[0]).not.toHaveProperty('extraHits')
+  })
+
+  it('a bare attack of ability EXTRA is priced per 100% from the named extra hit and credited to the attacker, with no action', () => {
+    const { b, dealt } = battle({
+      members: [striker('a'), { ...striker('b', 90), kit: giving([hit('b.one')]) }],
+      kernel: extraKernel(),
+    })
+    const total = b.attack({ attacker: 'a', ability: 'EXTRA', parts: [{ shape: 'single', scaling: 0.8, hit: b.extraHitIndex('a', 'b.one'), additional: true }] })
+    expect(total).toBeCloseTo(560, 9)
+    expect(dealt).toHaveLength(1)
+    expect(dealt[0]).toMatchObject({ attacker: 'a', ability: 'EXTRA', damage: expect.closeTo(560, 9) })
+    expect(b.actionSerialInProgress).toBeUndefined()
+  })
+
+  it('the same id from two teammates is an error', () => {
+    const { b } = battle({
+      members: [striker('a'), { ...striker('b', 90), kit: giving([hit('x')]) }, { ...striker('c', 80), kit: giving([hit('x')]) }],
+      kernel: extraKernel(),
+    })
+    expect(() => b.member('a').instance.actions.basic!.use()).toThrow(/extra hit with the id "x"/)
+  })
+
+  it('without an extra hit the kernel has no EXTRA ability: asking for it is the usual error', () => {
+    const { b } = battle({ members: [striker('a'), striker('b', 90)], kernel: extraKernel() })
+    expect(() => b.attack({ attacker: 'a', ability: 'EXTRA', parts: [{ shape: 'single', scaling: 1, hit: 0 }] })).toThrow(/no ability "EXTRA"/)
+  })
+
+  it('extra hits are part of the request the cache keys on', () => {
+    const requests: DamageRequest[] = []
+    const { b } = battle({ members: [striker('a'), { ...striker('b', 90), kit: giving([hit('x', 0.8)]) }], kernel: extraKernel(requests) })
+    b.member('a').instance.actions.basic!.use()
+    expect(JSON.stringify(requests[0])).toContain('"extraHits"')
+  })
+})
+
+describe('the additional flag on a part', () => {
+  it('changes no number: a flagged part prices as the same unflagged one', () => {
+    const run = (additional: boolean) => {
+      const { b, dealt } = battle()
+      b.attack({ attacker: 'a', ability: 'BASIC', parts: [{ shape: 'single', scaling: 0.5, hit: 0, ...(additional && { additional: true }) }] })
+      return dealt[0]!.damage
+    }
+    expect(run(true)).toBe(run(false))
   })
 })

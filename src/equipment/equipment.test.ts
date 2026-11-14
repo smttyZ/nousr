@@ -115,15 +115,76 @@ describe('Along the Passing Shore', () => {
     expect(requests.map((r) => r.attacker.lightConeConditionals)).toEqual([{ emptyBubblesDebuff: false }, { emptyBubblesDebuff: true }])
   })
 
-  it('is applied once per enemy per action however many parts the action has', () => {
+  it('is one Mirage Fizzle per enemy however many attacks the action has: refreshed, one debuff, chance 1', () => {
     const { kernel } = recordingKernel()
     const battle = battleOf([member('a', prober(3), lc(AlongThePassingShore))], [rule('a', 'basic')], kernel, { cycles: 1 })
-    let applied = 0
-    battle.timeline.bus.on('modifierApplied', ({ modifier }) => {
-      if (modifier.debuff) applied += 1
+    const actions: Array<{ debuffed: string[], debuffChance: Record<string, number> }> = []
+    battle.timeline.bus.on('actionUsed', (a) => actions.push(a))
+    battle.member('a').instance.actions.basic!.use()
+    expect(battle.debuffCount('enemy1')).toBe(1)
+    expect(actions[0]!.debuffed).toEqual(['enemy1'])
+    expect(actions[0]!.debuffChance).toEqual({ enemy1: 1 })
+  })
+
+  describe('on a bounce, per enemy at the chance the bounce hit it (K22)', () => {
+    /** Basic ATK: one bounce of `hits` hits. */
+    const bouncer = (hits: number): Kit => ({
+      characterId: 'bouncer',
+      path: 'Hunt',
+      element: 'Fire',
+      maxEnergy: 0,
+      create: (battle, self) => ({
+        actions: {
+          basic: {
+            kind: 'basic',
+            canUse: () => true,
+            use: () =>
+              battle.performAction(self.key, 'basic', 'basic', () => {
+                battle.attack({ attacker: self.key, ability: 'BASIC', parts: [{ shape: 'bounce', scaling: 1, hits, hit: 0 }] })
+              }),
+          },
+        },
+        attackerState: () => ({}),
+        teammateState: () => ({}),
+      }),
     })
-    battle.run()
-    expect(applied).toBe(1)
+
+    it('each enemy gets the Fizzle at 1 - (1 - 1/n)^hits, which the action reports and the debuff count adds up', () => {
+      const { kernel } = recordingKernel()
+      const battle = battleOf([member('a', bouncer(3), lc(AlongThePassingShore))], [rule('a', 'basic')], kernel, { cycles: 1, enemyCount: 3 })
+      const actions: Array<{ debuffChance: Record<string, number> }> = []
+      battle.timeline.bus.on('actionUsed', (a) => actions.push(a))
+      battle.member('a').instance.actions.basic!.use()
+      const chance = 1 - (2 / 3) ** 3
+      for (const enemy of battle.enemies.ids) {
+        expect(battle.presence(enemy, 'lightcone.23024.mirage_fizzle:a')).toBeCloseTo(chance, 12)
+        expect(actions[0]!.debuffChance[enemy]).toBeCloseTo(chance, 12)
+      }
+      expect(battle.debuffChance('enemy1')).toBeCloseTo(chance, 12)
+    })
+
+    it('the next hit is priced in both states, weighted by the chance: 24% DMG counts at that chance', () => {
+      const requests: DamageRequest[] = []
+      const kernel: DamageKernel = {
+        actionDamage(request) {
+          requests.push(request)
+          const bonus = request.attacker.lightConeConditionals?.emptyBubblesDebuff === true ? 1.24 : 1
+          return fakeResult({ BASIC: [{ damage: 1000 * bonus, scaling: 1 }] })
+        },
+      }
+      const battle = battleOf([member('a', bouncer(3), lc(AlongThePassingShore), 1000)], [rule('a', 'basic')], kernel, { cycles: 1, enemyCount: 3 })
+      const dealt: number[] = []
+      battle.timeline.bus.on('damageDealt', (d) => {
+        if (d.enemy === 'enemy1') dealt.push(d.damage)
+      })
+      const actions = battle.member('a').instance.actions
+      actions.basic!.use()
+      actions.basic!.use()
+      const p = 1 - (2 / 3) ** 3
+      // The first action met no Fizzle; the second one prices enemy1 with it at chance p (3 hits split over 3 enemies: 1000 per enemy).
+      expect(dealt[0]).toBeCloseTo(1000, 6)
+      expect(dealt[1]).toBeCloseTo(1000 * (1 + 0.24 * p), 6)
+    })
   })
 
   it('reaches every enemy the action damaged', () => {

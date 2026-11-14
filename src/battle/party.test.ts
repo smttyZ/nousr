@@ -99,6 +99,20 @@ describe('taking damage', () => {
     expect(log).toEqual([])
   })
 
+  it('shieldOf reads one shield by its key and ignores the others', () => {
+    const { party } = setup()
+    party.add(member('a', 0))
+    expect(party.shieldOf('a', 'mine')).toBe(0)
+    party.setShield('a', 'foreign', 2000)
+    party.setShield('a', 'mine', 1000)
+    expect(party.shieldOf('a', 'mine')).toBe(1000)
+    expect(party.shieldOf('a', 'foreign')).toBe(2000)
+    expect(party.shield('a')).toBe(2000)
+    party.setShield('a', 'mine', undefined)
+    expect(party.shieldOf('a', 'mine')).toBe(0)
+    expect(() => party.shieldOf('nobody', 'mine')).toThrow(/No combatant/)
+  })
+
   it('several shields do not add up: the largest absorbs and each loses the hit', () => {
     const { party } = setup()
     party.add(member('a', 0))

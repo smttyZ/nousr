@@ -71,6 +71,14 @@ export interface EngineEvents {
     hitChance: Record<UnitId, number>
     expectedEnemiesHit: number
     debuffed: UnitId[]
+    /**
+     * Per enemy of `debuffed`, the probability that at least one debuff landed on it during the action (K22), the way
+     * `hitChance` is for hits: 1 for a deterministic application, the chance it landed there for a random-target one,
+     * independent applications combined as 1 - the product of their misses. `debuffed` stays 'could have been debuffed'.
+     * Break effects count as debuffs on the enemy while they last (K24) but are not recorded here: a break is not an
+     * ability inflicting a debuff (the IN-GAME CHECK in `Battle.weaknessBreak`).
+     */
+    debuffChance: Record<UnitId, number>
   }
   /**
    * One `Battle.attack` call has resolved (after its `damageDealt` events), with the parts it was given, read-only.
@@ -85,6 +93,13 @@ export interface EngineEvents {
     ability: string
     scaling: number
     damage: number
+    /**
+     * The probability that the enemy was hit at least once by the attack call this event belongs to (K17): 1 for a
+     * single, blast or AoE part or for Break DMG, below 1 for an enemy only random-target parts reach, and 0 for an
+     * enemy reached only by Additional DMG that rides on hits dealt elsewhere. Effects that react to "the wearer hit an
+     * enemy" apply at this chance (Along the Passing Shore's Mirage Fizzle).
+     */
+    chance: number
     at: number
     cycle: number
   }

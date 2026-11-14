@@ -6,7 +6,7 @@ import { fakeResult, ZERO_STATS } from '../kernel/testing'
 import type { DamageKernel, DamageRequest } from '../kernel/types'
 import type { Kit } from '../kits/kit'
 import type { Element, Rule } from '../scenario/types'
-import { Battle } from './battle'
+import { Battle, ENTANGLED, FROZEN, IMPRISONED } from './battle'
 import type { HitPart, MemberSetup } from './battle'
 import { BREAK_BASE_DELAY, ENTANGLEMENT_DELAY, IMPRISONMENT_DELAY, IMPRISONMENT_SLOW, THAW_ADVANCE } from './enemies'
 
@@ -297,11 +297,71 @@ describe('what a break does to the enemy\'s turn', () => {
     const s = setup({ element: 'Imaginary', toughness: 30 })
     const removed: number[] = []
     s.battle.timeline.bus.on('modifierRemoved', (e) => {
-      if (e.modifier.id === 'break.imprisonment') removed.push(s.battle.timeline.now)
+      if (e.modifier.id === IMPRISONED) removed.push(s.battle.timeline.now)
     })
     s.battle.run()
     const firstEnemyTurn = s.log.find((l) => l.type === 'enemyAttack')!.at
     expect(removed[0]).toBeCloseTo(firstEnemyTurn, 9)
+  })
+
+  describe('break effects are debuffs while they last (K24)', () => {
+    it('Entanglement (Quantum): an Entangled debuff of the breaker for 1 turn, off the action debuffed list', () => {
+      const s = setup({ element: 'Quantum', toughness: 30 })
+      const actions: EngineEvents['actionUsed'][] = []
+      s.battle.timeline.bus.on('actionUsed', (a) => actions.push(a))
+      s.attack()
+      const entangled = s.battle.timeline.modifiers.get('enemy1', ENTANGLED)!
+      expect(entangled.debuff).toBe(true)
+      expect(entangled.source).toBe('a')
+      expect(s.battle.debuffCount('enemy1')).toBe(1)
+      expect(s.battle.debuffChance('enemy1')).toBe(1)
+      // A break is not an ability inflicting a debuff: no talent of anyone's fires for it (IN-GAME CHECK in weaknessBreak).
+      expect(actions[0]!.debuffed).toEqual([])
+      expect(actions[0]!.debuffChance).toEqual({})
+    })
+
+    it('Entanglement ends with the next turn of the enemy', () => {
+      const s = setup({ element: 'Quantum', toughness: 30 })
+      const removed: number[] = []
+      s.battle.timeline.bus.on('modifierRemoved', (m) => {
+        if (m.modifier.id === ENTANGLED) removed.push(s.battle.timeline.now)
+      })
+      s.battle.run()
+      expect(removed[0]).toBeCloseTo(s.log.find((l) => l.type === 'enemyAttack')!.at, 9)
+    })
+
+    it('Imprisonment (Imaginary): the shared Imprisoned state is a debuff; a second break or Welt refreshes it, one SPD cut', () => {
+      const s = setup({ element: 'Imaginary', toughness: 30 })
+      const base = s.battle.timeline.spd('enemy1')
+      s.attack()
+      expect(s.battle.timeline.modifiers.get('enemy1', IMPRISONED)!.debuff).toBe(true)
+      expect(s.battle.debuffCount('enemy1')).toBe(1)
+      s.battle.imprison('enemy1', 'a', 0.12, true)
+      expect(s.battle.debuffCount('enemy1')).toBe(1)
+      expect(s.battle.timeline.spd('enemy1')).toBeCloseTo(base * (1 - IMPRISONMENT_SLOW), 9)
+      expect(s.battle.timeline.modifiers.on('enemy1').filter((m) => m.id === IMPRISONED)).toHaveLength(1)
+    })
+
+    it('Freeze (Ice): a Frozen debuff that ends with the skipped turn', () => {
+      const s = setup({ element: 'Ice', toughness: 30, cycles: 2 })
+      const removedAt: number[] = []
+      s.battle.timeline.bus.on('modifierRemoved', (m) => {
+        if (m.modifier.id === FROZEN) removedAt.push(s.battle.timeline.now)
+      })
+      s.attack()
+      expect(s.battle.timeline.modifiers.get('enemy1', FROZEN)!.debuff).toBe(true)
+      s.battle.run()
+      const skippedAt = s.log.find((l) => l.type === 'enemyTurnSkipped')!.at
+      expect(removedAt[0]).toBeCloseTo(skippedAt, 9)
+    })
+
+    it('other elements leave no debuff', () => {
+      for (const element of ['Fire', 'Physical', 'Lightning', 'Wind'] as const) {
+        const s = setup({ element, toughness: 30 })
+        s.attack()
+        expect(s.battle.debuffChance('enemy1'), element).toBe(0)
+      }
+    })
   })
 
   it('other elements add nothing: Fire, Physical, Lightning and Wind give only the base delay', () => {

@@ -314,6 +314,7 @@ describe('a scenario file end to end (src/run)', () => {
       baseSpd: basic.baseSPD,
       spdFlat: basic.SPD - basic.baseSPD,
       energyRegen: basic.ERR,
+      effectRes: basic.RES,
     })
     expect(member.kernel.unit).toEqual({ characterId: ACHERON, eidolon: 0, ex: 0, lightConeId: ALONG_THE_PASSING_SHORE, superimposition: 1 })
   })

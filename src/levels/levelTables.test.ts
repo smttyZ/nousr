@@ -172,7 +172,8 @@ describe.skipIf(!existsSync(resolve(GAMEDATA, 'SOURCE.txt')))('level tables: reg
     const db = gen.loadDb(GAMEDATA)
     for (const [id, version] of ROSTER) {
       const text = `${gen.stringify(gen.buildTable(db, Number(id), version))}\n`
-      expect(text, fileFor(id, version)).toBe(readFileSync(resolve(DIR, fileFor(id, version)), 'utf8'))
+      const expected = readFileSync(resolve(DIR, fileFor(id, version)), 'utf8').replace(/\r\n/g, '\n')
+      expect(text, fileFor(id, version)).toBe(expected)
     }
   }, 60_000)
 })

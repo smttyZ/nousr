@@ -1147,6 +1147,17 @@ export class Battle {
     })
   }
 
+  /** Warnings kits raised (`warn`), one per code and member. */
+  private readonly kitWarnings = new Map<string, RunWarning>()
+
+  /**
+   * Records a warning for the run result (K19), once per code and member: a later call with the same code and member replaces the
+   * message (so a kit can keep a count current). No team or enemy count here: the runner in src/run adds them.
+   */
+  warn(warning: RunWarning): void {
+    this.kitWarnings.set(`${warning.code}\u0000${warning.member ?? ''}`, warning)
+  }
+
   // ---------------------------------------------------------------- running
 
   run(): BattleResult {
@@ -1162,7 +1173,7 @@ export class Battle {
       actions: [...this.actionLog],
       downed: [...this.downed],
       kernelCalls: this.kernelCalls,
-      warnings: this.tieWarnings(),
+      warnings: [...this.tieWarnings(), ...this.kitWarnings.values()],
     }
   }
 

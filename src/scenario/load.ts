@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path'
 import { Ajv2020 } from 'ajv/dist/2020.js'
 import type { ErrorObject } from 'ajv'
 import schema from '../../schema/scenario.schema.json' with { type: 'json' }
+import { defaultKitOptions, resolveKitOptions } from './kitOptions'
 import type {
   AccountScan,
   Member,
@@ -145,6 +146,7 @@ function resolveTeam(team: TeamFile, account: AccountScan | undefined, problems:
   const keys = new Set<string>()
   const characters = new Set<string>()
   const members: Member[] = []
+  const teamKeys: ReadonlySet<string> = new Set(team.members.map((m) => m.key))
 
   for (const member of team.members) {
     if (RESERVED_KEYS.includes(member.key)) {
@@ -157,7 +159,7 @@ function resolveTeam(team: TeamFile, account: AccountScan | undefined, problems:
     }
     characters.add(member.character)
 
-    const resolved = resolveMember(member, account, `${at}, member "${member.key}"`, problems)
+    const resolved = resolveMember(member, account, teamKeys, `${at}, member "${member.key}"`, problems)
     if (resolved) members.push(resolved)
   }
 
@@ -194,6 +196,7 @@ function resolveTeam(team: TeamFile, account: AccountScan | undefined, problems:
 function resolveMember(
   member: MemberFile,
   account: AccountScan | undefined,
+  teamKeys: ReadonlySet<string>,
   at: string,
   problems: string[],
 ): Member | undefined {
@@ -222,6 +225,10 @@ function resolveMember(
     problems.push(`${at}: standard_build changes a standard build, but this member's relics are ${given}; set relics to "standard" or remove standard_build`)
   }
 
+  const kitOptions = member.kit_options !== undefined
+    ? resolveKitOptions(member.character, member.kit_options, teamKeys, at, problems)
+    : defaultKitOptions(member.character)
+
   if (problems.length > before) return undefined
   return {
     key: member.key,
@@ -232,6 +239,7 @@ function resolveMember(
     lightCone: lightCone!,
     relics: relics!,
     ...(member.standard_build !== undefined && { standardBuild: resolveOverride(member.standard_build) }),
+    ...(kitOptions !== undefined && { kitOptions, kitOptionsGiven: Object.keys(member.kit_options ?? {}).filter((k) => k !== 'notes') }),
   }
 }
 

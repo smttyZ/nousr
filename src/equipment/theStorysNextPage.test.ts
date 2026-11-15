@@ -55,11 +55,20 @@ const wearer = (): MemberSetup => ({
   equipment: { lightCone: TheStorysNextPage, sets: [] },
 })
 
-function setup() {
+/** A second character with the same kit (and its own memosprite), wearing nothing. */
+const ally = (): MemberSetup => ({
+  key: 'ally', kit: wearerKit, eidolon: 0, affinitiveEidolon: false,
+  stats: { maxHp: 1e6, def: 1000, baseSpd: 90 },
+  kernel: { unit: { characterId: 'wearer', lightConeId: 'none', eidolon: 0, superimposition: 1 }, build: noBuild },
+})
+
+function setup(withAlly = false) {
   const requests: DamageRequest[] = []
   const kernel: DamageKernel = { actionDamage: (r) => (requests.push(r), fakeResult({ BASIC: [{ damage: 1000, scaling: 1 }] })) }
   const battle = new Battle({
-    members: [wearer()], policy: [{ unit: 'wearer', use: 'basic', when: [] }], profile, enemyCount: 1, weaknesses: 'all',
+    members: withAlly ? [wearer(), ally()] : [wearer()],
+    policy: withAlly ? [{ unit: 'wearer', use: 'basic', when: [] }, { unit: 'ally', use: 'basic', when: [] }] : [{ unit: 'wearer', use: 'basic', when: [] }],
+    profile, enemyCount: 1, weaknesses: 'all',
     cycles: 3, start: { energy: 0, skillPoints: 3, techniques: false }, kernel,
   })
   return { battle, requests }
@@ -98,5 +107,19 @@ describe("The Story's Next Page", () => {
     const { battle } = setup()
     battle.member('wearer').instance.actions.basic!.use()
     expect(battle.timeline.modifiers.has('wearer', MODIFIER)).toBe(false)
+  })
+
+  it("ignores an ally's actions and its memosprite's: only the wearer's own memosprite gives the buff", () => {
+    const { battle } = setup(true)
+    const applied: string[] = []
+    battle.timeline.bus.on('modifierApplied', ({ modifier }) => {
+      if (modifier.id === MODIFIER) applied.push(modifier.target)
+    })
+    battle.member('ally').instance.actions.basic!.use()
+    expect(battle.timeline.modifiers.has('wearer', MODIFIER)).toBe(false)
+    // The ally's memosprite acts through an extra turn: its owner is the ally, not the wearer.
+    battle.member('ally').instance.actions.skill!.use()
+    battle.run()
+    expect(applied).not.toContain('wearer')
   })
 })

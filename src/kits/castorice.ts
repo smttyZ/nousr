@@ -45,6 +45,16 @@ import type { Kit, KitInstance, TeammateState } from './kit'
  * (and advances her by 100%). After 3 turns of its own Netherwing disappears and Wings Sweep triggers; at 0 HP (the backup bearing too
  * much) it does too.
  *
+ * Burn or hold (Smitty, 2026-11-15: model both, selectable per scenario; the option is `finishOnTurn`). The game's auto-battle burns:
+ * everything on the first turn, as above (finishOnTurn 1, the default). Hold (finishOnTurn 2 or 3): on the turns before the finishing
+ * one, Netherwing launches Breath only while its HP is above 25% and stops there, since any launch at 25% or less is the finisher (the
+ * text keys it on HP, so Ardent Will does not change that). A turn that starts at 25% or less uses Claw Splits the Veil (40%, E5: 44%,
+ * of her Max HP to all enemies, toughness 30, no HP cost, E1 applies by the text). The HP refilled between its turns (allies' HP loss
+ * and healing, Contained Dark Tide) pays for more Breaths, and the Territory and backup stay up longer; the Breath multiple's step is
+ * kept across turns by the text, West Wind is not. On the finishing turn it burns. With finishOnTurn at most 3 the 3-turn exit without
+ * a finishing Breath is never reached; the code path stays for safety. Claw is priced on Fribbels' MEMO_SKILL hit (the Breath's) at its
+ * own multiple: the price is per 100% (K11), and the only other Breath-specific switch, `memoDmgStacks`, is 0 on a Claw turn.
+ *
  * Newbud. Her maximum is not in the text ("related to the levels of all characters on the battlefield"): it is NEWBUD_MAX, 34,000, the
  * Netherwing Max HP of Fribbels' Castorice (`Castorice.ts`, `memoBaseHpFlat`). IN-GAME CHECK below. The Ultimate needs it, and it is
  * emptied by the summon. Cyrene's Ode to Life and Death on her (`Battle.cyreneEffect`) lets Newbud overflow to 200%; the Ultimate then
@@ -79,11 +89,12 @@ import type { Kit, KitInstance, TeammateState } from './kit'
  *   hit, so it is (6% of her Max HP + 800) x (1 + Outgoing Healing Boost + 20% at E4), her Max HP being the kernel's in-combat HP.
  * - Territory: a marker modifier on every enemy while Netherwing is on the field (not a debuff for the debuff counts); the RES PEN
  *   itself reaches allies' prices through `memospriteActive`.
- * - The Netherwing HP given from allies' HP loss and from healing is an HP gain through `Party.heal`, so a `healed` event
- *   (source Netherwing) is emitted for it.
+ * - The Netherwing HP given from allies' HP loss and from healing is not a heal (`Party.gainHp`, no `healed` event), so effects that
+ *   react to healing (Robin Summeretto's Vibes, Gentle Rain, Contained Dark Tide itself) do not see it.
+ * - Contained Dark Tide converts the HP actually restored, not overheal (Hyacine's tally counts overheal).
+ * - Hold mode: Claw Splits the Veil is what Netherwing does on a held turn with no HP above 25%.
  *
  * NOT MODELLED:
- * - Claw Splits the Veil (Netherwing's Memosprite Skill, 40%): the text does not say when Netherwing uses it instead of Breath.
  * - E4 +20% healing received for heals other kits give (`Party.heal` has no incoming-healing hook).
  * - Inverted Torch's second part (Netherwing SPD +100% after a Breath that leaves all enemies at 0 HP: enemies never die here, S6).
  * - Wings Sweep's "restores HP" counts as a heal from her for Newbud (the tally is the same as any heal).
@@ -140,6 +151,8 @@ export function castoriceScalings(eidolon: number) {
     boneclawCastorice: e5 ? 0.33 : 0.3,
     boneclawNetherwing: e5 ? 0.55 : 0.5,
     talentDmg: e5 ? 0.22 : 0.2,
+    /** Claw Splits the Veil: Netherwing's other Memosprite Skill, all enemies. */
+    claw: e5 ? 0.44 : 0.4,
     /** Breath: the first launch, the second, the third and after. */
     breath: e5 ? ([0.264, 0.308, 0.374] as const) : ([0.24, 0.28, 0.34] as const),
     /** One bounce of Wings Sweep. */
@@ -152,15 +165,23 @@ export function castoriceScalings(eidolon: number) {
 
 /** Cyrene's Ode to Life and Death: the multiple each 1% of overflow adds to a Wings Sweep bounce, by Cyrene's eidolon, and with 2 enemies or fewer. */
 export const cyreneBounceRate = (upgraded: boolean, fewEnemies: boolean): number =>
-  (upgraded ? 0.0026 : 0.0024) + (fewEnemies ? (upgraded ? 0.0053 : 0.0048) : 0)
+  // The game data's values (skill 1141517, Lv6 / Lv7); the kit text prints them rounded to 0.26% and 0.53%.
+  (upgraded ? 0.00264 : 0.0024) + (fewEnemies ? (upgraded ? 0.00528 : 0.0048) : 0)
 
 export interface CastoriceOptions {
-  /** Breath launches in one Netherwing turn before it stops (the loop's own end, the last launch, comes first). Default: no limit. */
-  maxBreathsPerTurn?: number
+  /**
+   * The Netherwing turn (1 to 3, its own turns counted from the summoning) on which it launches Breath down into the finisher. 1 (the
+   * default) is "burn": everything on its first turn, as the game's auto-battle and Fribbels' combo do. 2 or 3 is "hold": on the turns
+   * before it, Netherwing launches Breath only while its HP is above 25% and stops there, using Claw Splits the Veil on a turn that
+   * starts at 25% or less, so that HP refilled between its turns (allies' HP loss, healing) pays for more Breaths and the Territory
+   * stays up longer. Netherwing still leaves early if its HP runs out.
+   */
+  finishOnTurn?: 1 | 2 | 3
 }
 
 export function makeCastorice(options: CastoriceOptions = {}): Kit {
-  const maxBreathsPerTurn = options.maxBreathsPerTurn ?? Infinity
+  const finishOnTurn = options.finishOnTurn ?? 1
+  if (![1, 2, 3].includes(finishOnTurn)) throw new Error(`Castorice: finishOnTurn must be 1, 2 or 3 (got ${finishOnTurn})`)
   return {
     characterId: '1407',
     path: 'Remembrance',
@@ -240,7 +261,7 @@ export function makeCastorice(options: CastoriceOptions = {}): Kit {
           duration: { turns: TALENT_TURNS, tick: 'turnEnd' },
         })
         if (unit === nw) return
-        if (present) party.heal(nw, amount, nw)
+        if (present) party.gainHp(nw, amount)
         else gainNewbud(amount)
       })
 
@@ -250,7 +271,7 @@ export function makeCastorice(options: CastoriceOptions = {}): Kit {
         const take = Math.min(amount, CONVERSION_CAP * NEWBUD_MAX - (converted.get(unit) ?? 0))
         if (!(take > 0)) return
         converted.set(unit, (converted.get(unit) ?? 0) + take)
-        if (present) party.heal(nw, take, nw)
+        if (present) party.gainHp(nw, take)
         else gainNewbud(take)
       })
       timeline.bus.on('turnEnd', () => converted.clear())
@@ -385,18 +406,30 @@ export function makeCastorice(options: CastoriceOptions = {}): Kit {
         if (!present) return
         nwTurns += 1
         westWind = 0
+        const holding = nwTurns < finishOnTurn
+        const atFloor = () => party.get(nw).hp <= BREATH_COST_SHARE * party.get(nw).maxHp + EPSILON
+        if (holding && atFloor()) {
+          // Holding with no HP above the finisher: any Breath now would be the finisher (the text keys it on HP, so Ardent Will does not
+          // change that). Claw Splits the Veil instead (no HP cost; E1 applies by the text).
+          battle.performAction(nw, 'claw', 'skill', () => {
+            battle.attack({ attacker: me, ability: 'MEMO_SKILL', parts: perEnemy(0, s.claw, true, { toughness: TOUGHNESS_BREATH }) })
+          })
+          if (present && nwTurns >= NETHERWING_TURNS) disappear(false)
+          return
+        }
         battle.performAction(nw, 'breath', 'skill', () => {
           for (let i = 0; ; i++) {
             if (i >= MAX_BREATHS) throw new Error(`${me}'s Netherwing launched ${MAX_BREATHS} Breaths in one turn: the loop does not stop`)
             const her = party.get(nw)
-            if (her.hp <= BREATH_COST_SHARE * her.maxHp + EPSILON) {
+            if (atFloor()) {
+              // Holding: stop above the finisher and keep the HP for a later turn.
+              if (holding) return
               // The last launch: its damage, then Netherwing down to 1 HP and Wings Sweep's effect, and it is gone.
               launchBreath()
               party.consumeHp(nw, party.get(nw).hp - 1, me)
               disappear(true)
               return
             }
-            if (i >= maxBreathsPerTurn) return
             if (ardent > 0) {
               ardent -= 1
               if (!party.get(me).downed && timeline.has(me)) timeline.advance(me, 1)

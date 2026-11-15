@@ -405,6 +405,19 @@ export class Party {
     return this.loseHp(m, amount, 'consume', source, Math.min(1, m.hp))
   }
 
+  /**
+   * Raises HP up to max HP without it being a heal: no `healed` event, so nothing that reacts to healing (Contained Dark Tide, Robin
+   * Summeretto's Vibes, Gentle Rain, healing tallies) sees it. For HP a kit's own rule moves, such as Netherwing taking allies' HP loss
+   * as its HP. Returns the HP gained.
+   */
+  gainHp(id: UnitId, amount: number): number {
+    const m = this.state(id)
+    if (m.downed || !(amount > 0)) return 0
+    const gained = Math.min(amount, m.maxHp - m.hp)
+    m.hp += gained
+    return gained
+  }
+
   /** Restores HP up to max HP. Returns the HP actually restored. */
   heal(id: UnitId, amount: number, source: UnitId): number {
     const m = this.state(id)

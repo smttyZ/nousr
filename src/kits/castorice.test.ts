@@ -372,13 +372,87 @@ describe('Ultimate and Netherwing', () => {
     expect(t.battle.member('cas').instance.attackerState(t.battle.enemies.ids[0]!).characterConditionals!.memoDmgStacks).toBe(0)
   })
 
-  it('stops by itself after 3 of its turns when it does not run out of HP first (one Breath per turn, the Ardent Will paying the first two)', () => {
-    const t = summoned(2, { kit: makeCastorice({ maxBreathsPerTurn: 1 }), cycles: 3 })
+  /** Per Netherwing action: its name, Netherwing's HP share when it ended, and the Breath / Claw launches it made (hits on one enemy). */
+  function netherwingTurns(t: Setup) {
+    const turns: { action: string, hpShare: number, present: boolean, memoSkills: number }[] = []
+    let seen = 0
+    t.battle.timeline.bus.on('actionUsed', (a) => {
+      if (a.actor !== NW) return
+      const memoSkills = t.dealt.filter((d) => d.ability === 'MEMO_SKILL' && d.enemy === t.battle.enemies.ids[0]).length
+      const present = t.q('netherwing') as boolean
+      const body = present ? t.battle.party.get(NW) : undefined
+      turns.push({ action: a.action, hpShare: body ? body.hp / body.maxHp : 0, present, memoSkills: memoSkills - seen })
+      seen = memoSkills
+    })
+    return turns
+  }
+
+  it('burn (finishOnTurn 1, the default): the first turn launches Breath into the finisher and Netherwing is gone', () => {
+    const t = summoned()
+    const turns = netherwingTurns(t)
     t.battle.run()
-    const turns = t.actions.filter((a) => a.actor === NW)
-    expect(turns.map((a) => a.action)).toEqual(['breath', 'breath', 'breath', 'wings_sweep'])
-    expect(t.q('netherwing')).toBe(false)
+    expect(turns[0]!.action).toBe('breath')
+    expect(turns[0]!.present).toBe(false)
     expect(t.dealt.filter((d) => d.ability === 'MEMO_TALENT' && d.enemy === t.battle.enemies.ids[0])).toHaveLength(1)
+  })
+
+  it('hold (finishOnTurn 3): stops above the finisher on turns 1 and 2, finishes on turn 3, one Wings Sweep in all', () => {
+    const t = summoned(0, { kit: makeCastorice({ finishOnTurn: 3 }), cycles: 3 })
+    const turns = netherwingTurns(t)
+    t.battle.run()
+    // Turn 1 from full HP: 100 -> 75 -> 50 -> 25%, then it holds (a 4th launch would be the finisher).
+    expect(turns[0]).toMatchObject({ action: 'breath', present: true })
+    expect(turns[0]!.hpShare).toBeCloseTo(0.25, 9)
+    expect(turns[1]!.present).toBe(true)
+    expect(turns[1]!.hpShare).toBeGreaterThan(1 / NEWBUD_MAX - 1e-12)
+    expect(turns[1]!.hpShare).toBeLessThanOrEqual(0.25 + 1e-9)
+    expect(turns[2]!.present).toBe(false)
+    expect(turns).toHaveLength(3)
+    expect(t.dealt.filter((d) => d.ability === 'MEMO_TALENT' && d.enemy === t.battle.enemies.ids[0])).toHaveLength(1)
+  })
+
+  it('hold: a turn that starts at 25% HP or less uses Claw Splits the Veil (40% of her Max HP, no HP cost) and stays', () => {
+    const t = summoned(0, { kit: makeCastorice({ finishOnTurn: 2 }) })
+    t.battle.party.consumeHp(NW, 0.8 * NEWBUD_MAX, 'cas')
+    const turns = netherwingTurns(t)
+    const before = hp(t, NW)
+    t.battle.timeline.bus.on('actionUsed', (a) => {
+      if (a.actor === NW && a.action === 'claw') expect(hp(t, NW)).toBeGreaterThanOrEqual(before)
+    })
+    t.battle.run()
+    expect(turns[0]).toMatchObject({ action: 'claw', present: true, memoSkills: 1 })
+    const claw = t.dealt.find((d) => d.ability === 'MEMO_SKILL' && d.enemy === t.battle.enemies.ids[0])!
+    // The fake kernel prices MEMO_SKILL at 2000 per 100%.
+    expect(claw.damage).toBeCloseTo(2000 * 0.4, 9)
+    // Turn 2 is the finishing turn: Breath into the finisher.
+    expect(turns[1]).toMatchObject({ action: 'breath', present: false })
+  })
+
+  it('hold: Claw is 40% (E5: 44%), and E2 Ardent Will is spent only above the finisher', () => {
+    expect(castoriceScalings(0).claw).toBe(0.4)
+    expect(castoriceScalings(5).claw).toBe(0.44)
+    const t = summoned(2, { kit: makeCastorice({ finishOnTurn: 2 }) })
+    const turns = netherwingTurns(t)
+    t.battle.run()
+    // Two Ardent Will pay for the first two launches at full HP, then HP pays 100 -> 75 -> 50 -> 25%: 5 Breaths, holding.
+    expect(turns[0]).toMatchObject({ action: 'breath', present: true, memoSkills: 5 })
+    expect(t.q('ardent_will')).toBe(0)
+  })
+
+  it('rejects a finishing turn outside 1 to 3', () => {
+    expect(() => makeCastorice({ finishOnTurn: 4 as 3 })).toThrow(/finishOnTurn/)
+  })
+
+  it("Netherwing's HP gained from allies' HP loss and healing is not a heal: no healed event", () => {
+    const t = summoned()
+    t.battle.party.consumeHp(NW, 0.5 * NEWBUD_MAX, 'cas')
+    const healed: string[] = []
+    t.battle.timeline.bus.on('healed', ({ unit }) => healed.push(unit))
+    const before = hp(t, NW)
+    t.battle.party.takeDamage('a', 500, 'enemy')
+    t.battle.party.heal('b', 300, 'b')
+    expect(hp(t, NW)).toBeGreaterThan(before)
+    expect(healed).toEqual(['b'])
   })
 
   it('its HP running out (the backup bearing too much) makes it disappear and triggers Wings Sweep', () => {
@@ -488,17 +562,17 @@ describe('Cyrene\'s Ode to Life and Death', () => {
     expect(t.requests.some((r) => r.attacker.characterConditionals?.cyreneSpecialEffect === true)).toBe(true)
   })
 
-  it('2 enemies: 0.72% per 1%; Cyrene E3 uses 0.26% + 0.53%', () => {
+  it('2 enemies: 0.72% per 1%; Cyrene E3 uses the game data\'s 0.264% + 0.528% (Fribbels: 3 x 0.264%), not the text\'s rounded 0.26% + 0.53%', () => {
     expect(cyreneBounceRate(false, true)).toBeCloseTo(0.0072, 12)
-    expect(cyreneBounceRate(true, true)).toBeCloseTo(0.0079, 12)
-    expect(cyreneBounceRate(true, false)).toBeCloseTo(0.0026, 12)
+    expect(cyreneBounceRate(true, true)).toBeCloseTo(0.00792, 12)
+    expect(cyreneBounceRate(true, false)).toBeCloseTo(0.00264, 12)
     const t = setup(0, { cyrene: 3, enemies: 2 })
     fillNewbud(t, NEWBUD_MAX * 2)
     const overflow = (((t.q('newbud') as number) - NEWBUD_MAX) / NEWBUD_MAX) * 100
     use(t, 'cas', 'ultimate')
     t.battle.run()
     const sweep = t.dealt.filter((d) => d.ability === 'MEMO_TALENT' && d.enemy === t.battle.enemies.ids[0])[0]!
-    expect(sweep.damage).toBeCloseTo(3000 * (0.4 + overflow * 0.0079) * 3, 9)
+    expect(sweep.damage).toBeCloseTo(3000 * (0.4 + overflow * 0.00792) * 3, 9)
   })
 
   it('without Cyrene the cap is 100% and the switch is off', () => {

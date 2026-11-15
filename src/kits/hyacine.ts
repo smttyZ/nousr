@@ -37,11 +37,8 @@ import type { Kit, KitInstance, TeammateState } from './kit'
  * every `healed` event with her or Ica as source adds its amount (restored + overheal; IN-GAME CHECK), and the hit is asked with the live
  * tally. The kernel's hit has no ATK/HP/DEF multiple, so it is priced like this: `healTallyMultiplier` is 1, so the hit is the heal hit
  * `h` times the share `a` times everything that multiplies damage; the part's `scaling` is `a x tally / h`, which `Battle.attack` turns
- * into `tally x a x (all multipliers)` when the kernel reports `scaling: a` for the hit (see "Engine change needed").
- *
- * Engine change needed (not made here): `hitScaling` in `src/kernel/fribbels/fribbelsKernel.ts` must return `hit.healTallyScaling` for a
- * `DamageFunctionType.HealTally` hit. Until then `Battle.attack` stops with "has no ATK, HP or DEF multiple" at Ica's first Rainclouds;
- * `hyacine.integration.test.ts` wraps the kernel to add exactly that one value.
+ * into `tally x a x (all multipliers)`, because the kernel reports `scaling: a` for the hit (`hitScaling` in
+ * `src/kernel/fribbels/fribbelsKernel.ts` returns the hit's `healTallyScaling` for a `DamageFunctionType.HealTally` hit).
  *
  * Little Ica's talent heal and E1's heal have no Fribbels hit. They are priced as `(share x her Max HP + flat) x m`, where `m` is the
  * kernel's own multiplier for her heals in the same state (`SKILL_HEAL` hit / (its base heal)): Outgoing Healing, Giant Tree and the
@@ -52,10 +49,17 @@ import type { Kit, KitInstance, TeammateState } from './kit'
  * the field). The party's Max HP follows After Rain as a tracked delta per ally (the kernel's HP with the buff minus without it, read with
  * the switch off for the second number), Fu Xuan's way; Ica's is derived from hers by the same percentage and flat value on 50% of her base
  * HP. Tempestuous Halt's Max HP is read the same way for her. Halt itself (the 200 threshold, Outgoing Healing, E4 CRIT DMG) is Fribbels' own
- * (`spd200HpBuff`, `e4CdBuff` left on), on the kernel's in-combat SPD; the kit stops with an error when the timeline's SPD and the
- * kernel's fall on different sides of 200 at one of her heals, as Giant Tree of Rapt Brooding does.
+ * (`spd200HpBuff`, `e4CdBuff` left on), on the kernel's in-combat SPD. The kit stops with an error (`checkSpd`) when the timeline's SPD and
+ * the kernel's fall on different sides of 200, and from E4 (CRIT DMG +2% per SPD over 200, which shifts Ica's damage) also when the
+ * excess over 200 differs by more than 0.01 (both capped at 400, Fribbels' own cap). It runs before her heals, Take Sky in Hand's heals,
+ * E1's heal, her Basic ATK and Rainclouds. Fribbels floors the SPD it converts; the two SPDs are built from the same base and flat
+ * values, so they agree to float precision and the small tolerance is not hiding a real rounding difference.
  *
  * IN-GAME CHECK notes mark the readings Smitty will check in game:
+ * - Ultimate ordering: the Ultimate applies After Rain before `healAll`, so its heal is priced on the Rain-boosted Max HP (the text lists
+ *   the heal first). Not changed; Smitty will check in game which comes first.
+ * - Ica's Max HP can double count Rain when she is summoned during Rain (her 50% of the in-combat Max HP already has it, then `syncRain`
+ *   adds its own delta). Low severity: it only affects Take Sky in Hand's cost and the overheal split.
  * - The tally counts the whole healing value of each target (restored and overheal), per target, all the heals of both.
  * - One Talent stack per source per action (a stack per ability use or per Take Sky in Hand trigger batch), not per target.
  * - Take Sky in Hand: one consume-and-heal per ally that lost HP since the last check; checks are the start and end of every turn and after
@@ -101,6 +105,8 @@ const ICA_AGGRO = 4
 const DISAPPEAR_ADVANCE = 0.3
 const LOW_HP_SHARE = 0.5
 const SPD_THRESHOLD = 200
+const SPD_CAP = 400
+const SPD_TOLERANCE = 0.01
 const ICA_SKILL_HEAL_RATIO = 1.25
 const ICA_ULT_HEAL_RATIO = 1.2
 
@@ -204,7 +210,15 @@ export const Hyacine: Kit = {
     const checkSpd = () => {
       const live = timeline.spd(me)
       const priced = battle.combatStats(me).SPD
-      if (side(live) === side(priced)) return
+      const excess = (spd: number) => Math.max(0, Math.min(SPD_CAP, spd) - SPD_THRESHOLD)
+      if (side(live) === side(priced)) {
+        // E4's CRIT DMG (2% per SPD over 200) moves Ica's damage with the excess itself, not only with the side.
+        if (e < 4 || Math.abs(excess(live) - excess(priced)) <= SPD_TOLERANCE) return
+        throw new Error(
+          `Hyacine ${me}: the timeline has her at SPD ${live.toFixed(2)} and the kernel at ${priced.toFixed(2)}, which differ over 200 SPD by more ` +
+            `than ${SPD_TOLERANCE}, so E4's CRIT DMG (2% per SPD over 200) would be priced differently from the timeline's SPD. Make the two agree.`,
+        )
+      }
       throw new Error(
         `Hyacine ${me}: the timeline has her at SPD ${live.toFixed(2)} and the kernel at ${priced.toFixed(2)}, on different sides of the ` +
           `200 SPD threshold of Tempestuous Halt, so her Outgoing Healing would be priced with a bonus the timeline's SPD would not give ` +
@@ -317,6 +331,7 @@ export const Hyacine: Kit = {
 
     function icaTurn(): void {
       battle.performAction(ica, 'memo_skill', 'skill', () => {
+        checkSpd()
         const heal = battle.healAmount(me, 'MEMO_SKILL', 0)
         const amount = tally
         battle.attack({
@@ -411,6 +426,7 @@ export const Hyacine: Kit = {
           canUse: () => true,
           use: () =>
             battle.performAction(me, 'basic', 'basic', () => {
+              checkSpd()
               battle.gainSkillPoints(1)
               party.gainEnergy(me, BASIC_ENERGY)
               battle.attack({

@@ -3,7 +3,7 @@ import { Battle } from '../battle/battle'
 import type { MemberSetup } from '../battle/battle'
 import type { EngineEvents } from '../engine'
 import { loadEnemyProfile } from '../enemy/profile'
-import { fakeResult } from '../kernel/testing'
+import { ZERO_STATS, fakeResult } from '../kernel/testing'
 import type { CombatStats, DamageKernel, DamageRequest, HitResult } from '../kernel/types'
 import { Hyacine, hyacineScalings, icaId } from './hyacine'
 import type { Kit } from './kit'
@@ -15,16 +15,27 @@ const HP = 100_000
 const OHB = 0.1
 const HEAL_MULTIPLIER = 1 + OHB
 /** A fake kernel: Hyacine's in-combat Max HP and Outgoing Healing are fixed, her heal hits are the text's base heals times (1 + OHB), more with the 25% trace. */
-function kernelFor(eidolon: number, requests: DamageRequest[] = []): DamageKernel {
+interface Knobs {
+  /** Hyacine's in-combat SPD as the kernel reports it. */
+  spd: number
+  /** When on, the kernel adds After Rain's Max HP (30% + 600, +50% with E1's switch) to whoever has `clearSkies` on. */
+  rain: boolean
+}
+function kernelFor(eidolon: number, requests: DamageRequest[] = [], knobs: Knobs = { spd: 150, rain: false }): DamageKernel {
   const s = hyacineScalings(eidolon)
+  const rainBonus = (conditionals: Record<string, number | boolean> | undefined) =>
+    knobs.rain && conditionals?.clearSkies === true ? (s.rainHp.pct + (conditionals.e1HpBuff === true ? 0.5 : 0)) * HP + s.rainHp.flat : 0
   return {
     actionDamage: (request) => {
       requests.push(request)
-      if (request.attacker.characterId !== '1409') return fakeResult({ BASIC: [{ damage: 1000, scaling: 1 }] })
+      if (request.attacker.characterId !== '1409') {
+        const bonus = rainBonus(request.teammates.find((t) => t.characterId === '1409')?.characterConditionals)
+        return fakeResult({ BASIC: [{ damage: 1000, scaling: 1 }] }, { ...ZERO_STATS, HP: HP + bonus })
+      }
       const low = request.attacker.characterConditionals?.healTargetHp50 === true
       const mult = HEAL_MULTIPLIER + (low ? 0.25 : 0)
       const heal = (pct: number, flat: number): HitResult => ({ damage: (pct * HP + flat) * mult, output: 'HEAL' })
-      const stats: CombatStats = { ATK: 0, DEF: 0, HP, SPD: 150, CR: 0, CD: 0, EHR: 0, RES: 0, BE: 0, ERR: 0, OHB: OHB + (low ? 0.25 : 0) }
+      const stats: CombatStats = { ATK: 0, DEF: 0, HP: HP + rainBonus(request.attacker.characterConditionals), SPD: knobs.spd, CR: 0, CD: 0, EHR: 0, RES: 0, BE: 0, ERR: 0, OHB: OHB + (low ? 0.25 : 0) }
       return fakeResult(
         {
           BASIC: [{ damage: 1000 * s.basic, scaling: s.basic }],
@@ -69,7 +80,7 @@ const member = (key: string, kit: Kit, characterId: string, eidolon: number, bas
   kernel: { unit: { characterId, lightConeId: 'none', eidolon, superimposition: 1 }, build: noBuild },
 })
 
-function setup(eidolon = 0, requests: DamageRequest[] = []) {
+function setup(eidolon = 0, requests: DamageRequest[] = [], knobs: Knobs = { spd: 150, rain: false }) {
   const battle = new Battle({
     members: [member('hy', Hyacine, '1409', eidolon, 100), member('a', dummy, 'dummy', 0, 90), member('b', dummy, 'dummy', 0, 80)],
     policy: [{ unit: 'hy', use: 'basic', when: [] }, { unit: 'a', use: 'basic', when: [] }, { unit: 'b', use: 'basic', when: [] }],
@@ -78,7 +89,7 @@ function setup(eidolon = 0, requests: DamageRequest[] = []) {
     weaknesses: 'all',
     cycles: 3,
     start: { energy: 0, skillPoints: 5, techniques: false },
-    kernel: kernelFor(eidolon, requests),
+    kernel: kernelFor(eidolon, requests, knobs),
   })
   const healed: EngineEvents['healed'][] = []
   const dealt: EngineEvents['damageDealt'][] = []
@@ -89,7 +100,7 @@ function setup(eidolon = 0, requests: DamageRequest[] = []) {
   const act = battle.member('hy').instance.actions
   const q = (name: string) => battle.member('hy').instance.quantities![name]!()
   const ica = icaId('hy')
-  return { battle, healed, dealt, actions, act, q, ica, requests }
+  return { battle, healed, dealt, actions, act, q, ica, requests, knobs }
 }
 
 const damage = (battle: Battle, unit: string, amount: number) => battle.party.takeDamage(unit, amount, 'enemy1')
@@ -98,8 +109,10 @@ describe('Hyacine: Basic ATK and Skill', () => {
   it('Basic ATK: +20 energy, +1 Skill Point, 50% of her Max HP (55% from E3) priced as BASIC hit 0', () => {
     for (const [eidolon, scaling] of [[0, 0.5], [3, 0.55]] as const) {
       const { battle, dealt, act } = setup(eidolon)
+      battle.spendSkillPoints(2)
+      expect(battle.skillPoints).toBe(3)
       act.basic!.use()
-      expect(battle.skillPoints).toBe(6 > 5 ? 5 : 6)
+      expect(battle.skillPoints).toBe(4)
       expect(battle.party.get('hy').energy).toBeCloseTo(20, 9)
       expect(dealt[0]!.scaling).toBeCloseTo(scaling, 12)
     }
@@ -187,13 +200,18 @@ describe('Hyacine: Ultimate and After Rain', () => {
       act.ultimate!.use()
       const tally = q('tally') as number
       const energy = battle.party.get('hy').energy
+      let energyAtIca: number | undefined
+      battle.timeline.bus.on('actionUsed', (a) => {
+        if (a.actor === ica && energyAtIca === undefined) energyAtIca = battle.party.get('hy').energy
+      })
       const before = dealt.length
       battle.run()
       const first = dealt.slice(before).find((d) => d.ability === 'MEMO_SKILL')!
       expect(first.scaling).toBeCloseTo((s.memoSkill * tally) / 10_000, 9)
       // The fake hit is 10,000 x share per unit of its multiple 'share': damage = tally x share.
       expect(first.damage).toBeCloseTo(s.memoSkill * tally, 6)
-      expect(battle.party.get('hy').energy).toBeGreaterThan(energy)
+      // Nothing else gives her energy between the Ultimate and Ica's first turn: Rainclouds is exactly +5.
+      expect(energyAtIca! - energy).toBeCloseTo(5, 9)
       expect(s.tallyClear).toBe(eidolon >= 6 ? 0.12 : 0.5)
       expect(ica).toBeDefined()
     }
@@ -326,5 +344,176 @@ describe('Hyacine: E1, disappearance and the rest', () => {
     expect(Hyacine.abilityVersions).toEqual([0])
     expect(Hyacine.path).toBe('Remembrance')
     expect(Hyacine.maxEnergy).toBe(140)
+  })
+})
+
+const RAIN = 'hyacine.after_rain'
+
+describe('Hyacine: mutation-pinning checks', () => {
+  it('Gloomy Grin: an ally at exactly 50% or at 45% HP is low (the 25% is in its heal), one at 51% is not', () => {
+    const { battle, healed, act } = setup()
+    damage(battle, 'a', 50_000) // exactly 50%
+    damage(battle, 'b', 55_000) // 45%
+    damage(battle, 'hy', 49_000) // 51%
+    act.skill!.use()
+    const base = 0.08 * HP + 160
+    const amount = (unit: string) => healed.filter((h) => h.unit === unit).map((h) => h.amount + h.overheal)
+    expect(amount('a')).toEqual([expect.closeTo(base * (HEAL_MULTIPLIER + 0.25), 6)])
+    expect(amount('b')).toEqual([expect.closeTo(base * (HEAL_MULTIPLIER + 0.25), 6)])
+    expect(amount('hy')).toEqual([expect.closeTo(base * HEAL_MULTIPLIER, 6)])
+  })
+
+  it('After Rain counts down at the start of her turns: up for her first two actions and gone for the third', () => {
+    const { battle, act, q } = setup()
+    battle.party.setEnergy('hy', 140)
+    act.ultimate!.use()
+    expect(battle.timeline.modifiers.get('hy', RAIN)!.turnsLeft).toBe(3)
+    const left: number[] = []
+    const upAtAction: boolean[] = []
+    battle.timeline.bus.on('turnStart', (t) => {
+      if (t.unit === 'hy') left.push(battle.timeline.modifiers.get('hy', RAIN)?.turnsLeft ?? 0)
+    })
+    battle.timeline.bus.on('actionUsed', (a) => {
+      if (a.actor === 'hy') upAtAction.push(q('after_rain') as boolean)
+    })
+    battle.run()
+    // Read before the turn's countdown (the kit's listeners run first, the engine ticks after): 3, 2, 1 left, gone at the third action.
+    expect(left.slice(0, 3)).toEqual([3, 2, 1])
+    expect(upAtAction.slice(0, 3)).toEqual([true, true, false])
+  })
+
+  it('E2: the SPD buff lasts 2 turns', () => {
+    const { battle } = setup(2)
+    damage(battle, 'a', 100)
+    expect(battle.timeline.modifiers.get('a', 'hyacine.e2_spd')!.turnsLeft).toBe(2)
+  })
+
+  it("the tally includes Little Ica's Take Sky in Hand heals", () => {
+    const { battle, healed, act, ica, q } = setup()
+    act.skill!.use()
+    damage(battle, 'a', 70_000)
+    const before = q('tally') as number
+    healed.length = 0
+    battle.member('b').instance.actions.basic!.use()
+    const fromIca = healed.filter((h) => h.source === ica)
+    expect(fromIca).toHaveLength(1)
+    expect((q('tally') as number) - before).toBeCloseTo(fromIca[0]!.amount + fromIca[0]!.overheal, 6)
+  })
+
+  it("Ica's own HP cost is not a heal: one Take Sky heal for the ally and no `healed` event for Ica", () => {
+    const { battle, healed, act, ica } = setup()
+    act.skill!.use()
+    damage(battle, 'a', 1000)
+    healed.length = 0
+    battle.member('b').instance.actions.basic!.use()
+    expect(healed.filter((h) => h.source === ica)).toHaveLength(1)
+    expect(healed.filter((h) => h.unit === ica)).toHaveLength(0)
+    expect(healed).toHaveLength(1)
+  })
+
+  it('the SPD check stops her Skill, Basic ATK and Rainclouds when the timeline and the kernel are on different sides of 200', () => {
+    for (const [timelineExtra, kernelSpd] of [[0, 250], [110, 190]] as const) {
+      const skill = setup()
+      if (timelineExtra) skill.battle.timeline.modifiers.apply({ id: 't', target: 'hy', source: 'hy', spdFlat: timelineExtra })
+      skill.knobs.spd = kernelSpd
+      expect(() => skill.act.skill!.use()).toThrow(/different sides of the 200 SPD threshold/)
+
+      const basic = setup()
+      if (timelineExtra) basic.battle.timeline.modifiers.apply({ id: 't', target: 'hy', source: 'hy', spdFlat: timelineExtra })
+      basic.knobs.spd = kernelSpd
+      expect(() => basic.act.basic!.use()).toThrow(/different sides of the 200 SPD threshold/)
+    }
+    // Rainclouds: they agree while she heals, then disagree before Ica's turn.
+    const rain = setup()
+    rain.battle.party.setEnergy('hy', 140)
+    rain.act.ultimate!.use()
+    // (The kernel's answers are cached per request, so it is the timeline's SPD that moves.)
+    rain.battle.timeline.modifiers.apply({ id: 't', target: 'hy', source: 'hy', spdFlat: 110 })
+    expect(() => rain.battle.run()).toThrow(/different sides of the 200 SPD threshold/)
+    // It stops before Ica's damage is priced, not later at her own Basic ATK.
+    expect(rain.dealt.filter((d) => d.ability === 'MEMO_SKILL')).toHaveLength(0)
+    // Agreeing SPDs on the same side pass.
+    const ok = setup()
+    ok.knobs.spd = 180
+    ok.battle.timeline.modifiers.apply({ id: 't', target: 'hy', source: 'hy', spdFlat: 80 })
+    expect(() => ok.act.skill!.use()).not.toThrow()
+  })
+
+  it('from E4 the check also compares the SPD over 200 (CRIT DMG +2% per point), within 0.01, capped at 400', () => {
+    const run = (eidolon: number, timelineSpd: number, kernelSpd: number) => {
+      const { battle, knobs, act } = setup(eidolon)
+      battle.timeline.modifiers.apply({ id: 't', target: 'hy', source: 'hy', spdFlat: timelineSpd - 100 })
+      knobs.spd = kernelSpd
+      return () => act.basic!.use()
+    }
+    expect(run(4, 210, 220)).toThrow(/E4's CRIT DMG/)
+    expect(run(4, 210, 210.005)).not.toThrow()
+    expect(run(4, 450, 500)).not.toThrow() // both over the 400 cap
+    // Before E4 only the side counts.
+    expect(run(3, 210, 220)).not.toThrow()
+  })
+
+  it('E4 gives Fribbels its CRIT DMG switch from E4 on, not from E3; Halt itself stays on', () => {
+    for (const eidolon of [3, 4]) {
+      const requests: DamageRequest[] = []
+      const { act } = setup(eidolon, requests)
+      act.basic!.use()
+      const mine = requests.filter((r) => r.attacker.characterId === '1409').at(-1)!.attacker.characterConditionals
+      expect(mine).toMatchObject({ e4CdBuff: eidolon >= 4, spd200HpBuff: true })
+    }
+  })
+
+  it("E1: in After Rain the Max HP is 50% more (Ica's from hers), and Ica itself is healed after its attack", () => {
+    const { battle, healed, act, ica } = setup(1, [], { spd: 150, rain: true })
+    battle.party.setEnergy('hy', 140)
+    act.ultimate!.use()
+    // Rain 30% + 50% + 600 on every ally; Ica's is the same share on her half-HP base.
+    expect(battle.party.get('a').maxHp).toBeCloseTo(HP + 0.8 * HP + 600, 6)
+    expect(battle.party.get(ica).maxHp).toBeCloseTo(0.5 * HP + 0.5 * (0.8 * HP) + 600, 6)
+    healed.length = 0
+    battle.run()
+    // Ica is an ally (not only a character): her own Rainclouds is an attack and E1 heals her for 8% of Hyacine's Max HP.
+    expect(healed.find((h) => h.unit === ica && h.source === 'hy')).toBeDefined()
+  })
+
+  it('Take Sky in Hand heals are checked at the start and at the end of a turn, not only after actions', () => {
+    const start = setup()
+    start.act.skill!.use()
+    damage(start.battle, 'a', 1000)
+    start.healed.length = 0
+    let atFirstStart: number | undefined
+    start.battle.timeline.bus.on('turnStart', () => {
+      atFirstStart ??= start.healed.filter((h) => h.source === start.ica).length
+    })
+    start.battle.run()
+    expect(atFirstStart).toBe(1)
+
+    const end = setup()
+    end.act.skill!.use()
+    const toA = () => end.healed.filter((h) => h.source === end.ica && h.unit === 'a').length
+    let baseline: number | undefined
+    let gained: number | undefined
+    // Registered after the kit's listeners: the HP is lost once the kit's own check after the action is over, so only the turn's end can heal it.
+    end.battle.timeline.bus.on('actionUsed', () => {
+      if (baseline !== undefined) return
+      baseline = toA()
+      damage(end.battle, 'a', 1000)
+    })
+    end.battle.timeline.bus.on('turnEnd', () => {
+      if (baseline !== undefined) gained ??= toA() - baseline
+    })
+    end.battle.run()
+    expect(gained).toBe(1)
+  })
+
+  it('the first summon gives +45 energy, a later one only +15', () => {
+    const { battle, act, ica } = setup()
+    act.skill!.use()
+    expect(battle.party.get('hy').energy).toBeCloseTo(30 + 15 + 30, 9)
+    battle.removeMemosprite(ica, 'hp')
+    const energy = battle.party.get('hy').energy
+    act.skill!.use()
+    expect(battle.isMemosprite(ica)).toBe(true)
+    expect(battle.party.get('hy').energy).toBeCloseTo(energy + 30 + 15, 9)
   })
 })

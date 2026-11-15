@@ -11,6 +11,10 @@ export type WarningCode =
   | 'undecided-tie'
   /** A standard build ends below its SPD target (K14e, K14f). */
   | 'spd-target-missed'
+  /** A kit option's placeholder default decided a choice (K26; e.g. Cyrene's Demiurge order when the scenario gives none). */
+  | 'kit-option-default-used'
+  /** A battle reached a choice turn past the end of a kit option's list (K26; e.g. `demiurge_order`). */
+  | 'kit-option-list-exhausted'
 
 export interface RunWarning {
   /** `'warning'`: the numbers may be off or a choice is undecided. `'info'`: for the reader only. */

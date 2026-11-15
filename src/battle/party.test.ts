@@ -160,6 +160,15 @@ describe('healing', () => {
     expect(party.get('a').hp).toBe(4000)
     expect(log).toEqual(['healed a 500 overheal 300'])
   })
+
+  it('gainHp raises HP up to max HP without a healed event', () => {
+    const { party, log } = setup()
+    party.add({ ...member('a', 0), hp: 3500 })
+    expect(party.gainHp('a', 800)).toBe(500)
+    expect(party.get('a').hp).toBe(4000)
+    expect(party.gainHp('a', 100)).toBe(0)
+    expect(log).toEqual([])
+  })
 })
 
 describe('energy', () => {

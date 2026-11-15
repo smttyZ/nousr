@@ -204,6 +204,7 @@ Consequence of S6 to keep in mind: effects that trigger on a kill, overkill, and
 | Sunday | E6: does a new Talent stack renew all stacks' duration? | Yes |
 | Sunday | Does his Skill advance the target's memosprites ("their summon"), and cover a memosprite summoned after the Skill or Ultimate? | Yes and yes |
 | Sunday | His Ultimate on himself: does it consume the Technique buff or give the E6 Talent stack? | Neither (not modelled) |
+| Cyrene | Her Ultimate "activates all teammates' Ultimate": what does it do? | **Settled by Smitty 2026-11-15: it fills every teammate's energy to full** (hovering a teammate shows full energy); the team policy then casts their Ultimates as usual. Guides only repeat the line ([Prydwen](https://www.prydwen.gg/star-rail/characters/cyrene)) |
 | Past and Future | "The next ally taking action": a character's turn start (not a summon such as Lightning-Lord, not a memosprite, not an Ultimate in the window)? Fribbels sends it to the memosprite for owners like Castorice | A character's turn start; summons and memosprites never get it |
 
 
@@ -380,6 +381,9 @@ Affinitive Eidolon. This is the text kits are transcribed from. Game text is not
 | K22 | Random-target debuffs (2026-11-14) | A debuff from a random-target hit is present on each enemy with the chance it landed there (expected value), not on every enemy the hit could reach. Debuff counts become expected values; thresholds on them use K21's scaled form; "once per action" triggers use the chance. Silver Wolf's random Bug is each of ATK, DEF and SPD at 1/3. Affects Silver Wolf, Welt's Skill slow, Along the Passing Shore on bounces, and every debuff consumer (Acheron's talent, Pioneer Diver, Good Night and Sleep Well, Silver Wolf E1/E4/E6) |
 | K23 | Extra hits for teammates (2026-11-14) | A damage request can carry extra Additional DMG hits. A kit hands one to a teammate through its teammate state, and it is priced in that teammate's own request (the teammate's ATK, crits, element and buffs). First use: Dan Heng • Permansor Terrae's Bondmate Additional DMG (enhanced Souldragon, Sublimity, E6), which Fribbels does not price. Built 2026-11-14: Fribbels builds all hits in one pass inside `generateContext`, so the adapter adds the extra hit through Fribbels' own per-character `actionModifiers` hook (the extension point its Hidden Shadow light cone uses), for one synchronous call, restored afterwards, and reports it as ability `EXTRA`. Priced exactly as Fribbels' own Additional hits (tested against Pela with Hidden Shadow and Tribbie's Zone) |
 | K24 | Break effects are debuffs (2026-11-14) | Each break effect NouSR models (Entanglement and Imprisonment delays, Imprisonment's slow, Freeze) counts as a debuff while it lasts, and one shared Imprisoned state serves both a break and Welt. Damage over time stays out (K7b) |
+| K25 | Netherwing burn or hold (2026-11-15) | Both are modelled and the user picks per scenario: burn (Breath into the finisher on Netherwing's first turn, what the game's auto-battle does, the default) or hold (Breath only above 25% HP until a chosen turn 2 or 3, Claw Splits the Veil on held turns with no HP above 25%, finish on that turn). Built as Castorice's `finishOnTurn`, set from a scenario with `kit_options.netherwing_finish_turn` (K27). Purpose: the experiment under "Planned experiments" |
+| K26 | Demiurge's order (2026-11-15) | Demiurge's choice turns follow a user-set order (an ally key per Ode, or attack), as part of the rotation, e.g. Hyacine, Castorice, Robin, Cyrene. Every option like this has a finite, schema-declared domain so the optimizer can search it. Scenario field `kit_options.demiurge_order` / `after_order` (K27); the order's default is a placeholder that raises `kit-option-default-used`, to be replaced by a priority derived from runs before anyone outside the private beta relies on it; running past the list raises `kit-option-list-exhausted` |
+| K27 | Kit options (2026-11-15) | A scenario member may carry `kit_options`, checked against `schema/kit-options/<character id>.schema.json` (`src/scenario/kitOptions.ts`). Every option has a finite domain and a default, enforced by a test, so an optimizer enumerates any kit's options from its schema; values naming members are checked against the team (`x-nousr-domain`). Kits take them through `RegisteredKit.configure`; the run result echoes the options used and which were defaulted. Parallel search needs nothing more; branching on shared prefixes later needs kit state that can be snapshotted (kit state lives in closures today). Proposal: `docs/proposals/scenario-kit-options.md` |
 | K11 | Multi-hit pricing (2026-11-13) | The kernel returns damage per hit, not one number per ability, and a kit says which hit each attack part is. One reference multiple per ability gave every hit a blended rate wherever hits get different buffs (Tribbie's E6 follow-up came out at 0.689 of the correct total on 3 enemies) |
 
 K4, K6 and K7 were agreed before the prior-work check on them had come back; anything in srsim, hsr-simulator or
@@ -450,20 +454,42 @@ Branch `castorice-team` (not pushed). `main` has everything through PR #3 (Jing 
 - **Written and tested on this branch, not yet reviewed or registered:** **Hyacine** (+ The Story's Next Page) and
   **Castorice** (+ Make Farewells More Beautiful). **Cyrene** has not been started (the plumbing for her ally effects
   exists: `battle.cyreneEffect`).
-- **Open design question for Smitty (Castorice):** Netherwing's Breath loop. The text gives no stopping rule;
-  implemented as "launch Breath repeatedly in one turn until Netherwing's HP is 25% or less, then one Wings Sweep and
-  it disappears" (4 Breaths from full HP, 6 with two Ardent Will), which matches Fribbels' combo. Alternative: one
-  Breath per turn over up to 3 turns (`makeCastorice({ maxBreathsPerTurn: 1 })` exists for that).
-- **Castorice notes for review:** max Newbud is Fribbels' 34,000 (the text gives no formula); her E1 follows the text's
-  enemy-HP bands (120% below 80%, 140% below 50%) rather than Fribbels' flat bonus; Netherwing's HP gain from allies'
-  HP loss goes through `Party.heal` and so emits `healed` events (an engine hook to raise HP silently is needed);
-  Claw Splits the Veil and E4's healing-received bonus are not modelled.
-- **Next:** review Castorice and Hyacine (one Sonnet reviewer each), write Cyrene, register all three with their light
-  cones, update `src/run/run.test.ts`'s kit list (it uses 1407 as the "no kit yet" example: pick an unkitted id such
-  as 1401), then one PR. After that: The Herta and Anaxa, then the period module (step 7) and the results report (K8).
+- **Reviewed 2026-11-15** (one Sonnet reviewer each): no wrong numbers in either kit. Fixed: Castorice's Cyrene bounce
+  rate used the text's rounded 0.26% / 0.53% (game data 0.264% / 0.528%); Netherwing's HP gain is now `Party.gainHp` (no
+  `healed` event, so Robin no longer gets Vibes from it). Netherwing's Breath: both modes built (K25), the old
+  `maxBreathsPerTurn` option is gone. Hyacine's fixes and missing tests were delegated; her Technique (skipped today) waits on
+  Smitty: heal into the tally only, heal plus the +20% Max HP, or leave out.
+- **Castorice notes:** max Newbud is Fribbels' 34,000 (the text gives no formula); her E1 follows the text's enemy-HP bands
+  (120% below 80%, 140% below 50%) rather than Fribbels' flat bonus; E4's healing-received bonus for other healers is not
+  modelled. Small open: `removeMemosprite` drops the memosprite's owner before `memospriteRemoved`, so the HP-out Wings
+  Sweep's `actionUsed` has no `owner`.
+- **New in-game checks from the reviews:** Hyacine's Ultimate heal on Max HP before or after After Rain; After Rain covering 2
+  or 3 actions after an out-of-turn Ultimate; whether her Technique heal on full-HP allies counts in Little Ica's tally; Take Sky in
+  Hand in After Rain (two heals? Ica healing herself?); Contained Dark Tide counting overheal or only restored HP.
+- **Registered 2026-11-15:** Castorice and Hyacine, with Make Farewells More Beautiful and The Story's Next Page. Kit options
+  (K27) are built; Castorice's runs end to end through the real kernel (a scratch 3-member run, Castorice / Hyacine / Tribbie on
+  standard builds, finish turns 1 to 3 at 1, 3 and 5 enemies). That run is a wiring check, not the K25 experiment: no Cyrene,
+  a placeholder policy, and Robin Summeretto and Sunday could not join (their standard builds' World-Remaking Deliverer and
+  Sacerdos' 4-piece effects are refused for now).
+- **Next:** write Cyrene with Demiurge's order as her kit option (schema already at `schema/kit-options/1415.schema.json`),
+  register her, then one PR. After that: The Herta and Anaxa, then the period module (step 7) and the results report (K8).
 - **How waves run:** one branch per wave; Sonnet agents (medium effort) write each kit in its own files, never
   touching battle.ts or the registries; a separate Sonnet reviewer checks each kit against the text and Fribbels,
   with mutation tests; the orchestrator verifies, registers, commits, opens a PR; CI runs on the PR; Auto-fix on.
+
+## Planned experiments
+
+Questions the simulator exists to answer, recorded so they are run once the pieces exist.
+
+- **Is burning Netherwing a mistake?** (Smitty, 2026-11-15.) The game's auto-battle launches Breath into the finisher on Netherwing's
+  first turn, as Fribbels' combo does. Holding above 25% HP until turn 2 or 3 trades West Wind stacks (reset each turn) and an
+  earlier Wings Sweep for refilled HP paying for more Breaths and a longer Territory (-20% All-Type RES on every enemy) and backup.
+  Method: one scenario, the Castorice team three times, differing only in `netherwing_finish_turn` (1, 2, 3), at 1, 3 and 5 enemies,
+  E0 and Smitty's own eidolons. Read: total and per-cycle damage, Breaths launched, Territory uptime in action value, downed allies.
+  Needs: Cyrene registered, the kit-options scenario field (K25), the results report (K8). Rerun once in-game checks on Contained Dark
+  Tide (restored HP vs overheal) and the Breath stopping rule come back.
+- **Best Demiurge order** for the Castorice team (K26). Every order of Odes over the team's members (plus attack), searched
+  exhaustively by the optimizer once it exists; until then, a few hand-written orders as teams in one scenario. Read the same as above.
 
 ## Roadmap
 

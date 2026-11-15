@@ -181,8 +181,11 @@ Consequence of S6 to keep in mind: effects that trigger on a kill, overkill, and
 | Memosprites | Do memosprite actions count for "after a teammate attacks" (Acheron's Affinitive Eidolon) and for equipment that reacts to the wearer's attacks (Ashblazing, Eternal Calculus, Dance! Dance! Dance!, Scholar)? | Acheron: yes; equipment: no (they check the wearer as actor) |
 | Fu Xuan | Is the redirected 65% taken before or after the ally's damage reductions, and does Fu Xuan's own Misfortune Avoidance reduce it? | After the ally's reductions; hers do not apply |
 | Fu Xuan | Does her redirection cover memosprites ("teammates")? | Yes |
-| Fu Xuan | Knowledge's HP buff (6% of her Max HP): her Max HP before or after her own Knowledge? Fribbels' input is labelled "Fu Xuan's Combat HP" | Before |
+| Fu Xuan | Knowledge's HP buff (6% of her Max HP): her Max HP before or after her own Knowledge? | **Settled by Smitty 2026-11-15: before** (her out-of-combat Max HP 9,420 x 6% = 565.2; an ally showed +565 in battle; after would be about 599) |
 | Fu Xuan | E4 energy: scaled by Energy Regeneration Rate? | Yes |
+| Fu Xuan | Does her HP Restore (a share of missing HP) get Outgoing Healing Boost? Fribbels has no hit for it, so NouSR applies none | No |
+| Giant Tree | Its SPD thresholds read in-battle SPD (Fribbels' in-combat SPD)? NouSR stops the run if the timeline's SPD and Fribbels' SPD fall on different sides of 135 or 180 | In-battle |
+| Cyrene x Tribbie | Ode to Passage's extra Zone instance: on her Follow-Up ATK only (the text), or on Basic ATK, Ultimate and ally-triggered hits too (Fribbels)? | Follow-Up only |
 | Robin Summeretto | During Fever she takes no turns: is her action gauge frozen (kept as it was), and do advances or delays she receives meanwhile still apply? | Frozen; they apply to the frozen gauge |
 | Robin Summeretto | Do the Songbirds and the countdown enter Fever with a full gauge? | Yes |
 | Robin Summeretto | "Ally target" for Vibes: every character including Robin, and every memosprite including the Songbirds; summon actions count as their owner's? | Yes |
@@ -437,6 +440,23 @@ Following hsr-simulator: one HP-loss pipeline. Every point of HP lost by an ally
 (up to the cap), healing also charges Newbud (12% per target per action cap), technique HP costs use the same
 pipeline, and an `on_hp_loss` event lets other effects react. Enemy targeting is split fractionally by aggro
 (character + memosprite aggro; Taunt forces the target).
+
+## Where things stand (2026-11-15)
+
+Branch `castorice-team` (not pushed). `main` has everything through PR #3 (Jing Yuan's team).
+
+- **Kits registered and reviewed:** Acheron, Tribbie, Jing Yuan, Silver Wolf, Welt, Dan Heng • PT, Sunday, Fu Xuan,
+  Robin • Summeretto. **Hyacine** is written and tested on this branch but not yet reviewed or registered.
+- **In progress when this was written:** the **Castorice** kit and Make Farewells More Beautiful
+  (`src/kits/castorice*.ts`, `src/kernel/fribbels/castorice.integration.test.ts`,
+  `src/equipment/makeFarewellsMoreBeautiful*.ts`), left uncommitted; its integration tests were still failing
+  mid-work. **Cyrene** has not been started (the plumbing for her ally effects exists: `battle.cyreneEffect`).
+- **Next:** finish Castorice, review Castorice and Hyacine (one Sonnet reviewer each), write Cyrene, register all
+  three with their light cones, update `src/run/run.test.ts`'s kit list (it uses 1407 as the "no kit yet" example),
+  then one PR. After that: The Herta and Anaxa, then the period module (step 7) and the results report (K8).
+- **How waves run:** one branch per wave; Sonnet agents (medium effort) write each kit in its own files, never
+  touching battle.ts or the registries; a separate Sonnet reviewer checks each kit against the text and Fribbels,
+  with mutation tests; the orchestrator verifies, registers, commits, opens a PR; CI runs on the PR; Auto-fix on.
 
 ## Roadmap
 

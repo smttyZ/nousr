@@ -66,11 +66,20 @@ import type { Kit, KitInstance, TeammateState } from './kit'
  *   scenario does not have, so the battle starts with no Bondmate and the first Skill sets it (it costs the Skill
  *   Point and the energy the Technique would have saved, and the Souldragon starts a Skill later). The Technique's
  *   Dazed enemies do not attack is not modelled either (enemies here are not dazed by anything).
- * - Cyrene's effect on the Bondmate (Fribbels' `cyreneSpecialEffect`): passed as off until a Cyrene kit exists.
+ * - Cyrene's "Ode to Earth" beyond its DMG boost (see "Cyrene" below).
  * - The Bondmate being himself: the Skill stops with an error. His own Empyreanity, E1 and E6 buffs would need to come
  *   through his own attacker state, not the teammate path the kernel has.
  * - Dispelling a debuff: nothing here puts a debuff on an ally.
  * - Shield Effect bonuses on the wearer (Self-Enshrouded Recluse), which the kernel's stats do not carry.
+ *
+ * Cyrene's "Ode to Earth" (`node tools/gamedata/kit-text.mjs 1415`, the skill for teammate Dan Heng PT, Lv6 / Lv7 at Cyrene E3): while
+ * `Battle.cyreneEffect` is active for him, "the Bondmate deals 24% (26.4%) increased DMG". That is Fribbels' (`PermansorTerrae.ts` ~320-323,
+ * the teammate's `cyreneSpecialEffect`: a DMG boost on the attacker): `teammateState` passes the effect's `active` for the Bondmate's
+ * attacks only (Fribbels applies it to whichever attacker it prices; the text gives it to the Bondmate), and Fribbels reads 24% or 26.4%
+ * from Cyrene's eidolon. The rest of the skill is NOT MODELLED: the next 3 Souldragon attacks' Additional DMG of "80% (88%) of the
+ * Bondmate's Shield Effect" (Fribbels has no number for it, and "the Bondmate's Shield Effect" has no reading in this kit that is not a
+ * guess: his shield amounts, or a stat of the Bondmate's, AMBIGUOUS, ask Smitty), and the one-time advance of the Souldragon with an
+ * enhanced action at 150% shield when the skill is used on him.
  *
  * IN-GAME CHECK notes mark the readings Smitty will check in game.
  */
@@ -381,8 +390,8 @@ export const DanHengPT: Kit = {
           characterConditionals: {
             bondmate: isBondmate,
             sourceAtk: isBondmate ? sourceAtk : 0,
-            // NOT MODELLED until a Cyrene kit exists (see the header).
-            cyreneSpecialEffect: false,
+            // Cyrene's "Ode to Earth" on him (Battle.cyreneEffect, off by default): the Bondmate's DMG boost (see the header).
+            cyreneSpecialEffect: isBondmate && battle.cyreneEffect(me).active,
             e1ResPen: isBondmate && timeline.modifiers.has(attacker.key, E1_MODIFIER),
             e4DmgReduction: isBondmate,
             e6Buffs: isBondmate && e6,

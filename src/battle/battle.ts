@@ -57,6 +57,17 @@ export function expectedCapped(distribution: readonly number[], cap: number): nu
 /** More uncertain modifiers than this around one enemy make the debuff states too many to enumerate (2^n). */
 export const MAX_UNCERTAIN_MODIFIERS = 14
 
+/** Fribbels' id for Cyrene: its `cyreneActionExists` looks for this character in the request's team. */
+export const CYRENE_KERNEL_ID = '1415'
+
+/** Cyrene's ally-specific memosprite-skill effect on one ally (`Battle.cyreneEffect`). */
+export interface CyreneEffect {
+  /** Fribbels' `cyreneSpecialEffect` switch for the ally. */
+  active: boolean
+  /** Cyrene is E3 or above: the skill's Lv+1 values (Fribbels' `cyreneSpecialEffectEidolonUpgraded`). */
+  upgraded: boolean
+}
+
 const worldKey = (modifier: Modifier): string => `${modifier.target}\u0000${modifier.id}`
 
 export interface MemberSetup {
@@ -333,6 +344,8 @@ export class Battle {
   private readonly downed: string[] = []
   private readonly tieRecords = new Map<string, TieRecord>()
   private readonly summonMap = new Map<UnitId, SummonSpec>()
+  /** Cyrene's effect per ally (`cyreneEffect`, `setCyreneEffect`). */
+  private readonly cyreneEffects = new Map<string, { active: boolean, source: string }>()
   private readonly memospriteMap = new Map<UnitId, MemospriteSpec>()
   /** True while `kernelResult` is collecting the kits' and modules' state: the kernel must not be asked from there. */
   private collectingState = false
@@ -577,6 +590,65 @@ export class Battle {
     const index = this.collectExtraHits(this.member(attacker), enemy).findIndex((hit) => hit.id === id)
     if (index < 0) throw new Error(`No extra hit "${id}" for ${attacker}: no teammate's teammateState gives it in the current state`)
     return index
+  }
+
+  /**
+   * What one heal hit of `healer`'s heals for, as the kernel prices it now: the amount for ONE target, with the healer's
+   * live stats (Max HP, ATK, DEF), Outgoing Healing Boost (relics, light cones, set effects, buffs) and heal boosts
+   * in it. `ability` and `hit` name the kernel's heal hit the way `attack` names a damage hit: Fribbels' ability kinds
+   * ('SKILL_HEAL', 'ULT_HEAL', 'TALENT_HEAL', ...) and the hit's position in that ability's list. The kit applies the amount
+   * itself, to whoever the text says, with `party.heal(target, amount, source)`.
+   *
+   * A heal hit has no ATK/HP/DEF multiple in the result (`HitResult.scaling` is undefined for it, K11), so it is never priced per
+   * 100%; the hit's `damage` field IS the healed amount (`HitResult.output === 'HEAL'`). Stops with an error when the named hit is
+   * not a heal hit, so a damage hit is never read as a heal.
+   *
+   * Same recursion rule as `combatStats`: call it from actions and listeners, never from `attackerState` or `teammateState`.
+   */
+  healAmount(healer: string, ability: string, hit = 0, enemy: UnitId = this.primary): number {
+    const member = this.member(healer)
+    const hits = this.abilityHits(member, ability, enemy)
+    const found = hits[hit]
+    if (found === undefined) {
+      throw new Error(`${healer}'s ${ability} has no hit ${hit} in the kernel's answer (it has ${hits.length}); a heal is read with Battle.healAmount(healer, ability, hit)`)
+    }
+    if (found.output !== 'HEAL') {
+      throw new Error(`${healer}'s ${ability} hit ${hit} is not a heal hit in the kernel's answer (output: ${found.output ?? 'damage'}), so Battle.healAmount cannot read it`)
+    }
+    return found.damage
+  }
+
+  // ---------------------------------------------------------------- Cyrene's ally-specific effects
+
+  /**
+   * What Cyrene's memosprite skill "This Ode, to All Lives" family has done to `ally`, for the ally's kit to read (default: off).
+   * Fribbels keeps each ally-specific effect inside that ally's own conditionals behind a switch named `cyreneSpecialEffect`, and
+   * a second fact, whether Cyrene is at E3 or above (`upgraded`: the skill's Lv+1 values), which it reads from Cyrene's own request
+   * entry. A kit that has such an effect passes `active` as that switch (`attackerState` or `teammateState`, whichever Fribbels
+   * reads it in) and applies the effect's attack multiplier itself where Fribbels does not price it. `upgraded` is for the values a kit
+   * supplies itself (Fribbels' own switch already picks its numbers from Cyrene's eidolon).
+   *
+   * Reads only the battle's own state, so it is safe to call from `attackerState` and `teammateState`.
+   */
+  cyreneEffect(ally: string): CyreneEffect {
+    const entry = this.cyreneEffects.get(ally)
+    if (entry === undefined || !entry.active) return { active: false, upgraded: false }
+    return { active: true, upgraded: this.member(entry.source).eidolon >= 3 }
+  }
+
+  /**
+   * Turns Cyrene's effect on `ally` on or off. For a Cyrene kit (`source` is her member key). Fribbels' effects only
+   * exist while a Cyrene is in the request's team (`cyreneActionExists`), so `source` must be a member whose kernel character is
+   * Cyrene (1415) and the ally another member: anything else would switch the effect on in the kit while Fribbels leaves it out.
+   */
+  setCyreneEffect(ally: string, active: boolean, source: string): void {
+    const cyrene = this.member(source)
+    if (cyrene.kernel.unit.characterId !== CYRENE_KERNEL_ID) {
+      throw new Error(`setCyreneEffect: ${source} is not Cyrene (kernel character ${cyrene.kernel.unit.characterId}, expected ${CYRENE_KERNEL_ID}), and Fribbels only has the effect for a Cyrene in the team`)
+    }
+    if (ally === source) throw new Error(`setCyreneEffect: Cyrene's effect is on a teammate, not on ${source} itself`)
+    this.member(ally)
+    this.cyreneEffects.set(ally, { active, source })
   }
 
   /**
@@ -1421,7 +1493,8 @@ function mixResults(parts: ReadonlyArray<readonly [DamageResult, number]>): Dama
     hits[ability] = Array.from({ length }, (_, i) => {
       const d = mean((r) => r.hits[ability]?.[i]?.damage)!
       const scaling = mean((r) => r.hits[ability]?.[i]?.scaling)
-      return scaling === undefined ? { damage: d } : { damage: d, scaling }
+      const output = parts.map(([r]) => r.hits[ability]?.[i]?.output).find((o) => o !== undefined)
+      return { damage: d, ...(output !== undefined && { output }), ...(scaling !== undefined && { scaling }) }
     })
   }
   const stats = { ...parts[0]![0].stats }

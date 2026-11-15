@@ -25,7 +25,7 @@ import { generateFullDefaultForm } from '../../../vendor/hsr-optimizer/src/lib/s
 import { getGameMetadata } from '../../../vendor/hsr-optimizer/src/lib/state/gameMetadata'
 import { Metadata } from '../../../vendor/hsr-optimizer/src/lib/state/metadataInitializer'
 import type { CharacterId } from '../../../vendor/hsr-optimizer/src/types/character'
-import type { Hit } from '../../../vendor/hsr-optimizer/src/types/hitConditionalTypes'
+import type { HealTallyHit, Hit } from '../../../vendor/hsr-optimizer/src/types/hitConditionalTypes'
 import type { Form, Teammate } from '../../../vendor/hsr-optimizer/src/types/form'
 import type { LightConeId } from '../../../vendor/hsr-optimizer/src/types/lightCone'
 import type {
@@ -176,7 +176,8 @@ export class FribbelsKernel implements ScenarioKernel {
         // An extra hit rides on a host action of Fribbels' (see `extraHitModifier`) and is reported as ability EXTRA below.
         if (extraHitObjects.has(hit)) continue
         const scaling = hitScaling(hit)
-        list.push({ damage: x.getHitRegisterValue(hit.registerIndex), ...(scaling !== undefined && { scaling }) })
+        const output = hitOutput(hit)
+        list.push({ damage: x.getHitRegisterValue(hit.registerIndex), ...(output !== undefined && { output }), ...(scaling !== undefined && { scaling }) })
       }
     }
     if (extra.hits.length > 0) {
@@ -187,6 +188,24 @@ export class FribbelsKernel implements ScenarioKernel {
       damage[EXTRA_ABILITY] = hits[EXTRA_ABILITY].reduce((sum, hit) => sum + hit.damage, 0)
     }
     return { damage, hits, stats }
+  }
+}
+
+/**
+ * What a hit produces when it is not damage: Fribbels' `OutputTag` of the hit, as `HitResult.output`. A heal hit's register
+ * holds the healed amount (`HealDamageFunction`, damageCalculator.ts:597-620: base heal x (1 + Outgoing Healing Boost) x
+ * (1 + heal boost)), which is what `Battle.healAmount` reads.
+ */
+function hitOutput(hit: Hit): HitResult['output'] {
+  switch (hit.outputTag) {
+    case OutputTag.HEAL:
+      return 'HEAL'
+    case OutputTag.SHIELD:
+      return 'SHIELD'
+    case OutputTag.BUFF:
+      return 'BUFF'
+    default:
+      return undefined
   }
 }
 
@@ -203,6 +222,11 @@ function hitScaling(hit: Hit): number | undefined {
     if (hit.beScaling != null || hit.elationAtkScaling != null) return undefined
   } else if (hit.damageFunctionType === DamageFunctionType.Additional) {
     tick = hit.tickCoefficient ?? 1
+  } else if (hit.damageFunctionType === DamageFunctionType.HealTally) {
+    // Damage = a referenced heal hit's value x healTallyScaling x the damage multipliers (Fribbels'
+    // HealTallyDamageFunction, damageCalculator.ts ~725-745). Its multiple is healTallyScaling, so damage per
+    // unit is the referenced heal value with this hit's multipliers (Hyacine's Little Ica, Rainclouds).
+    return (hit as HealTallyHit).healTallyScaling
   } else {
     return undefined
   }

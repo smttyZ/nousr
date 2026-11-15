@@ -443,17 +443,24 @@ pipeline, and an `on_hp_loss` event lets other effects react. Enemy targeting is
 
 ## Where things stand (2026-11-15)
 
-Branch `castorice-team` (not pushed). `main` has everything through PR #3 (Jing Yuan's team).
+Branch `castorice-team` (not pushed). `main` has everything through PR #3 (Jing Yuan's team). All 1,496 tests pass.
 
 - **Kits registered and reviewed:** Acheron, Tribbie, Jing Yuan, Silver Wolf, Welt, Dan Heng • PT, Sunday, Fu Xuan,
-  Robin • Summeretto. **Hyacine** is written and tested on this branch but not yet reviewed or registered.
-- **In progress when this was written:** the **Castorice** kit and Make Farewells More Beautiful
-  (`src/kits/castorice*.ts`, `src/kernel/fribbels/castorice.integration.test.ts`,
-  `src/equipment/makeFarewellsMoreBeautiful*.ts`), left uncommitted; its integration tests were still failing
-  mid-work. **Cyrene** has not been started (the plumbing for her ally effects exists: `battle.cyreneEffect`).
-- **Next:** finish Castorice, review Castorice and Hyacine (one Sonnet reviewer each), write Cyrene, register all
-  three with their light cones, update `src/run/run.test.ts`'s kit list (it uses 1407 as the "no kit yet" example),
-  then one PR. After that: The Herta and Anaxa, then the period module (step 7) and the results report (K8).
+  Robin • Summeretto.
+- **Written and tested on this branch, not yet reviewed or registered:** **Hyacine** (+ The Story's Next Page) and
+  **Castorice** (+ Make Farewells More Beautiful). **Cyrene** has not been started (the plumbing for her ally effects
+  exists: `battle.cyreneEffect`).
+- **Open design question for Smitty (Castorice):** Netherwing's Breath loop. The text gives no stopping rule;
+  implemented as "launch Breath repeatedly in one turn until Netherwing's HP is 25% or less, then one Wings Sweep and
+  it disappears" (4 Breaths from full HP, 6 with two Ardent Will), which matches Fribbels' combo. Alternative: one
+  Breath per turn over up to 3 turns (`makeCastorice({ maxBreathsPerTurn: 1 })` exists for that).
+- **Castorice notes for review:** max Newbud is Fribbels' 34,000 (the text gives no formula); her E1 follows the text's
+  enemy-HP bands (120% below 80%, 140% below 50%) rather than Fribbels' flat bonus; Netherwing's HP gain from allies'
+  HP loss goes through `Party.heal` and so emits `healed` events (an engine hook to raise HP silently is needed);
+  Claw Splits the Veil and E4's healing-received bonus are not modelled.
+- **Next:** review Castorice and Hyacine (one Sonnet reviewer each), write Cyrene, register all three with their light
+  cones, update `src/run/run.test.ts`'s kit list (it uses 1407 as the "no kit yet" example: pick an unkitted id such
+  as 1401), then one PR. After that: The Herta and Anaxa, then the period module (step 7) and the results report (K8).
 - **How waves run:** one branch per wave; Sonnet agents (medium effort) write each kit in its own files, never
   touching battle.ts or the registries; a separate Sonnet reviewer checks each kit against the text and Fribbels,
   with mutation tests; the orchestrator verifies, registers, commits, opens a PR; CI runs on the PR; Auto-fix on.

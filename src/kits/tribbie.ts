@@ -34,8 +34,8 @@ import type { Kit, KitInstance } from './kit'
  * NOT MODELLED:
  * - Cyrene's effect on the Zone's Additional DMG. `cyreneSpecialEffect` is passed as off until a Cyrene kit
  *   exists; Fribbels' default (on) would double the Additional DMG's multiple.
- * - Memosprite attacks. `isAlly` covers characters only, so a memosprite's attack neither triggers the Zone's
- *   Additional DMG nor the Pebble energy.
+ * - Memosprite attacks now count: `isAlly` covers memosprites, so a memosprite's action triggers the Zone's Additional DMG
+ *   and the Pebble energy like an ally target's attack (the text says "ally target"). The Additional DMG is priced as hers.
  * - The talent follow-up's retarget when its target is defeated before it lands. Enemies are never defeated
  *   in this model.
  * - The technique's own Attack hit: Fribbels does not price it and the engine has no toughness-only hit.

@@ -270,9 +270,9 @@ describe('what cannot be run yet is refused clearly', () => {
 
   it('the real registry lists every reviewed kit', () => {
     const file = scenarioFile()
-    file.teams[0]!.members[0]!.character = '1313' // Sunday: no kit yet
+    file.teams[0]!.members[0]!.character = '1407' // Castorice: no kit yet
     const { scenario, options } = setup(file)
-    expect(() => buildBattleSetup(scenario, 'solo', 1, { ...options, kits: undefined })).toThrow(/Kits that exist: 1308 \(Acheron\), 1403 \(Tribbie\), 1204 \(Jing Yuan\), 1006 \(Silver Wolf\), 1004 \(Welt\), 1414 \(Dan Heng • Permansor Terrae\)$/m)
+    expect(() => buildBattleSetup(scenario, 'solo', 1, { ...options, kits: undefined })).toThrow(/Kits that exist: 1308 \(Acheron\), 1403 \(Tribbie\), 1204 \(Jing Yuan\), 1006 \(Silver Wolf\), 1004 \(Welt\), 1414 \(Dan Heng • Permansor Terrae\), 1313 \(Sunday\), 1208 \(Fu Xuan\), 1512 \(Robin • Summeretto\)$/m)
   })
 
   describe('scanned relics', () => {

@@ -155,7 +155,7 @@ Consequence of S6 to keep in mind: effects that trigger on a kill, overkill, and
 | Pioneer Diver | Does the 4% CRIT Rate double with fewer than 2 debuffs? | Follows Fribbels |
 | Pioneer Diver | Does Acheron's E4 battle-start debuff count as the wearer inflicting one? | Yes |
 | Dance! Dance! Dance! | Does "all allies" include the wearer? | Yes |
-| Memosprites | Can enemies target Netherwing and Little Ica? (hsr-simulator says no) | Not built yet |
+| Memosprites | Can enemies target Netherwing and Little Ica? (hsr-simulator says no) | Settled by Smitty 2026-11-14: Netherwing cannot be targeted but has real HP, spends it on its own attacks and bears allies' HP loss below 1 HP at 500% (its talent calls this "backup"); Summer Songbirds cannot be targeted, and their HP (70% of Robin Summeretto's Max HP) only scales their damage. Little Ica still to check |
 | Break | Is Break DMG itself reduced by the 0.9 not-broken multiplier? | No (Fribbels' default: yes) |
 | Break | Does a frozen enemy stay broken through its skipped turn? | Yes |
 | Break | Does Acheron's own Lightning break count as inflicting a debuff for her talent? | No |
@@ -176,6 +176,32 @@ Consequence of S6 to keep in mind: effects that trigger on a kill, overkill, and
 | Dan Heng PT | Does Lightning-Lord's action trigger Sylvanity as the Bondmate attacking? | Yes |
 | Dan Heng PT | E2 doubling also applies to Sublimity's Additional DMG | Yes |
 | Texture of Memories | Is the hit that grants the shield already reduced? | Yes |
+| Extra turns | Does an extra turn (Little Ica, Demiurge) count down durations and fire turn start/end effects? | Yes |
+| Memosprites | Does a memosprite leave when its owner is downed? | Yes |
+| Memosprites | Do memosprite actions count for "after a teammate attacks" (Acheron's Affinitive Eidolon) and for equipment that reacts to the wearer's attacks (Ashblazing, Eternal Calculus, Dance! Dance! Dance!, Scholar)? | Acheron: yes; equipment: no (they check the wearer as actor) |
+| Fu Xuan | Is the redirected 65% taken before or after the ally's damage reductions, and does Fu Xuan's own Misfortune Avoidance reduce it? | After the ally's reductions; hers do not apply |
+| Fu Xuan | Does her redirection cover memosprites ("teammates")? | Yes |
+| Fu Xuan | Knowledge's HP buff (6% of her Max HP): her Max HP before or after her own Knowledge? Fribbels' input is labelled "Fu Xuan's Combat HP" | Before |
+| Fu Xuan | E4 energy: scaled by Energy Regeneration Rate? | Yes |
+| Robin Summeretto | During Fever she takes no turns: is her action gauge frozen (kept as it was), and do advances or delays she receives meanwhile still apply? | Frozen; they apply to the frozen gauge |
+| Robin Summeretto | Do the Songbirds and the countdown enter Fever with a full gauge? | Yes |
+| Robin Summeretto | "Ally target" for Vibes: every character including Robin, and every memosprite including the Songbirds; summon actions count as their owner's? | Yes |
+| Robin Summeretto | The 20 energy when the Songbirds are summoned: once per Bessie summon, not per member? | Once |
+| Robin Summeretto | Deviated Chords: given even when Vibes are at the cap? Its value follows live Vibes? | Yes and yes |
+| Robin Summeretto | Special Guest "2 turns" with the Ultimate advancing the guest straight into its turn: one attack or two? | One |
+| Memory's Curtain Never Falls | Its buff on the Songbirds counts down only on their own turns (Fever only), so it can outlast the allies' copy | As written |
+| Robin Summeretto | E6: energy above 140 when Fever ends is cut to the normal cap? | Yes |
+| Robin Summeretto | E1: does the tally include the triggering Memosprite Skill's own damage, start at Bessie's summon, include Break DMG, and vanish when the Songbirds leave? | Yes to all |
+| Robin Summeretto | Healing and shields share one "first time in a turn" Vibe per provider? | Yes |
+| Robin Summeretto | Groove: set before the same heal's Vibe can spend it; the 3 energy is flat? | Yes and yes |
+| Fu Xuan | E2: "during this action" is the turn in progress (several units saved in one turn); "ally" includes herself and memosprites; the restore is not a heal (triggers nothing heal-based) | As written |
+| Netherwing | When Castorice's costs ask for more HP than an ally has ("reduce to 1"), does Netherwing bear the shortfall? | Yes, as the backup rule is written |
+| Sunday | Is his Ultimate's energy for the target flat (no Energy Regeneration Rate)? His trace and E4 energy scaled? | Ultimate flat; trace and E4 scaled |
+| Sunday | E4 "when the turn starts": his own turn? | Yes |
+| Sunday | E6: does a new Talent stack renew all stacks' duration? | Yes |
+| Sunday | Does his Skill advance the target's memosprites ("their summon"), and cover a memosprite summoned after the Skill or Ultimate? | Yes and yes |
+| Sunday | His Ultimate on himself: does it consume the Technique buff or give the E6 Talent stack? | Neither (not modelled) |
+| Past and Future | "The next ally taking action": a character's turn start (not a summon such as Lightning-Lord, not a memosprite, not an Ultimate in the window)? Fribbels sends it to the memosprite for owners like Castorice | A character's turn start; summons and memosprites never get it |
 
 
 - **"Highest HP" tie-break** when the primary is not among the tied enemies: first in standing order (as

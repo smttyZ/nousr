@@ -7,6 +7,9 @@ import { TodayIsAnotherPeacefulDay } from './todayIsAnotherPeacefulDay'
 import { GoodNightAndSleepWell } from './goodNightAndSleepWell'
 import { InTheNameOfTheWorld } from './inTheNameOfTheWorld'
 import { TextureOfMemories } from './textureOfMemories'
+import { MemorysCurtainNeverFalls } from './memorysCurtainNeverFalls'
+import { PastAndFuture } from './pastAndFuture'
+import { TrendOfTheUniversalMarket } from './trendOfTheUniversalMarket'
 // Relic sets written in the Haiku test wave, 2026-11-13 (see DESIGN.md); some refuse cases the engine cannot model yet.
 import { TheAshblazingGrandDuke } from './ashblazingGrandDuke'
 import { RutilantArena } from './rutilantArena'
@@ -27,6 +30,7 @@ import { AmphoreusTheEternalLand } from './amphoreusTheEternalLand'
 export * from './equipment'
 export { AlongThePassingShore, DanceDanceDance, EternalCalculus, PioneerDiverOfDeadWaters, TodayIsAnotherPeacefulDay }
 export { GoodNightAndSleepWell, InTheNameOfTheWorld, TextureOfMemories }
+export { MemorysCurtainNeverFalls, PastAndFuture, TrendOfTheUniversalMarket }
 export { TheAshblazingGrandDuke, RutilantArena, TheWondrousBananAmusementPark, ScholarLostInErudition, GeniusOfBrilliantStars, WarriorGoddessOfSunAndThunder, BrokenKeel, SacerdosRelivedOrdeal, SelfEnshroudedRecluse, LushakaTheSunkenSeas, BoneCollectionsSereneDemesne, PoetOfMourningCollapse, GiantTreeOfRaptBrooding, WorldRemakingDeliverer, AmphoreusTheEternalLand }
 
 /**
@@ -71,5 +75,6 @@ export const InertSalsotto = setWithoutBehaviour({
  */
 export const EQUIPMENT = createRegistry([AlongThePassingShore, DanceDanceDance, EternalCalculus, TodayIsAnotherPeacefulDay, PioneerDiverOfDeadWaters, IzumoGensei, MusketeerOfWildWheat, InertSalsotto,
   GoodNightAndSleepWell, InTheNameOfTheWorld, TextureOfMemories,
+  MemorysCurtainNeverFalls, PastAndFuture, TrendOfTheUniversalMarket,
   TheAshblazingGrandDuke, RutilantArena, TheWondrousBananAmusementPark, ScholarLostInErudition, GeniusOfBrilliantStars, WarriorGoddessOfSunAndThunder, BrokenKeel, SacerdosRelivedOrdeal, SelfEnshroudedRecluse, LushakaTheSunkenSeas, BoneCollectionsSereneDemesne, PoetOfMourningCollapse, GiantTreeOfRaptBrooding, WorldRemakingDeliverer, AmphoreusTheEternalLand,
 ])

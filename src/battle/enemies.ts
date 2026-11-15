@@ -252,7 +252,8 @@ export class Enemies {
     for (const { ally, hits, damage } of plan) {
       if (hits <= 0) continue
       this.party.takeDamage(ally, damage, enemy)
-      this.party.gainEnergy(ally, hits * attack.energy)
+      // A memosprite defeated by this very attack has left the party: it gains no energy.
+      if (this.party.has(ally)) this.party.gainEnergy(ally, hits * attack.energy)
       this.timeline.bus.emit('allyHit', { unit: ally, enemy, attack: attack.id, hits, damage })
     }
   }

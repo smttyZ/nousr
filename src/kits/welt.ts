@@ -272,11 +272,14 @@ export const Welt: Kit = {
       if (misses === undefined || !battle.isAlly(action.actor)) return
       const chance = 1 - Math.min(...misses.values())
       if (!(chance > 0)) return
+      // A memosprite's attack is priced as its owner's, so the stack goes to the owner, whose state the kernel reads
+      // (isAlly now covers memosprites, so this is where a memosprite actor would otherwise land on an id nothing reads).
+      const holder = action.owner ?? action.actor
       timeline.modifiers.apply({
         id: RETRIBUTION,
-        target: action.actor,
+        target: holder,
         source: me,
-        stacks: Math.min(MAX_RETRIBUTION, retribution(action.actor) + chance),
+        stacks: Math.min(MAX_RETRIBUTION, retribution(holder) + chance),
         duration: { turns: RETRIBUTION_TURNS, tick: 'turnEnd' },
       })
     })

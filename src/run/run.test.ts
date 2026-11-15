@@ -316,7 +316,7 @@ describe('what cannot be run yet is refused clearly', () => {
     const file = scenarioFile()
     file.teams[0]!.members[0]!.character = '1401' // no kit
     const { scenario, options } = setup(file)
-    expect(() => buildBattleSetup(scenario, 'solo', 1, { ...options, kits: undefined })).toThrow(/Kits that exist: 1308 \(Acheron\), 1403 \(Tribbie\), 1204 \(Jing Yuan\), 1006 \(Silver Wolf\), 1004 \(Welt\), 1414 \(Dan Heng • Permansor Terrae\), 1313 \(Sunday\), 1208 \(Fu Xuan\), 1512 \(Robin • Summeretto\), 1407 \(Castorice\), 1409 \(Hyacine\)$/m)
+    expect(() => buildBattleSetup(scenario, 'solo', 1, { ...options, kits: undefined })).toThrow(/Kits that exist: 1308 \(Acheron\), 1403 \(Tribbie\), 1204 \(Jing Yuan\), 1006 \(Silver Wolf\), 1004 \(Welt\), 1414 \(Dan Heng • Permansor Terrae\), 1313 \(Sunday\), 1208 \(Fu Xuan\), 1512 \(Robin • Summeretto\), 1407 \(Castorice\), 1409 \(Hyacine\), 1415 \(Cyrene\)$/m)
   })
 
   describe('scanned relics', () => {

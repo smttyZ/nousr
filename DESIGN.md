@@ -140,7 +140,8 @@ Consequence of S6 to keep in mind: effects that trigger on a kill, overkill, and
 
 ## Open questions
 
-**In-game checks for Smitty.** Each is implemented one way and marked `IN-GAME CHECK:` in the code.
+**In-game checks for Smitty.** Each is implemented one way and marked `IN-GAME CHECK:` in the code. The working to-do
+list, ordered by effect on results and with step-by-step procedures, is `docs/in-game-checks.md`; results go there first.
 
 | Where | Question | As implemented |
 |---|---|---|
@@ -431,6 +432,16 @@ the technique's Quadrivalent Ascendance stack is modelled.
   Sacerdos' Relived Ordeal 4-piece (the targeted ally is not recorded), Self-Enshrouded Recluse 4-piece (shield
   sources are not recorded), Giant Tree's Outgoing Healing (at the wearer's first heal). Broken Keel's team buff
   uses out-of-combat Effect RES.
+- **⚠ 2 of the 14 roster standard builds cannot run** (found 2026-11-15, when it was 4): Sunday (Sacerdos' Relived Ordeal
+  4-piece) and Dan Heng • PT (Self-Enshrouded Recluse 4-piece). Their kits run only with scanned relics or a supplied build,
+  so the Acheron and Jing Yuan teams cannot run on standard builds. Both need engine features first: the ally an ability
+  targets, and the source of each shield. **Fixed 2026-11-15:** Robin Summeretto and Cyrene. World-Remaking Deliverer and
+  Amphoreus refused memosprite wearers with "memosprites are not built (K6)", written before memosprites existed; they now
+  model the memosprite condition (WRD: live on the wearer's Basic ATK / Skill, Max HP kept in step on the party; Amphoreus:
+  +8% SPD on every ally while the wearer's memosprite is on the field, one shared modifier). Robin's standard build runs
+  through the real kernel (`src/kernel/fribbels/memospriteSets.integration.test.ts`). The same stale wording in Bone
+  Collection's and Poet's headers was only wording: Fribbels applies their memosprite buffs itself. BananAmusement Park
+  still refuses memosprite wearers (no roster member needs it).
 - Equipment modules for every light cone and relic set the roster wears. K4 is built (`src/equipment/`) with
   Along the Passing Shore, Dance! Dance! Dance!, Pioneer Diver of Dead Waters, and three items registered as
   having no conditional behaviour. A light cone or set with no module stops the run with an error, because
@@ -471,8 +482,33 @@ Branch `castorice-team` (not pushed). `main` has everything through PR #3 (Jing 
   standard builds, finish turns 1 to 3 at 1, 3 and 5 enemies). That run is a wiring check, not the K25 experiment: no Cyrene,
   a placeholder policy, and Robin Summeretto and Sunday could not join (their standard builds' World-Remaking Deliverer and
   Sacerdos' 4-piece effects are refused for now).
-- **Next:** write Cyrene with Demiurge's order as her kit option (schema already at `schema/kit-options/1415.schema.json`),
-  register her, then one PR. After that: The Herta and Anaxa, then the period module (step 7) and the results report (K8).
+- **Cyrene (2026-11-15):** written by a Sonnet agent, reviewed by another, registered with This Love, Forever. Demiurge's
+  order is her kit option (K26/K27). The review found no wrong numbers. Open:
+  - **Her standard build cannot run:** `data/standard-builds/1415.json` gives 18 SPD rolls computed without the light cone,
+    but the loader counts This Love, Forever's +18% SPD, so the file passes the K14e rule ("SPD past the cap only as far as
+    the target needs": 10 rolls with it) and stops. Waits on Smitty: how standard builds should treat light-cone SPD.
+  - **Non-heir Ode on a memosprite owner (Robin Summeretto):** Fribbels puts the +40% on its single-target entity, which for
+    Robin (memo buff priority) is the Songbirds, so her own hits miss it (Computed by the reviewer: Basic ATK the same with
+    the Ode on and off). The text says it "also applies on memosprites". Fix: inject the delta for the other entity (K15a).
+  - Not modelled on the teammates' side: Hyacine's Ode to Sky (Ica's tally +72% of healing), Dan Heng PT's Ode to Earth
+    beyond the 24% DMG, Anaxa's (no kit). Engine gaps: `performAction` reads a memosprite's owner after its body (a memosprite
+    that leaves in its own action logs no owner); no quiet HP setter (the kit works around it).
+  - **In-game checks** (the code has each as `IN-GAME CHECK`): Ode to Ego's activation, below; how much Recollection an
+    Ultimate consumes (the data says "costs 12 energy" for both Ultimates, the kit takes 24 for the first); her Recollection
+    at combat start (the data gives her "max energy 24", so Memory of Chaos's 50% start may give 12; the kit starts at 0 plus
+    traces); 1 or 2 Story from the first Ultimate; whether teammates' Ultimates come before Demiurge's extra turn; whether the
+    first Ode to Ego Minuet already has E6's DEF -20%; whether a teammate's Ultimate or follow-up consumes Future; whether a
+    Max HP rise raises current HP.
+  - **Ode to Ego's activation, the reading that moves results most.** The kit makes it work only after Demiurge has used the
+    Ode on Cyrene; Fribbels has it always on. Against the kit's reading: its "when Demiurge is summoned, gains 1 Story" can
+    then never happen; E1/E4/E6 say Ode to Ego is "triggered" during Minuet, unlike the other Odes' "when used on". For it: it
+    is listed "for teammate Cyrene" beside the other heirs' Odes, and Smitty's own order includes "cyrene". If always on, each
+    Minuet gets 1 to 6 bounces from the first one (up to about 7x its damage at E0) and the "cyrene" slot in an order is wasted.
+  - First end-to-end run (reviewer, on a scratch build with 10 SPD rolls; Cyrene, Castorice, Hyacine, Tribbie, standard relics,
+    5 cycles): runs with no warnings with an order, with `kit-option-default-used` without one; her SPD 180.812 on both the
+    timeline and the kernel; Castorice deals about 70% of the team's damage at 1 enemy.
+- **Next:** settle the standard-build SPD question and fix 1415.json, then one PR for the Castorice team. After that: The
+  Herta and Anaxa, then the period module (step 7) and the results report (K8).
 - **How waves run:** one branch per wave; Sonnet agents (medium effort) write each kit in its own files, never
   touching battle.ts or the registries; a separate Sonnet reviewer checks each kit against the text and Fribbels,
   with mutation tests; the orchestrator verifies, registers, commits, opens a PR; CI runs on the PR; Auto-fix on.

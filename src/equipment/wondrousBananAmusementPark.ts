@@ -13,9 +13,10 @@ import { hasMemosprite } from './worldRemakingDeliverer'
  * "Summoned by the wearer" is read from `Battle.summonsOf(wearer.key)`, which lists the summons on the field by the
  * owner each `SummonSpec` names (Jing Yuan's Lightning-Lord is one).
  *
- * A memosprite wearer (`MEMOSPRITE_CHARACTERS`) is refused at create(): memosprites are not built (K6), and a
- * memosprite counts as a target the wearer summoned, so the flag would read off when it is on in the game. This module
- * would otherwise silently give a wrong answer for such a wearer.
+ * A memosprite wearer (`MEMOSPRITE_CHARACTERS`) is refused at create(): a memosprite counts as a target the wearer
+ * summoned, but this module reads only `summonsOf` (memosprites are listed by `memospritesOf`), and whether Fribbels'
+ * `hasSummons` sees a memosprite has not been checked. No roster member wears it with a memosprite. To lift the
+ * refusal: count `memospritesOf` too and test it against the kernel.
  */
 
 export const TheWondrousBananAmusementPark: SetModule = {
@@ -28,7 +29,8 @@ export const TheWondrousBananAmusementPark: SetModule = {
     if (hasMemosprite(wearer)) {
       throw new Error(
         `The Wondrous BananAmusement Park on ${wearer.key} (${wearer.kernel.unit.characterId}): NOT MODELLED: a memosprite is a ` +
-          'target the wearer summoned, and memosprites are not built (DESIGN.md K6), so the +32% CRIT DMG could not be told on or off',
+          'target the wearer summoned, and this module does not yet count memosprites or check how Fribbels handles them, so the ' +
+          '+32% CRIT DMG could be wrong. No roster member needs it',
       )
     }
     const me = wearer.key

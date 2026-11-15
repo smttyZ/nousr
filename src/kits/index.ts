@@ -1,5 +1,6 @@
 import { Acheron } from './acheron'
 import { Castorice, makeCastorice } from './castorice'
+import { type AfterOrder, Cyrene, makeCyrene } from './cyrene'
 import { Hyacine } from './hyacine'
 import { DanHengPT } from './danHengPT'
 import { FuXuan } from './fuXuan'
@@ -51,6 +52,16 @@ export const KITS: ReadonlyMap<string, RegisteredKit> = new Map(
       configure: (o: KitOptions) => makeCastorice({ finishOnTurn: (o.netherwing_finish_turn ?? 1) as 1 | 2 | 3 }),
     },
     { name: 'Hyacine', kit: Hyacine },
+    // Reviewed 2026-11-15. Readings awaiting an in-game check are marked IN-GAME CHECK; Ode to Ego's activation is the big one.
+    {
+      name: 'Cyrene',
+      kit: Cyrene,
+      configure: (o: KitOptions) =>
+        makeCyrene({
+          ...(o.demiurge_order !== undefined && { demiurgeOrder: o.demiurge_order as string[] }),
+          afterOrder: (o.after_order ?? 'attack') as AfterOrder,
+        }),
+    },
   ].map((entry): [string, RegisteredKit] => [entry.kit.characterId, entry]),
 )
 

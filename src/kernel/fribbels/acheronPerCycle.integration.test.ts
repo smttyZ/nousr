@@ -168,7 +168,10 @@ describe('Acheron per cycle is unchanged by per-hit pricing', () => {
       // chance is always 1; the old and new Fizzle give the same numbers), expected talent stacks 0 (no debuff in this run lands with a chance below
       // 1, so the stacks stay whole), K24 break debuffs all of it: Tribbie's Quantum break leaves Entangled on the enemy, a debuff, so her next
       // Acheron hits count it (Pioneer Diver's tier, her E1's +18% CRIT Rate against debuffed enemies).
-      expected: [1149081.9975542831, 356614.9391330746, 990961.6572651827, 894334.9762539868, 308839.2669066245],
+      // Re-pinned 2026-11-15: a break's effect now counts as a debuff inflicted by the breaking action (checked in game
+      // by Smitty: a Quantum break gave Acheron a Slashed Dream). Tribbie's Quantum break feeds Acheron's talent, so her
+      // Ultimate comes sooner. Only cycle 5 moved; it was 308839.2669066245.
+      expected: [1149081.9975542831, 356614.9391330746, 990961.6572651827, 894334.9762539868, 1276192.8525157706],
     },
     {
       name: 'E6 with the Affinitive Eidolon beside Tribbie E0 against 3 enemies',
@@ -181,7 +184,10 @@ describe('Acheron per cycle is unchanged by per-hit pricing', () => {
       // Weakness break (K7), was [913328.7246385348, 295126.54774301045, 723791.2971497488, 670296.2246838908, 275505.7258835326].
       // K22 / K24 (2026-11-14), was [913328.7246385348, 295126.54774301045, 761531.7946724296, 741444.101858762, 275505.7258835326]: cycle 4 only
       // (+21221.87), all of it K24 (Entangled counts as a debuff after Tribbie's Quantum break); K22 on bounces and expected talent stacks 0, as above.
-      expected: [913328.7246385348, 295126.54774301045, 761531.7946724296, 762665.9727559718, 275505.7258835326],
+      // Re-pinned 2026-11-15: a break's effect now counts as a debuff inflicted by the breaking action (checked in game
+      // by Smitty: a Quantum break gave Acheron a Slashed Dream). Tribbie's Quantum break feeds Acheron's talent, so her
+      // Ultimate comes sooner. Only cycle 5 moved; it was 275505.7258835326.
+      expected: [913328.7246385348, 295126.54774301045, 761531.7946724296, 762665.9727559718, 932103.6220911326],
     },
   ]
 

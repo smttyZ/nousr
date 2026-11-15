@@ -956,10 +956,10 @@ export class Battle {
    *
    * Break effects are debuffs while they last (K24): Entanglement (Entangled, 1 turn), Imprisonment (the shared Imprisoned
    * state, with its SPD cut) and Freeze (Frozen, until the skipped turn ends) are modifiers with `debuff: true`, so every
-   * debuff count and "against debuffed" check sees them. They are NOT recorded as debuffs an ability inflicted during the
-   * action in progress, so they trigger no Crimson Knot or Slashed Dream (`actionUsed.debuffed`), as before K24.
-   * IN-GAME CHECK: whether Acheron's talent counts a Weakness Break's effect (and the Lightning break's Shock, which is not
-   * modelled) as a debuff inflicted during the ability that broke the enemy.
+   * debuff count and "against debuffed" check sees them. They ARE recorded as debuffs inflicted during the action that
+   * broke the enemy (`actionUsed.debuffed`), so they trigger Acheron's talent: checked in game by Smitty 2026-11-15
+   * (a Quantum break by Fu Xuan's Basic ATK, which applies no debuff of its own, gave Acheron a Slashed Dream).
+   * The damage-over-time break effects (Shock, Burn, Bleed, Wind Shear) are not modelled at all, not even as debuffs.
    */
   private weaknessBreak(attacker: Member, enemy: UnitId): number {
     const result = this.kernelResult(attacker, enemy)
@@ -978,25 +978,23 @@ export class Battle {
     switch (element) {
       case 'Quantum':
         this.timeline.delay(enemy, ENTANGLEMENT_DELAY * (1 + be))
-        this.timeline.modifiers.apply({
+        this.applyDebuff({
           id: ENTANGLED,
           target: enemy,
           source: attacker.key,
-          debuff: true,
           duration: { turns: 1, tick: 'turnEnd' },
         })
         break
       case 'Imaginary':
-        this.imprison(enemy, attacker.key, IMPRISONMENT_DELAY * (1 + be), false)
+        this.imprison(enemy, attacker.key, IMPRISONMENT_DELAY * (1 + be), true)
         break
       case 'Ice':
         this.enemies.freeze(enemy)
         // The frozen enemy's skipped turn is its next one; the debuff ends with it.
-        this.timeline.modifiers.apply({
+        this.applyDebuff({
           id: FROZEN,
           target: enemy,
           source: attacker.key,
-          debuff: true,
           duration: { turns: 1, tick: 'turnEnd' },
         })
         break

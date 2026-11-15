@@ -74,7 +74,8 @@ matters.
 Light cones: Silver Wolf Good Night and Sleep Well S5; Pela Resolution Shines As Pearls of Sweat S5;
 Welt In the Name of the World S1; Fu Xuan Trend of the Universal Market S1; Sunday Past and Future S5;
 Tribbie Dance! Dance! Dance! S3; Dan Heng • PT Texture of Memories S5; Robin Summeretto Memory's
-Curtain Never Falls; Hyacine The Story's Next Page; The Herta Today Is Another Peaceful Day S4; Anaxa
+Curtain Never Falls; Hyacine The Story's Next Page S1; Castorice Make Farewells More Beautiful S1; Cyrene
+This Love, Forever S1 (these three checked in game 2026-11-15); The Herta Today Is Another Peaceful Day S4; Anaxa
 The Great Cosmic Enterprise; Acheron Along the Passing Shore S1; Jing Yuan options Eternal Calculus S1
 and Today Is Another Peaceful Day S4.
 

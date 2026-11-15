@@ -144,7 +144,7 @@ Consequence of S6 to keep in mind: effects that trigger on a kill, overkill, and
 
 | Where | Question | As implemented |
 |---|---|---|
-| Acheron | Does Thunder Core's +30% apply to the Rainblade that grants it? | From the next hit on |
+| Acheron | Does Thunder Core's +30% apply to the Rainblade that grants it? | **Settled by Smitty 2026-11-15: no**, from the next hit on (the buff icon appears after the slash; the text does not say otherwise) |
 | Tribbie | E2: one extra Zone instance per instance, or one per attack? | Per instance (Fribbels' reading) |
 | Tribbie | Does the Glass Ball Max HP bonus count her own HP? | Other allies only |
 | Tribbie | Does her Ultimate's own hit get the Zone's damage bonus? | Yes |
@@ -164,8 +164,8 @@ Consequence of S6 to keep in mind: effects that trigger on a kill, overkill, and
 | Jing Yuan | Is one Lightning-Lord action one "ally attack" (one Tribbie Zone instance), or is each hit? | One per action |
 | Jing Yuan | E6 Vulnerable: does the hit that applies a stack benefit, and do adjacent splash hits apply stacks? | No and no |
 | Eternal Calculus | Does Lightning-Lord's action count as the wearer's attack, and do stacks count distinct enemies? | Yes and yes |
-| Break | Does a break effect (e.g. Entanglement) trigger Acheron's talent, as "a debuff inflicted during an ability"? Large: one Acheron-with-Tribbie battle's cycle 5 goes from 308,839 to 1,276,193 | No |
-| Welt | Skill energy: 30 in total (the data prints 6 per hit over 5 hits) | 30 |
+| Break | Does a break effect (e.g. Entanglement) trigger Acheron's talent, as "a debuff inflicted during an ability"? | **Settled by Smitty 2026-11-15: yes** (a Quantum break by Fu Xuan's Basic ATK gave Acheron a Slashed Dream). Built; two pinned battles' cycle 5 rose (308,839 to 1,276,193 and 275,506 to 932,104) |
+| Welt | Skill energy: 30 in total (the data prints 6 per hit over 5 hits) | **Settled by Smitty 2026-11-15: 30** (90 to 120 after one Skill) |
 | Welt | Ultimate as 2 hits (10%/90%, from Fribbels, not the text): sets Talent triggers, E2 energy and Weightless delays | 2 hits |
 | Welt | Weightless delay per hit, cap 8 per target per turn, reset at that enemy's turn start | As written |
 | Welt | Retribution: one stack per attack, given after it | As written |
@@ -392,7 +392,7 @@ Also agreed 2026-11-12: the five timeline rules under "Open questions" stay as i
 rules stay as implemented while each is checked against a source; technique damage stays out; the schema `$id`
 waits for a publication address. Still open: what Aha's extra turn does (step 7, needs the full rule text).
 
-**Open, for an in-game check:** does Thunder Core's +30% apply to the Rainblade that grants it? Implemented as
+**Settled in game (Smitty, 2026-11-15):** Thunder Core's +30% does not apply to the Rainblade that grants it. Implemented as
 "from the next hit on", so the first Rainblade is unbuffed and its Crimson Knot detonation is buffed. Fribbels
 assumes all three stacks for the whole Ultimate.
 

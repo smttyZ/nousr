@@ -66,21 +66,78 @@ const battleOf = (members: MemberSetup[], kernel: DamageKernel) =>
     kernel,
   })
 
+const NAME = 'Self-Enshrouded Recluse'
+
+/** Wearer 'w' (4 pieces unless said) and plain allies 'a' and 'b'. */
+function setup(pieces: 2 | 4 = 4) {
+  const { kernel, requests } = recordingKernel()
+  const battle = battleOf([member('w', pieces), member('a'), member('b')], kernel)
+  const attack = (who: string) => {
+    battle.member(who).instance.actions.basic!.use()
+    return requests.filter((r) => r.attacker.characterId === who).at(-1)!
+  }
+  /** The team flag 'w' gave in `who`'s attack, made now. */
+  const flag = (who: string) => attack(who).teammates.find((t) => t.characterId === 'w')?.teamRelicSet
+  /** The wearer's own switch in an attack made now. */
+  const own = () => attack('w').setConditionals?.[NAME]
+  return { battle, requests, flag, own }
+}
+
 describe('Self-Enshrouded Recluse: the module', () => {
   it('is the set the kernel calls by name, with its set id', () => {
-    expect(SelfEnshroudedRecluse.name).toBe('Self-Enshrouded Recluse')
+    expect(SelfEnshroudedRecluse.name).toBe(NAME)
     expect(SelfEnshroudedRecluse.setId).toBe('128')
     expect(SelfEnshroudedRecluse.type).toBe('relic')
   })
 
-  it('at 2 pieces passes no conditionals: the shield boost has no damage effect and no shield amount is priced yet', () => {
-    const { kernel, requests } = recordingKernel()
-    battleOf([member('w', 2), member('f')], kernel).run()
-    expect(requests.length).toBeGreaterThan(0)
+  it('at 2 pieces passes no conditionals and no team flag, even to a shielded ally (the Shield Effect is not modelled)', () => {
+    const { battle, requests, flag } = setup(2)
+    battle.party.setShield('a', 'w.shield', 500, 'w')
+    battle.party.setShield('w', 'w.shield', 500, 'w')
+    expect(flag('a')).toBeUndefined()
+    battle.member('w').instance.actions.basic!.use()
     for (const r of requests) expect(r.setConditionals).toBeUndefined()
   })
+})
 
-  it('refuses at create() at 4 pieces: the ally\'s CRIT DMG depends on a shield source the engine does not record', () => {
-    expect(() => battleOf([member('w', 4), member('f')], recordingKernel().kernel)).toThrow(/does not record a shield's source/)
+describe('Self-Enshrouded Recluse 4-piece: CRIT DMG for allies holding a shield the wearer provided', () => {
+  it("with no shields the switch is passed OFF (not left to Fribbels' default ON) and no ally gets the flag", () => {
+    const { flag, own } = setup()
+    expect(own()).toBe(false)
+    expect(flag('a')).toBeUndefined()
+  })
+
+  it('an ally holding a shield from the wearer gets the team form; one without does not', () => {
+    const { battle, flag } = setup()
+    battle.party.setShield('a', 'w.shield', 500, 'w')
+    expect(flag('a')).toBe(NAME)
+    expect(flag('b')).toBeUndefined()
+  })
+
+  it('a shield from someone else, or one the ally provides itself, does not count', () => {
+    const { battle, flag } = setup()
+    battle.party.setShield('a', 'b.shield', 500, 'b')
+    battle.party.setShield('a', 'own', 500)
+    expect(flag('a')).toBeUndefined()
+  })
+
+  it("the wearer's own switch is on while it holds a shield it provided, and the wearer gives itself no team flag", () => {
+    const { battle, requests, own } = setup()
+    battle.party.setShield('w', 'b.shield', 500, 'b')
+    expect(own()).toBe(false)
+    battle.party.setShield('w', 'w.lc', 500)
+    expect(own()).toBe(true)
+    const last = requests.filter((r) => r.attacker.characterId === 'w').at(-1)!
+    expect(last.teammates.every((t) => t.teamRelicSet === undefined)).toBe(true)
+  })
+
+  it('ends when the shield is worn away or removed', () => {
+    const { battle, flag } = setup()
+    battle.party.setShield('a', 'w.shield', 500, 'w')
+    battle.party.takeDamage('a', 600, 'enemy')
+    expect(flag('a')).toBeUndefined()
+    battle.party.setShield('a', 'w.shield', 500, 'w')
+    battle.party.setShield('a', 'w.shield', undefined)
+    expect(flag('a')).toBeUndefined()
   })
 })

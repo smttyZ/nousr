@@ -1,6 +1,6 @@
 # Proposal: overriding a standard member's build in a scenario
 
-Status: DRAFT for Smitty's review, updated 2026-11-13 to the rule decided in DESIGN.md K14c. Nothing here is applied.
+Status: APPROVED by Smitty 2026-11-13 (DESIGN.md K18) and BUILT (`member.standard_build` in `schema/scenario.schema.json`, resolved in `src/scenario/load.ts`); K32 later added SPD re-solving at load. Written as a draft, so the next line and the text below describe the state before it was built.
 `schema/scenario.schema.json`, `src/` and DESIGN.md are untouched.
 Related: DESIGN.md K14 (standard build), K14b (per-character files, main-stat switch), K14c (this rule), K14e (SPD target),
 S3 (relics per member), `schema/standard-build.schema.json`, `data/standard-builds/*.json`.

@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 400" width="760" height="400" role="img" aria-labelledby="t d" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <title id="t">Subagent scorecard: Haiku and Sonnet</title>
+  <desc id="d">Four small bar charts from docs/agent-ledger.md, 2026-11-13 to 2026-11-16. Tokens per run: Haiku about 258k (4 runs), Sonnet 247k (9 runs). Minutes per run: Haiku 1.7 (1 run), Sonnet 15.1 (9 runs). Errors found later per writing run: Haiku 1.6 (8 in 5 runs), Sonnet 0.29 (2 in 7 runs). Deliberate breakages caught by the writer's own tests: Haiku 100% (4 of 4), Sonnet 98% (100 of 102).</desc>
+  <style>
+    .bg { fill: #fcfcfb; }
+    .ink { fill: #0b0b0b; }
+    .ink2 { fill: #52514e; }
+    .rule { stroke: #dddcd6; }
+    .haiku { fill: #2a78d6; }
+    .sonnet { fill: #eb6834; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #1a1a19; }
+      .ink { fill: #f0efec; }
+      .ink2 { fill: #c3c2b7; }
+      .rule { stroke: #3a3a37; }
+      .haiku { fill: #3987e5; }
+      .sonnet { fill: #d95926; }
+    }
+    text { font-size: 12px; }
+    .title { font-size: 15px; font-weight: 600; }
+    .panel { font-size: 13px; font-weight: 600; }
+    .val { font-size: 12px; font-weight: 600; }
+  </style>
+  <rect class="bg" width="760" height="400" rx="6"/>
+
+  <text class="ink title" x="24" y="30">Subagent scorecard: Haiku and Sonnet</text>
+  <text class="ink2" x="24" y="48">From docs/agent-ledger.md, 2026-11-13 to 2026-11-16. Haiku 5 runs, Sonnet 10 runs; the jobs differ, so read with care.</text>
+
+  <!-- legend -->
+  <rect class="haiku" x="24" y="62" width="12" height="12" rx="3"/>
+  <text class="ink2" x="42" y="72">Haiku</text>
+  <rect class="sonnet" x="96" y="62" width="12" height="12" rx="3"/>
+  <text class="ink2" x="114" y="72">Sonnet</text>
+
+  <!-- panel 1: tokens per run -->
+  <g transform="translate(24,100)">
+    <text class="ink panel" x="0" y="0">Tokens per run (thousands)</text>
+    <line class="rule" x1="70" y1="12" x2="70" y2="72"/>
+    <text class="ink2" x="62" y="33" text-anchor="end">Haiku</text>
+    <path class="haiku" d="M70 22h196a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4h-196z"><title>Haiku: about 258k tokens per run (4 runs with a count; the three relic-set runs taken at the middle of 266k to 342k)</title></path>
+    <text class="ink val" x="276" y="33">~258</text>
+    <text class="ink2" x="62" y="59" text-anchor="end">Sonnet</text>
+    <path class="sonnet" d="M70 48h187a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4h-187z"><title>Sonnet: 247k tokens per run (2,221k over 9 runs with a count)</title></path>
+    <text class="ink val" x="267" y="59">247</text>
+    <text class="ink2" x="0" y="92">Haiku: 4 runs with a count. Sonnet: 9 runs.</text>
+  </g>
+
+  <!-- panel 2: minutes per run -->
+  <g transform="translate(400,100)">
+    <text class="ink panel" x="0" y="0">Minutes per run</text>
+    <line class="rule" x1="70" y1="12" x2="70" y2="72"/>
+    <text class="ink2" x="62" y="33" text-anchor="end">Haiku</text>
+    <path class="haiku" d="M70 22h18.5a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4h-18.5z"><title>Haiku: 1.7 minutes (the only run with a time: 4 tests)</title></path>
+    <text class="ink val" x="98.5" y="33">1.7</text>
+    <text class="ink2" x="62" y="59" text-anchor="end">Sonnet</text>
+    <path class="sonnet" d="M70 48h196a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4h-196z"><title>Sonnet: 15.1 minutes per run (135.7 minutes over 9 runs with a time)</title></path>
+    <text class="ink val" x="276" y="59">15.1</text>
+    <text class="ink2" x="0" y="92">Haiku: 1 run with a time (a 4-test job). Sonnet: 9 runs.</text>
+  </g>
+
+  <!-- panel 3: errors found later -->
+  <g transform="translate(24,250)">
+    <text class="ink panel" x="0" y="0">Errors found later, per writing run</text>
+    <line class="rule" x1="70" y1="12" x2="70" y2="72"/>
+    <text class="ink2" x="62" y="33" text-anchor="end">Haiku</text>
+    <path class="haiku" d="M70 22h196a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4h-196z"><title>Haiku: 8 errors found later in 5 writing runs (6 in the Tribbie pilot, 2 in the relic-set modules), 1.6 per run</title></path>
+    <text class="ink val" x="276" y="33">1.6</text>
+    <text class="ink2" x="62" y="59" text-anchor="end">Sonnet</text>
+    <path class="sonnet" d="M70 48h32a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4h-32z"><title>Sonnet: 2 errors found later in 7 writing runs (both in the Cyrene kit), 0.29 per run</title></path>
+    <text class="ink val" x="112" y="59">0.29</text>
+    <text class="ink2" x="0" y="92">Haiku: 8 errors in 5 runs. Sonnet: 2 in 7 (3 review runs left out).</text>
+  </g>
+
+  <!-- panel 4: mutation catch rate -->
+  <g transform="translate(400,250)">
+    <text class="ink panel" x="0" y="0">Deliberate breakages caught by own tests</text>
+    <line class="rule" x1="70" y1="12" x2="70" y2="72"/>
+    <text class="ink2" x="62" y="33" text-anchor="end">Haiku</text>
+    <path class="haiku" d="M70 22h196a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4h-196z"><title>Haiku: 4 of 4 caught (one run)</title></path>
+    <text class="ink val" x="276" y="33">100%</text>
+    <text class="ink2" x="62" y="59" text-anchor="end">Sonnet</text>
+    <path class="sonnet" d="M70 48h192a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4h-192z"><title>Sonnet: 100 of 102 caught over 7 writing runs (the 2 misses were equivalent mutants)</title></path>
+    <text class="ink val" x="272" y="59">98%</text>
+    <text class="ink2" x="0" y="92">Haiku: 4 of 4 (1 run). Sonnet: 100 of 102 (7 runs).</text>
+    <text class="ink2" x="0" y="108">A reviewer's own breakages: 17 of 22 caught (77%), Cyrene kit.</text>
+  </g>
+</svg>

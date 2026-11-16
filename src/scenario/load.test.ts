@@ -96,7 +96,7 @@ describe('the example scenario', () => {
     expect(s.battle).toEqual({
       mode: 'moc',
       cycles: 5,
-      period: null,
+      period: 'moc-2026-11-survival-of-the-fittest',
       start: { energy: 0.5, skillPoints: 3, techniques: true },
     })
     expect(s.enemies).toEqual({ profile: 'generic-moc', counts: [1, 3, 5], weaknesses: 'all' })

@@ -4,6 +4,7 @@ import type { BasicStats, DamageRequest, KernelBuild, KernelUnit, ScannedRelic, 
 import { createRegistry, lightConeWithoutBehaviour, setWithoutBehaviour } from '../equipment/equipment'
 import type { RegisteredKit } from '../kits/index'
 import type { Kit } from '../kits/kit'
+import { createPeriodRegistry, type PeriodModule } from '../periods/index'
 import { parseScenario } from '../scenario/load'
 import type { AccountScan, MemberFile, ScanRelic, ScenarioFile } from '../scenario/types'
 import { isScannedBuild } from '../kernel/types'
@@ -494,9 +495,48 @@ describe('what cannot be run yet is refused clearly', () => {
     })
   })
 
-  it('a period module, which does not exist yet', () => {
-    const { scenario, options } = setup(scenarioFile({ battle: { mode: 'moc', cycles: 3, period: 'moc-2026-11-survival-of-the-fittest' } }))
-    expect(() => runScenario(scenario, options)).toThrow(/period modules are not built yet/)
+  describe('period modules', () => {
+    const period = (id: string | null) => scenarioFile({ battle: { mode: 'moc', cycles: 3, period: id } })
+
+    it('resolves the id, attaches the module to the battle and calls its create once per battle', () => {
+      const created: unknown[] = []
+      const fake: PeriodModule = { id: 'fake-period', name: 'Fake', create: (battle) => void created.push(battle) }
+      const { scenario, options } = setup(period('fake-period'))
+      const withPeriods = { ...options, periods: createPeriodRegistry([fake]) }
+      expect(buildBattleSetup(scenario, 'solo', 1, withPeriods).period).toBe(fake)
+      expect(created).toHaveLength(0)
+      runScenario(scenario, withPeriods)
+      expect(created).toHaveLength(2)
+    })
+
+    it('the real registry knows Survival of the Fittest, and a Hunt-path team runs the same as with no period', () => {
+      const withPeriod = setup(period('moc-2026-11-survival-of-the-fittest'))
+      const without = setup(period(null))
+      expect(buildBattleSetup(withPeriod.scenario, 'solo', 1, withPeriod.options).period?.id).toBe('moc-2026-11-survival-of-the-fittest')
+      expect(buildBattleSetup(without.scenario, 'solo', 1, without.options).period).toBeUndefined()
+      expect(runScenario(withPeriod.scenario, withPeriod.options).map((r) => r.result)).toEqual(
+        runScenario(without.scenario, without.options).map((r) => r.result),
+      )
+    })
+
+    it('an unknown period stops the run and lists the known ids', () => {
+      const { scenario, options } = setup(period('moc-2099-01-nope'))
+      expect(() => runScenario(scenario, options)).toThrow(
+        /battle\.period: unknown period "moc-2099-01-nope" \(known periods: moc-2026-11-survival-of-the-fittest\)/,
+      )
+    })
+
+    it('a team with an Elation-path member stops the run, naming the member', () => {
+      const elation: Kit = { ...Striker, path: 'Elation' }
+      const { scenario, options } = setup(period('moc-2026-11-survival-of-the-fittest'))
+      const withElation = { ...options, kits: new Map([['9001', { name: 'Striker', kit: elation }]]) }
+      expect(() => runScenario(scenario, withElation)).toThrow(
+        /team "solo", period "moc-2026-11-survival-of-the-fittest": member "striker".*Elation's Punchlines and Aha are not modelled yet; this period would change the result/,
+      )
+      // The same team with no period is fine.
+      const none = setup(period(null))
+      expect(() => runScenario(none.scenario, { ...none.options, kits: withElation.kits })).not.toThrow()
+    })
   })
 
   it('an unknown team or an impossible enemy count', () => {

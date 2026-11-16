@@ -27,6 +27,7 @@ Columns:
 | 2026-11-16 | Sonnet | Build `nousr run` CLI, results writer, packaging, CI | 266k | 86 | 21.0 | Clean so far (lead verified suite, build, real run); 1 schema field added and reported | 7 run, all caught | Fixed the stale example scenario; flagged 4 open choices |
 | 2026-11-16 | Sonnet | CLI follow-ups: reaction damage, downed targets, spd_solved | 136k | 36 | 7.2 | Clean (lead verified suite, build, log sums = totals) | 3 run, all caught | 2 optional schema fields, reported |
 | 2026-11-16 | Sonnet | MoC period module (step 7) | 122k | 39 | 7.0 | Clean (lead merged, suite passes) | 2 run, all caught | Linked its worktree to main's node_modules/vendor by NTFS junctions (cleanup needs care) |
+| 2026-11-16 | Fable | Pre-release review: install test, 3-kit spot-check, publish safety, docs, scorecard | 219k | 66 | 9.5 | Reviewer: 1 kit discrepancy (Acheron own-Ultimate stack), personal data in git history, README order | — | Worked on main instead of the brief's commit, noticed and corrected it |
 
 ## Side sessions
 

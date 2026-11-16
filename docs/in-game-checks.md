@@ -52,38 +52,77 @@ table) as settled; their `IN-GAME CHECK` notes now read "Settled by Smitty in ga
 
 ---
 
+### 7. Sacerdos' Relived Ordeal: whose turns count down the stack, and does a new stack renew it?
+
+**Why it matters:** this decides how often Jing Yuan (or Acheron) has 1 or 2 stacks of +18% CRIT DMG from Sunday's set. The sim
+counts the 2 turns on the **ally holding it**, at the end of each of their turns (the turn Sunday gives it in doesn't count), and a
+new stack renews the duration of both. If it counts on Sunday's turns instead, or a new stack doesn't renew the old one, the uptime
+of the second stack changes. Code: `src/equipment/sacerdosRelivedOrdeal.ts` header.
+
+**Setup:** Sunday wearing 4 pieces of Sacerdos' Relived Ordeal, plus a damage dealer that isn't Harmony (Jing Yuan or Acheron),
+plus anyone else. Any battle.
+
+**Steps:**
+1. Use Sunday's **Skill** on the damage dealer. They act immediately (his Skill pulls them forward).
+2. Before they act, open their buff list and find the Sacerdos' Relived Ordeal buff. Write down its stack count and turns left.
+3. Let the damage dealer take that turn. Open their buff list again and write down stacks and turns left.
+4. On Sunday's next turn, use his **Skill** on the same ally again. Write down stacks and turns left right after.
+5. Let a few turns pass without Sunday buffing that ally (use his Basic ATK) and note when the buff disappears: after the ally's own
+   turn, or after Sunday's turn?
+
+**Read it as:**
+- Turns left drop after the **ally's** turns and the buff ends after the ally's 2nd turn: the sim is right on whose turns.
+- Turns left drop after **Sunday's** turns: the clock is Sunday's.
+- At step 4: 2 stacks with turns left back at 2: a new stack renews both (the sim's reading). 2 stacks but the turns left stay where
+  they were: no renewal.
+
+**Result:**
+
 ## Tier 2: smaller effect
 
 Short procedures. Same idea: write down what you see.
 
-7. **Hyacine's Technique** (code: hyacine.ts header). Start a battle with her Technique used, then look at Little Ica's first
+8. **Hyacine's Technique** (code: hyacine.ts header). Start a battle with her Technique used, then look at Little Ica's first
    Rainclouds damage. Compare it with a battle where the Technique wasn't used, and note whether allies were at full HP when
    it healed them. Question: does the Technique's battle-start heal count toward Ica's healing tally? Also, does the team's
    Max HP go up by 20% for 2 turns? **Modelled 2026-11-15 (K31), five readings to check:** (a) the heal comes first and the
    Max HP buff after (allies start at full HP, so the heal is all overheal); (b) the 2 turns count down by each ally's own
    turns; (c) only characters get the heal and the buff, no memosprite; (d) the heal takes her Outgoing Healing; (e) the
    Max HP buff does not raise current HP. **Result:**
-8. **Hyacine's After Rain duration after an out-of-turn Ultimate.** Use her Ultimate between two of her turns, then count
+9. **Hyacine's After Rain duration after an out-of-turn Ultimate.** Use her Ultimate between two of her turns, then count
    how many of her own actions After Rain is still up for: 2 or 3? **Result:**
-9. **Take Sky in Hand during After Rain.** When it triggers, does the ally who lost HP also get the "all allies" heal (two
+10. **Take Sky in Hand during After Rain.** When it triggers, does the ally who lost HP also get the "all allies" heal (two
    heal numbers)? Does Little Ica heal herself? **Result:**
-10. **Cyrene's first Ultimate: 1 or 2 Story?** Settled by Smitty in game, 2026-11-15: 2.
-11. **Cyrene's Ultimate order.** Settled by Smitty in game, 2026-11-15: the teammates' Ultimates come before Demiurge's extra turn.
-12. **Cyrene E6** (only if you have E6). Does the first Ode to Ego Minuet already have the enemies' DEF -20%? **Result:**
-13. **Future and Ultimates.** After a teammate uses their Ultimate (or a follow-up), does Cyrene gain Recollection from it?
+11. **Cyrene's first Ultimate: 1 or 2 Story?** Settled by Smitty in game, 2026-11-15: 2.
+12. **Cyrene's Ultimate order.** Settled by Smitty in game, 2026-11-15: the teammates' Ultimates come before Demiurge's extra turn.
+13. **Cyrene E6** (only if you have E6). Does the first Ode to Ego Minuet already have the enemies' DEF -20%? **Result:**
+14. **Future and Ultimates.** After a teammate uses their Ultimate (or a follow-up), does Cyrene gain Recollection from it?
     The sim says only Basic ATK and Skill consume Future. **Result:**
-14. **Cyrene's Max HP and current HP.** When Demiurge arrives and her Max HP goes up 24%, does her current HP go up too, or
+15. **Cyrene's Max HP and current HP.** When Demiurge arrives and her Max HP goes up 24%, does her current HP go up too, or
     only the maximum? **Result:**
-15. **World-Remaking Deliverer** (Robin or Cyrene wearing it). After a Skill that summons the memosprite, is the +15% team
+16. **World-Remaking Deliverer** (Robin or Cyrene wearing it). After a Skill that summons the memosprite, is the +15% team
     DMG on right away? If the memosprite leaves before her next Basic/Skill, does the buff end early? **Result:**
-16. **Netherwing's last Breath and West Wind** (only matters if it ever expires at turn 3 without the finisher; today the
+17. **Netherwing's last Breath and West Wind** (only matters if it ever expires at turn 3 without the finisher; today the
     sim's modes never let that happen). Skip unless convenient. **Result:**
-17. **Robin with a non-heir Ode.** When Demiurge uses This Ode on Robin Summeretto, does the +40% DMG show on both Robin and
+18. **Robin with a non-heir Ode.** When Demiurge uses This Ode on Robin Summeretto, does the +40% DMG show on both Robin and
     the Songbirds? **Result:**
-18. **Can enemies hit the Summer Songbirds?** They show no Backup or Out-of-Bounds tag (like Little Ica, a normal unit),
+19. **Can enemies hit the Summer Songbirds?** They show no Backup or Out-of-Bounds tag (like Little Ica, a normal unit),
     and a screenshot showed them with 2 debuffs and lost HP. During Fever, open their details and tap the debuff list: what
     are the debuffs and who applied them? An enemy debuff means enemies can target them. Any enemy damage number on them
     settles it too. **Result (2026-11-15):** a boss's "Target Locked On" and two enemy DoTs were on them; no tag. Switched to a normal unit. Final proof, if convenient: a damage number on them when that boss's "Desmios Evangelion" (damage split across all locked-on targets) lands.
+
+20. **Sacerdos' Relived Ordeal on Sunday himself** (code: sacerdosRelivedOrdeal.ts header). Use Sunday's Ultimate on **Sunday
+    himself**. Does a Sacerdos' Relived Ordeal stack appear in **his** buff list? The sim gives none (its NOT MODELLED case).
+    **Result:**
+21. **Sacerdos' Relived Ordeal after Sunday is knocked down.** If Sunday goes down while an ally holds his Sacerdos stack, does the
+    stack stay on the ally until it runs out? The sim keeps it. Skip unless it happens. **Result:**
+22. **Two Sacerdos wearers** (only if you ever field two). Do their stacks share one cap of 2, or can an ally hold 2 from each? The sim
+    keeps them apart. Skip unless convenient. **Result:**
+23. **Self-Enshrouded Recluse on Dan Heng PT himself** (code: selfEnshroudedRecluse.ts header). After his Skill shields the team,
+    open **his own** buff list (or his character stats in battle). Does he get the +15% CRIT DMG from his own set while he holds his
+    own shield? The sim says yes. **Result:**
+24. **Self-Enshrouded Recluse after Dan Heng PT is knocked down.** If he goes down while allies still hold his shield, does their
+    +15% CRIT DMG stay until the shield ends? The sim keeps it. Skip unless it happens. **Result:**
 
 ---
 

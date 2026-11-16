@@ -165,6 +165,8 @@ interface State {
   energyRegen: number
   downed: boolean
   shields: Map<string, number>
+  /** Who provided the shield under each key of `shields` (`setShield`'s `source`). Read only for keys `shields` has. */
+  shieldSources: Map<string, UnitId>
   aggroModifiers: Map<string, number>
   damageReductions: Map<string, number>
 }
@@ -201,6 +203,7 @@ export class Party {
       energyRegen: init.energyRegen ?? 0,
       downed: false,
       shields: new Map(),
+      shieldSources: new Map(),
       aggroModifiers: new Map(),
       damageReductions: new Map(),
     })
@@ -349,6 +352,8 @@ export class Party {
     const previous = m.shields.get(key) ?? 0
     const next = amount !== undefined && amount > EPSILON ? amount : undefined
     setOrDelete(m.shields, key, next)
+    if (next === undefined) m.shieldSources.delete(key)
+    else m.shieldSources.set(key, source)
     if (next !== undefined && next > previous + EPSILON && !m.downed) {
       this.bus.emit('shieldGranted', { unit: id, key, amount: next, previous, source })
     }
@@ -365,6 +370,18 @@ export class Party {
    */
   shieldOf(id: UnitId, key: string): number {
     return this.state(id).shields.get(key) ?? 0
+  }
+
+  /**
+   * The largest shield the unit holds from `source` (the `source` its `setShield` call gave), or 0 if it holds none from it.
+   * "Holds a shield from X" is `shieldFrom(id, X) > 0`. Amounts are expected values, so this is the expected shield (DESIGN.md,
+   * Known approximations: thresholds on expected values).
+   */
+  shieldFrom(id: UnitId, source: UnitId): number {
+    const m = this.state(id)
+    let largest = 0
+    for (const [key, amount] of m.shields) if (m.shieldSources.get(key) === source) largest = Math.max(largest, amount)
+    return largest
   }
 
   /**
@@ -392,7 +409,9 @@ export class Party {
     if (m.downed || !(amount > 0)) return { absorbed: 0, lost: 0 }
     const absorbed = Math.min(amount, this.shield(id))
     for (const [key, value] of [...m.shields]) {
-      setOrDelete(m.shields, key, value - amount > EPSILON ? value - amount : undefined)
+      const left = value - amount > EPSILON ? value - amount : undefined
+      setOrDelete(m.shields, key, left)
+      if (left === undefined) m.shieldSources.delete(key)
     }
     const lost = this.loseHp(m, amount - absorbed, 'damage', source, 0)
     return { absorbed, lost }
@@ -483,6 +502,7 @@ export class Party {
       m.hp = 0
       m.downed = true
       m.shields.clear()
+      m.shieldSources.clear()
       if (m.kind === 'memosprite') this.bus.emit('memospriteDefeated', { unit: m.id, at: this.now() })
       else this.bus.emit('unitDowned', { unit: m.id, at: this.now() })
     }

@@ -438,13 +438,19 @@ the technique's Quadrivalent Ascendance stack is modelled.
   it names has an equipment module. Every set the 14 roster files name now has one (2026-11-14, written by Haiku
   and reviewed). Some still refuse cases the engine cannot model, and stop the run with an error: World-Remaking
   Deliverer 4-piece and Amphoreus for memosprite wearers, The Wondrous BananAmusement Park for memosprite wearers,
-  Sacerdos' Relived Ordeal 4-piece (the targeted ally is not recorded), Self-Enshrouded Recluse 4-piece (shield
-  sources are not recorded), Giant Tree's Outgoing Healing (at the wearer's first heal). Broken Keel's team buff
+  Giant Tree's Outgoing Healing (at the wearer's first heal). Broken Keel's team buff
   uses out-of-combat Effect RES.
-- **⚠ 2 of the 14 roster standard builds cannot run** (found 2026-11-15, when it was 4): Sunday (Sacerdos' Relived Ordeal
-  4-piece) and Dan Heng • PT (Self-Enshrouded Recluse 4-piece). Their kits run only with scanned relics or a supplied build,
-  so the Acheron and Jing Yuan teams cannot run on standard builds. Both need engine features first: the ally an ability
-  targets, and the source of each shield. **Fixed 2026-11-15:** Robin Summeretto and Cyrene. World-Remaking Deliverer and
+- **All 14 roster standard builds run** (2026-11-15; 4 could not when this was found). **Fixed 2026-11-15, later:** Sunday
+  (Sacerdos' Relived Ordeal 4-piece) and Dan Heng • PT (Self-Enshrouded Recluse 4-piece), so the Acheron and Jing Yuan teams
+  can run on standard builds. No event change (Smitty, 2026-11-15: "a buff lives on the unit that holds it"; proposal
+  `docs/proposals/engine-ability-target-shield-source.md`). Sacerdos finds the ability's target from the buffs the wearer's own
+  Skill or Ultimate put on one ally character (`modifierApplied`, matched to the action by `Battle.actionSerialInProgress`), and
+  gives that ally the CRIT DMG stack as a modifier on the holder. Recluse reads the new `Party.shieldFrom(holder, source)`: the
+  party now keeps each shield's source. Both pass their live values to Fribbels (`teamRelicSet` "Sacerdos' Relived Ordeal 1x/2x",
+  "Self-Enshrouded Recluse"; the wearers' own switches). Real-kernel test: `src/kernel/fribbels/shieldAndTargetSets.integration.test.ts`.
+  Readings to check are in `docs/in-game-checks.md` (Tier 1 #7, Tier 2 #19 to #23). Recluse's Shield Effect +10% / +12% is NOT
+  MODELLED (Dan Heng PT's shields are 22% smaller than in game at 4 pieces; HP and shield duration only); Smitty put it on the
+  roadmap. **Fixed earlier 2026-11-15:** Robin Summeretto and Cyrene. World-Remaking Deliverer and
   Amphoreus refused memosprite wearers with "memosprites are not built (K6)", written before memosprites existed; they now
   model the memosprite condition (WRD: live on the wearer's Basic ATK / Skill, Max HP kept in step on the party; Amphoreus:
   +8% SPD on every ally while the wearer's memosprite is on the field, one shared modifier). Robin's standard build runs
@@ -490,7 +496,7 @@ Branch `castorice-team` (not pushed). `main` has everything through PR #3 (Jing 
   (K27) are built; Castorice's runs end to end through the real kernel (a scratch 3-member run, Castorice / Hyacine / Tribbie on
   standard builds, finish turns 1 to 3 at 1, 3 and 5 enemies). That run is a wiring check, not the K25 experiment: no Cyrene,
   a placeholder policy, and Robin Summeretto and Sunday could not join (their standard builds' World-Remaking Deliverer and
-  Sacerdos' 4-piece effects are refused for now).
+  Sacerdos' 4-piece effects were refused then; both are modelled now).
 - **Cyrene (2026-11-15):** written by a Sonnet agent, reviewed by another, registered with This Love, Forever. Demiurge's
   order is her kit option (K26/K27). The review found no wrong numbers. Open:
   - **Her standard build cannot run:** `data/standard-builds/1415.json` gives 18 SPD rolls computed without the light cone,

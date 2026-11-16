@@ -1,4 +1,5 @@
 import { Acheron } from './acheron'
+import { Anaxa } from './anaxa'
 import { Castorice, makeCastorice } from './castorice'
 import { type AfterOrder, Cyrene, makeCyrene } from './cyrene'
 import { Hyacine } from './hyacine'
@@ -8,6 +9,7 @@ import { JingYuan } from './jingYuan'
 import { RobinSummeretto } from './robinSummeretto'
 import { SilverWolf } from './silverWolf'
 import { Sunday } from './sunday'
+import { TheHerta } from './theHerta'
 import { Welt } from './welt'
 import type { Kit } from './kit'
 import type { KitOptions } from '../scenario/kitOptions'
@@ -62,6 +64,10 @@ export const KITS: ReadonlyMap<string, RegisteredKit> = new Map(
           afterOrder: (o.after_order ?? 'attack') as AfterOrder,
         }),
     },
+    // Reviewed 2026-11-15. Readings awaiting an in-game check are marked IN-GAME CHECK. Anaxa counts weakness types in his
+    // kit (K28); The Herta aims her Enhanced Skill at the most Interpretation (K30).
+    { name: 'The Herta', kit: TheHerta },
+    { name: 'Anaxa', kit: Anaxa },
   ].map((entry): [string, RegisteredKit] => [entry.kit.characterId, entry]),
 )
 

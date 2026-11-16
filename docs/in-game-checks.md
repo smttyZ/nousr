@@ -50,9 +50,45 @@ table) as settled; their `IN-GAME CHECK` notes now read "Settled by Smitty in ga
 5. Hyacine: the Ultimate's heal uses her Max HP before After Rain's buff. Settled by Smitty in game, 2026-11-15.
 6. Along the Passing Shore: the hit that applies Mirage Fizzle already gets the bonus. Settled by Smitty in game, 2026-11-15.
 
+### 7. Anaxa: how much energy does his Skill give?
+
+**Why it matters:** it sets how often he uses his Ultimate. The game data prints "+6" for the Skill. For Welt's Skill the data
+also printed 6, and you measured 30 in game (6 per hit, 5 hits), so the sim gives Anaxa 6 per Skill instance: 30 for a normal
+Skill (1 + 4 instances), 48 with Cyrene's Ode to Reason (3 more instances). Not checked for Anaxa himself. With 6 per Skill he
+used his Ultimate only 1 to 2 times in 5 cycles in a test run. Code: `src/kits/anaxa.ts`, `SKILL_ENERGY`.
+
+**Steps:**
+1. Any battle, **one** enemy that is **not** yet weak to 5 types (so his talent's extra Skill does not come out and add
+   energy): for example an enemy with 3 weaknesses, on the first Skill of the fight.
+2. Write down Anaxa's energy just before his Skill and just after it (before anyone else acts).
+3. If you have Cyrene: after Demiurge uses Ode to Reason on him, do the same for that Skill.
+
+**Read it as:**
+- About +30 (times his Energy Regeneration Rate): 6 per instance. The sim is right.
+- About +6: 6 per Skill. The sim gives him far too much energy.
+- With the Ode, about +48: per instance, the extra 3 count. About +30: the Ode's instances give none.
+
+**Result:**
+
+### 8. The Herta: does the Interpretation bonus apply once, or on every hit of Hear Me Out?
+
+**Why it matters:** at 42 stacks with 2 Erudition characters the bonus is +739% of ATK on the primary target (42 x 8.8% x 2).
+Added once (Fribbels, and the sim) or on each of the 3 hits on that enemy is a 3x difference on most of her damage.
+Code: `src/kits/theHerta.ts` header.
+
+**Steps:**
+1. The Herta with Inspiration (after her Ultimate), **one** enemy with a known Interpretation count (the stack number on it).
+2. Use Hear Me Out and look at the three hits on that enemy (not the last all-enemy hit). Use non-crit numbers.
+
+**Read it as:**
+- The first hit clearly bigger than the next two: the bonus is added once. The sim is right.
+- All three about equal and large: the bonus is on every hit. The sim undercounts her.
+
+**Result:**
+
 ---
 
-### 7. Sacerdos' Relived Ordeal: whose turns count down the stack, and does a new stack renew it?
+### 9. Sacerdos' Relived Ordeal: whose turns count down the stack, and does a new stack renew it?
 
 **Why it matters:** this decides how often Jing Yuan (or Acheron) has 1 or 2 stacks of +18% CRIT DMG from Sunday's set. The sim
 counts the 2 turns on the **ally holding it**, at the end of each of their turns (the turn Sunday gives it in doesn't count), and a
@@ -82,47 +118,79 @@ plus anyone else. Any battle.
 
 Short procedures. Same idea: write down what you see.
 
-8. **Hyacine's Technique** (code: hyacine.ts header). Start a battle with her Technique used, then look at Little Ica's first
+10. **Hyacine's Technique** (code: hyacine.ts header). Start a battle with her Technique used, then look at Little Ica's first
    Rainclouds damage. Compare it with a battle where the Technique wasn't used, and note whether allies were at full HP when
    it healed them. Question: does the Technique's battle-start heal count toward Ica's healing tally? Also, does the team's
    Max HP go up by 20% for 2 turns? **Modelled 2026-11-15 (K31), five readings to check:** (a) the heal comes first and the
    Max HP buff after (allies start at full HP, so the heal is all overheal); (b) the 2 turns count down by each ally's own
    turns; (c) only characters get the heal and the buff, no memosprite; (d) the heal takes her Outgoing Healing; (e) the
    Max HP buff does not raise current HP. **Result:**
-9. **Hyacine's After Rain duration after an out-of-turn Ultimate.** Use her Ultimate between two of her turns, then count
+11. **Hyacine's After Rain duration after an out-of-turn Ultimate.** Use her Ultimate between two of her turns, then count
    how many of her own actions After Rain is still up for: 2 or 3? **Result:**
-10. **Take Sky in Hand during After Rain.** When it triggers, does the ally who lost HP also get the "all allies" heal (two
+12. **Take Sky in Hand during After Rain.** When it triggers, does the ally who lost HP also get the "all allies" heal (two
    heal numbers)? Does Little Ica heal herself? **Result:**
-11. **Cyrene's first Ultimate: 1 or 2 Story?** Settled by Smitty in game, 2026-11-15: 2.
-12. **Cyrene's Ultimate order.** Settled by Smitty in game, 2026-11-15: the teammates' Ultimates come before Demiurge's extra turn.
-13. **Cyrene E6** (only if you have E6). Does the first Ode to Ego Minuet already have the enemies' DEF -20%? **Result:**
-14. **Future and Ultimates.** After a teammate uses their Ultimate (or a follow-up), does Cyrene gain Recollection from it?
+13. **Cyrene's first Ultimate: 1 or 2 Story?** Settled by Smitty in game, 2026-11-15: 2.
+14. **Cyrene's Ultimate order.** Settled by Smitty in game, 2026-11-15: the teammates' Ultimates come before Demiurge's extra turn.
+15. **Cyrene E6** (only if you have E6). Does the first Ode to Ego Minuet already have the enemies' DEF -20%? **Result:**
+16. **Future and Ultimates.** After a teammate uses their Ultimate (or a follow-up), does Cyrene gain Recollection from it?
     The sim says only Basic ATK and Skill consume Future. **Result:**
-15. **Cyrene's Max HP and current HP.** When Demiurge arrives and her Max HP goes up 24%, does her current HP go up too, or
+17. **Cyrene's Max HP and current HP.** When Demiurge arrives and her Max HP goes up 24%, does her current HP go up too, or
     only the maximum? **Result:**
-16. **World-Remaking Deliverer** (Robin or Cyrene wearing it). After a Skill that summons the memosprite, is the +15% team
+18. **World-Remaking Deliverer** (Robin or Cyrene wearing it). After a Skill that summons the memosprite, is the +15% team
     DMG on right away? If the memosprite leaves before her next Basic/Skill, does the buff end early? **Result:**
-17. **Netherwing's last Breath and West Wind** (only matters if it ever expires at turn 3 without the finisher; today the
+19. **Netherwing's last Breath and West Wind** (only matters if it ever expires at turn 3 without the finisher; today the
     sim's modes never let that happen). Skip unless convenient. **Result:**
-18. **Robin with a non-heir Ode.** When Demiurge uses This Ode on Robin Summeretto, does the +40% DMG show on both Robin and
+20. **Robin with a non-heir Ode.** When Demiurge uses This Ode on Robin Summeretto, does the +40% DMG show on both Robin and
     the Songbirds? **Result:**
-19. **Can enemies hit the Summer Songbirds?** They show no Backup or Out-of-Bounds tag (like Little Ica, a normal unit),
+21. **Can enemies hit the Summer Songbirds?** They show no Backup or Out-of-Bounds tag (like Little Ica, a normal unit),
     and a screenshot showed them with 2 debuffs and lost HP. During Fever, open their details and tap the debuff list: what
     are the debuffs and who applied them? An enemy debuff means enemies can target them. Any enemy damage number on them
     settles it too. **Result (2026-11-15):** a boss's "Target Locked On" and two enemy DoTs were on them; no tag. Switched to a normal unit. Final proof, if convenient: a damage number on them when that boss's "Desmios Evangelion" (damage split across all locked-on targets) lands.
 
-20. **Sacerdos' Relived Ordeal on Sunday himself** (code: sacerdosRelivedOrdeal.ts header). Use Sunday's Ultimate on **Sunday
+22. **Sacerdos' Relived Ordeal on Sunday himself** (code: sacerdosRelivedOrdeal.ts header). Use Sunday's Ultimate on **Sunday
     himself**. Does a Sacerdos' Relived Ordeal stack appear in **his** buff list? The sim gives none (its NOT MODELLED case).
     **Result:**
-21. **Sacerdos' Relived Ordeal after Sunday is knocked down.** If Sunday goes down while an ally holds his Sacerdos stack, does the
+23. **Sacerdos' Relived Ordeal after Sunday is knocked down.** If Sunday goes down while an ally holds his Sacerdos stack, does the
     stack stay on the ally until it runs out? The sim keeps it. Skip unless it happens. **Result:**
-22. **Two Sacerdos wearers** (only if you ever field two). Do their stacks share one cap of 2, or can an ally hold 2 from each? The sim
+24. **Two Sacerdos wearers** (only if you ever field two). Do their stacks share one cap of 2, or can an ally hold 2 from each? The sim
     keeps them apart. Skip unless convenient. **Result:**
-23. **Self-Enshrouded Recluse on Dan Heng PT himself** (code: selfEnshroudedRecluse.ts header). After his Skill shields the team,
+25. **Self-Enshrouded Recluse on Dan Heng PT himself** (code: selfEnshroudedRecluse.ts header). After his Skill shields the team,
     open **his own** buff list (or his character stats in battle). Does he get the +15% CRIT DMG from his own set while he holds his
     own shield? The sim says yes. **Result:**
-24. **Self-Enshrouded Recluse after Dan Heng PT is knocked down.** If he goes down while allies still hold his shield, does their
+26. **Self-Enshrouded Recluse after Dan Heng PT is knocked down.** If he goes down while allies still hold his shield, does their
     +15% CRIT DMG stay until the shield ends? The sim keeps it. Skip unless it happens. **Result:**
+
+27. **Anaxa's talent extra Skill gives energy and stacks?** Basic ATK on an enemy already weak to 5+ types, so the extra Skill
+    comes out. Energy gained: 20 + 10 (Basic) + 30 (extra Skill) = 60, or only 30? With E4, ATK stacks after it: 2 or 1? With E1,
+    one more Skill Point the first time? **Result:**
+28. **Anaxa: which enemy is "them" for the extra Skill?** Basic ATK on an enemy with exactly 4 weakness types, so the Basic's hit
+    adds the fifth. Does the extra Skill come out right away (the sim: yes, checked after the action)? **Result:**
+29. **Anaxa with Ode to Reason: does the talent's extra Skill also get the 3 more instances?** Count its hits: 8 (sim) or 5.
+    **Result:**
+30. **Anaxa: does True Knowledge (and E4's ATK stack) already apply to the Basic/Skill that grants it?** Compare the ATK in his
+    stats panel during the first Skill after the Ode with a later one. The sim: yes. **Result:**
+31. **Anaxa: does an instance see the weakness it implants?** On an enemy with 4 types, the Skill's 1st instance adds the 5th.
+    Is the 2nd instance on that enemy already +30% (Disclosure)? The sim: the instance itself no, the next one yes. **Result:**
+32. **Anaxa's Sublimation on a boss with 50% Control RES** (most Memory of Chaos bosses). After his Ultimate, does the boss still
+    take its next turn? The sim: any Control RES means it acts. The generic enemy has none, so this only matters for real
+    bosses later. **Result:**
+33. **Anaxa: do weakness implants and Sublimation count as debuffs?** With Acheron (or any "when a debuff is inflicted" effect):
+    does his Skill or Ultimate trigger it? The sim: both count. **Result:**
+34. **Anaxa's Technique and E2 at the start of battle.** Which weakness does the Technique add when someone else starts the
+    fight ("the attacker's Type")? The sim assumes Anaxa's Wind. Note the weakness icons at the start. **Result:**
+35. **The Herta's Skill hit spread** on 5 enemies: hits on the middle / its neighbours / the outer two. The sim: 3 / 2 / 1.
+    **Result:**
+36. **The Herta: Interpretation right after Hear Me Out.** Note the aimed enemy's stacks just after the Skill (the sim: reset
+    to 1, plus her own after-attack stacks: 5 if it is the most-stacked enemy hit, else 2). At E1, does the +50% Ice DMG come
+    at 28 stacks (28 x 1.5 = 42, the sim and Fribbels) or only at 42? **Result:**
+37. **The Herta: "Answer" after her Ultimate.** Is it kept (the sim) or spent? Does a stack put on a 42-stack enemy still give
+    an Answer (the sim: yes)? **Result:**
+38. **The Herta's trace stacks when she is the only Erudition character.** Does "after attacking, 1 stack on the
+    most-stacked enemy hit" still happen? The sim: yes (only the CRIT DMG and "at least 3 targets" need 2 Erudition).
+    **Result:**
+39. **The Herta with Jing Yuan: does Lightning-Lord count as an Erudition attacker?** Note the most-stacked enemy's Interpretation
+    before and after one Lightning-Lord action. The sim gives +1 from Aloofly Honest and +3 from Message per hit (Jing Yuan is
+    Erudition), about 6 extra stacks per Jing Yuan turn; if Lightning-Lord is not "an Erudition character", it is +1 +1. **Result:**
 
 ---
 

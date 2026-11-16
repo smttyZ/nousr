@@ -611,6 +611,15 @@ defaults; a user can run any legal build, however odd. The simulator refuses onl
 relic stats) or what it can't model yet, so nobody gets a confidently wrong number.
 
 - **Local web companion** (Smitty, 2026-11-16: post-MVP). A local server that opens a browser UI over `nousr-result` files (tables, graphs, the action log). It reads result files as a read-only data source (K33), so the CLI and engine stay unchanged.
+  Reference look (Smitty, 2026-11-16): KQM's gcsim result page, e.g. https://db.kqm.gg/db/kqm-cd23eebb-93f1-44ce-848f-2f3c527aff96
+  (team cards; summary cards; damage over time and cumulative; damage by character, element, target; damage by named source;
+  action counts; energy by source; reactions by source; aura uptime; the config). Already in `nousr-result`: team and build
+  echo, totals and per cycle, per member and per ability, action counts, the action log with action value and damage
+  (so damage over time and cumulative curves), warnings, the scenario. Gaps to record first, as OPTIONAL result fields:
+  energy gained per member and source, healing and shields given and taken, damage per enemy, buff and debuff uptime
+  (e.g. Netherwing's Territory), named damage sources finer than ability (a hit's own name), and per-kit counters
+  (`kit_stats`: Breaths, Slashed Dream, Story, breaks). gcsim's min/max/std and DPS histogram come from its many random
+  iterations; NouSR's equivalent is the stochastic mode on this roadmap.
 - **One-click setup package** (Smitty, 2026-11-16). A download for non-technical users that bundles Node, the built CLI and the data, so nobody has to install anything by hand; the manual install stays for CLI users.
 - **Named standard-build variants** (Smitty, 2026-11-15). Several default builds per character, picked by name in a
   scenario, e.g. "signature" (the current default), "f2p" or "budget" (cheaper light cones and sets). K32 already fits each

@@ -197,6 +197,25 @@ Short procedures. Same idea: write down what you see.
 39. **The Herta with Jing Yuan: does Lightning-Lord count as an Erudition attacker?** Note the most-stacked enemy's Interpretation
     before and after one Lightning-Lord action. The sim gives +1 from Aloofly Honest and +3 from Message per hit (Jing Yuan is
     Erudition), about 6 extra stacks per Jing Yuan turn; if Lightning-Lord is not "an Erudition character", it is +1 +1. **Result:**
+40. **Messenger Traversing Hackerspace and Watchmaker: which Ultimates count as "on an ally"** (code: ultimateOnAlly.ts,
+    messengerTraversingHackerspace.ts, watchmakerMasterOfDreamMachinations.ts headers). The sim counts an Ultimate that has an ally
+    effect (buff, heal, energy, advance on another character) and does not attack. Check with the wearer using an Ultimate that
+    targets one ally (Sunday's on another character), all allies (Hyacine's), and the wearer itself (Sunday on himself): does the set
+    trigger? The sim: yes, yes, no. Also: does Fu Xuan's Ultimate (it attacks and heals) trigger it? The sim: no. **Result:**
+41. **Messenger and Watchmaker durations.** After the trigger, does each ally keep the buff through its own next turn (Messenger,
+    1 turn) or next two turns (Watchmaker, 2 turns), counted at the end of each ally's turn? Does the wearer itself get it? The sim:
+    yes to all. **Result:**
+42. **Longevous Disciple stacks** (code: longevousDisciple.ts header). After two hits, does a third hit or HP loss refresh the 2
+    turns of both stacks, or does each stack time out on its own? Does a hit fully absorbed by a shield give a stack? Does damage Fu
+    Xuan's Matrix moves onto the wearer count as a hit? The sim: shared timer, yes, no. **Result:**
+43. **Guard of Wuthering Snow's 5 Energy** (code: guardOfWutheringSnow.ts header). With a wearer that has Energy Regeneration Rate
+    above 0, start a turn at or under 50% HP and note the Energy gained: 5, or 5 times (1 + rate)? Is the 8% heal affected by
+    Outgoing Healing? The sim: flat 5, no Outgoing Healing. **Result:**
+44. **Eagle of Twilight Line's advance.** After the wearer's Ultimate, is the action advanced by a clean 25% (the sim), also when the
+    Ultimate is used right after its own turn? **Result:**
+45. **Fleet of the Ageless at exactly 120 SPD** (code: fleetOfTheAgeless.ts header). Does the team ATK +8% show with the wearer at
+    SPD 120.0, and does it follow a temporary SPD buff over 120 (a Messenger Ultimate) and drop when the buff ends? The sim: yes
+    at exactly 120, and yes it follows. **Result:**
 
 ---
 

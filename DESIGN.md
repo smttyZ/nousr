@@ -480,7 +480,7 @@ pipeline, and an `on_hp_loss` event lets other effects react. Enemy targeting is
 
 ## Where things stand (2026-11-16)
 
-Branch `castorice-team` (not pushed). `main` has everything through PR #3 (Jing Yuan's team). All 1,644 tests pass.
+Branch `castorice-team` (not pushed). `main` has everything through PR #3 (Jing Yuan's team). The three side branches (The Herta and Anaxa; Sunday's and Dan Heng PT's relic sets; the results-report draft) are merged in (2026-11-16). All 14 roster kits are registered, all 14 standard builds run, and all 1,823 tests pass.
 
 - **Kits registered and reviewed:** Acheron, Tribbie, Jing Yuan, Silver Wolf, Welt, Dan Heng • PT, Sunday, Fu Xuan,
   Robin • Summeretto.
@@ -506,9 +506,8 @@ Branch `castorice-team` (not pushed). `main` has everything through PR #3 (Jing 
   Sacerdos' 4-piece effects were refused then; both are modelled now).
 - **Cyrene (2026-11-15):** written by a Sonnet agent, reviewed by another, registered with This Love, Forever. Demiurge's
   order is her kit option (K26/K27). The review found no wrong numbers. Open:
-  - **Her standard build cannot run:** `data/standard-builds/1415.json` gives 18 SPD rolls computed without the light cone,
-    but the loader counts This Love, Forever's +18% SPD, so the file passes the K14e rule ("SPD past the cap only as far as
-    the target needs": 10 rolls with it) and stops. Waits on Smitty: how standard builds should treat light-cone SPD.
+  - **Her standard build runs (fixed by K32, 2026-11-15):** the file's 18 SPD rolls were computed without the light cone;
+    the loader now solves SPD for the equipped light cone (10 rolls with This Love, Forever).
   - **Non-heir Ode on a memosprite owner (Robin Summeretto):** Fribbels puts the +40% on its single-target entity, which for
     Robin (memo buff priority) is the Songbirds, so her own hits miss it (Computed by the reviewer: Basic ATK the same with
     the Ode on and off). The text says it "also applies on memosprites". Fix: inject the delta for the other entity (K15a).

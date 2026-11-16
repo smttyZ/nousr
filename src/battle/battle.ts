@@ -1,3 +1,4 @@
+import type { PeriodModule } from '../periods/period'
 import type { EngineEvents, TurnInfo, UnitId } from '../engine/events'
 import type { EquipmentInstance, MemberEquipment } from '../equipment/equipment'
 import { attackerEquipmentState, createEquipment, teammateEquipmentState } from '../equipment/equipment'
@@ -202,6 +203,8 @@ export interface BattleSetup {
   cycles: number
   start: { energy: number, skillPoints: number, techniques: boolean }
   kernel: DamageKernel
+  /** The MoC period module (src/periods) to attach after the kits are created; none when left out. */
+  period?: PeriodModule
 }
 
 /**
@@ -437,6 +440,8 @@ export class Battle {
     // when they are asked for state, never while they are created.
     for (const member of this.members) member.equipmentInstances = createEquipment(this, member)
     for (const member of this.members) member.instance = member.kit.create(this, member)
+    // The period last: it may look at every kit and equipment module.
+    setup.period?.create(this)
     this.checkPolicy()
   }
 

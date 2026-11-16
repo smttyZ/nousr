@@ -255,6 +255,20 @@ A MoC period (Memory Turbulence) is a module with the same hook interface as a k
 (cycle start, Ult used, SP spent …) and registers modifiers. A scenario selects one by ID
 (`"period": "moc-2026-11-survival-of-the-fittest"`). Swapping periods means adding a file and changing one field.
 
+**Built (step 7, 2026-11-16).** `src/periods/`: `PeriodModule` (`id`, `name`, optional `check(members)` that returns
+a problem line per member the module cannot model, and `create(battle)` that runs after the kits and equipment
+exist) and `PERIODS`, the registry by ID. `run.ts` resolves `battle.period`; an unknown ID stops the run and lists
+the known ones, and the module's `check` runs while each team is planned. `BattleSetup.period` carries it into the
+`Battle`, and the result header shows `period: <id>` (the scenario file embedded in the result has it too).
+
+*To add a period:* write `src/periods/<name>.ts` exporting a `PeriodModule`, add it to the list in
+`src/periods/index.ts`, and set `battle.period` in the scenario to its ID. Nothing else changes.
+
+*`moc-2026-11-survival-of-the-fittest`:* its rule is about Punchlines and Aha, which are the Elation path's
+mechanic and not modelled. A team with no Elation-path character (kit `path` is `'Elation'`, the same word
+Fribbels uses) runs exactly as with `period: null`; a team with one stops with an error naming the member.
+The in-game text is in the module's header.
+
 ## Enemy profiles
 
 JSON, modelled on hsr-simulator's format: level, HP, ATK, DEF, SPD, toughness, RES per element, and an
@@ -473,7 +487,7 @@ the technique's Quadrivalent Ascendance stack is modelled.
   Along the Passing Shore, Dance! Dance! Dance!, Pioneer Diver of Dead Waters, and three items registered as
   having no conditional behaviour. A light cone or set with no module stops the run with an error, because
   Fribbels' defaults count conditional buffs as always on.
-- The period module (step 7): a scenario that names a period stops with an error until then.
+- The period module (step 7): built 2026-11-16; see "Period modules".
 - The other characters, and a results report.
 
 ## Castorice / HP loss
@@ -487,7 +501,7 @@ pipeline, and an `on_hp_loss` event lets other effects react. Enemy targeting is
 
 Branch `castorice-team` (not pushed). `main` has everything through PR #3 (Jing Yuan's team). The three side branches (The Herta and Anaxa; Sunday's and Dan Heng PT's relic sets; the results-report draft) are merged in (2026-11-16). All 14 roster kits are registered, all 14 standard builds run, and all 1,823 tests pass.
 
-- **Results report and command line built (2026-11-16, branch `cli-results`, K33/K34):** `nousr run | validate | version` (`npm run build`, then `node dist/cli.js`), writing `nousr-result` JSON that follows `schema/result.schema.json` (version 1) and printing the totals, ratios and per-member tables; the action log now carries action value, cycle, damage and Skill Points. The example scenario runs (period null until step 7).
+- **Results report and command line built (2026-11-16, branch `cli-results`, K33/K34):** `nousr run | validate | version` (`npm run build`, then `node dist/cli.js`), writing `nousr-result` JSON that follows `schema/result.schema.json` (version 1) and printing the totals, ratios and per-member tables; the action log now carries action value, cycle, damage and Skill Points. The example scenario runs.
 - **Kits registered and reviewed:** Acheron, Tribbie, Jing Yuan, Silver Wolf, Welt, Dan Heng • PT, Sunday, Fu Xuan,
   Robin • Summeretto.
 - **Written and tested on this branch, not yet reviewed or registered:** **Hyacine** (+ The Story's Next Page) and
@@ -558,7 +572,7 @@ Branch `castorice-team` (not pushed). `main` has everything through PR #3 (Jing 
     Sublimation (today only Sublimation removes it; matters only with a weakness list without Wind); (3) The Great Cosmic
     Enterprise on a non-Anaxa wearer reads the scenario's count, not Anaxa's per-enemy count.
 - **Next:** settle the standard-build SPD question and fix 1415.json, then one PR for the Castorice team and this one for The
-  Herta and Anaxa. Then the period module (step 7) and the results report (K8).
+  Herta and Anaxa. The period module (step 7) is built; the results report (K8) is built.
 - **How waves run:** one branch per wave; Sonnet agents (medium effort) write each kit in its own files, never
   touching battle.ts or the registries; a separate Sonnet reviewer checks each kit against the text and Fribbels,
   with mutation tests; the orchestrator verifies, registers, commits, opens a PR; CI runs on the PR; Auto-fix on.

@@ -4,6 +4,7 @@ import { EQUIPMENT, type EquipmentRegistry, resolveEquipment } from '../equipmen
 import { ENEMY_PROFILE_DIR, type EnemyProfile, loadEnemyProfile } from '../enemy/profile'
 import type { KernelBuild, KernelUnit, ScannedRelic, ScenarioKernel } from '../kernel/types'
 import { KITS, kitFor, type RegisteredKit } from '../kits/index'
+import { PERIODS, type PeriodModule, type PeriodRegistry, resolvePeriod } from '../periods/index'
 import type { Member, Scenario, Team } from '../scenario/types'
 import { KIT_OPTION_SCHEMAS } from '../scenario/kitOptions'
 import { loadStandardBuild, resolveStandardBuild, type StandardBuildReport, StandardBuildError } from '../standard/index'
@@ -72,6 +73,8 @@ export interface RunOptions {
   kits?: ReadonlyMap<string, RegisteredKit>
   /** Light cone and set modules. Defaults to the registry in src/equipment/index.ts. */
   equipment?: EquipmentRegistry
+  /** Period modules by id. Defaults to the registry in src/periods/index.ts. */
+  periods?: PeriodRegistry
   /** Where enemy profiles are read from. Defaults to data/enemies. */
   profileDir?: string
   /**
@@ -244,17 +247,18 @@ function buildSetup(
   if (!Number.isInteger(enemyCount) || enemyCount < 1 || enemyCount > 5) {
     problems.push(`enemy count must be a whole number from 1 to 5, got ${enemyCount}`)
   }
+  let period: PeriodModule | undefined
   if (scenario.battle.period !== null) {
-    problems.push(
-      `battle.period "${scenario.battle.period}": period modules are not built yet (build order step 7). ` +
-        'Set period to null to run without one.',
-    )
+    period = attempt(() => resolvePeriod(scenario.battle.period!, options.periods ?? PERIODS), 'battle.period', problems)
   }
 
   const members: MemberSetup[] = []
   for (const member of team.members) {
     const setup = memberSetup(scenario, team, member, options, problems, warnings, standardBuilds)
     if (setup) members.push(setup)
+  }
+  if (period?.check) {
+    problems.push(...period.check(members).map((p) => `team "${team.id}", period "${period.id}": ${p}`))
   }
   if (problems.length > 0) throw new RunError(problems)
 
@@ -268,6 +272,7 @@ function buildSetup(
       cycles: scenario.battle.cycles,
       start: { ...scenario.battle.start },
       kernel: options.kernel,
+      ...(period !== undefined && { period }),
     },
     warnings,
     standardBuilds,

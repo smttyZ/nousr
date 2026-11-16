@@ -84,7 +84,7 @@ describe('the table layout', () => {
     expect(formatReport(RESULT)).toMatchInlineSnapshot(`
       "NouSR 0.1.0 · kernel fribbels/hsr-optimizer@31644d9 · game 4.7
       Scenario: Example (examples/x.scenario.json)
-      MoC, 2 cycles (250 AV), generic-moc, weakness: all, start 50% energy, 3 SP, techniques on
+      MoC, 2 cycles (250 AV), period: none, generic-moc, weakness: all, start 50% energy, 3 SP, techniques on
 
       Total damage              1 enemy         3 enemies
                            total  ratio      total  ratio
@@ -153,7 +153,7 @@ describe('the table layout', () => {
     expect(formatReport(only)).toMatchInlineSnapshot(`
       "NouSR 0.1.0 · kernel fribbels/hsr-optimizer@31644d9 · game 4.7
       Scenario: Example (examples/x.scenario.json)
-      MoC, 2 cycles (250 AV), generic-moc, weakness: all, start 50% energy, 3 SP, techniques on
+      MoC, 2 cycles (250 AV), period: none, generic-moc, weakness: all, start 50% energy, 3 SP, techniques on
 
       Total damage             3 enemies
                             total  ratio

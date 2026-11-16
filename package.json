@@ -4,6 +4,9 @@
   "private": true,
   "description": "Deterministic action-value timeline simulator for Honkai: Star Rail teams",
   "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
   "type": "module",
   "bin": {
     "nousr": "dist/cli.js"

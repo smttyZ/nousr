@@ -2,8 +2,8 @@
 
 A deterministic action-value timeline simulator for Honkai: Star Rail teams.
 
-**Status:** personal research tool, pre-alpha, private. Scoped to one account's roster, pinned to game
-version 4.7. No support or update cadence is promised.
+**Status:** early release (MIT licensed), pre-alpha research tool. Built around one account's roster, pinned to game
+version 4.7. No support or update cadence is promised; issues and pull requests are welcome.
 
 > [!WARNING]
 > **Results are only valid for the teams NouSR v1 was built for.** Only the v1 roster's characters, light cones

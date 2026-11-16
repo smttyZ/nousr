@@ -36,6 +36,8 @@ Columns:
 | 2026-11-16 | Fable | Pre-release review: install test, 3-kit spot-check, publish safety, docs, scorecard | 219k | 66 | 9.5 | Reviewer: 1 kit discrepancy (Acheron own-Ultimate stack), personal data in git history, README order | — | Worked on main instead of the brief's commit, noticed and corrected it |
 | 2026-11-16 | Sonnet | Draft rotations + 5 comparison scenarios (private) | 245k | 65 | 10.9 | Pending Smitty's approval of rotations; found 7 missing relic sets in the scan | — | Sourced KQM + Prydwen (via Tavily; Prydwen blocks direct fetch) |
 | 2026-11-16 | Sonnet | Contributor docs: CONTRIBUTING, AGENTS, public CLAUDE.md, templates | 115k | 19 | 2.6 | Clean; its copy started from main, not the sprint branch (README conflict, resolved by lead) | — | Docs only |
+| 2026-11-16 | Sonnet | 7 relic/planar set modules for scanned gear | 302k | 108 | 23.2 | Clean so far (lead merged, 2,033 pass); infers "Ultimate on an ally" heuristically | all 8 files mutated, all caught | Its copy started from main |
+| 2026-11-16 | Sonnet | Ability and trace levels from the scan (K15); 11 kits level-aware | 472k* | 9* | 3.5* | Clean so far (lead merged, 2,093 pass) | 9 run, all caught | *figures after resuming from a usage limit; earlier part not shown |
 
 ## Side sessions
 

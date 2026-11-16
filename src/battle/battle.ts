@@ -57,6 +57,17 @@ export function expectedCapped(distribution: readonly number[], cap: number): nu
 /** More uncertain modifiers than this around one enemy make the debuff states too many to enumerate (2^n). */
 export const MAX_UNCERTAIN_MODIFIERS = 14
 
+/** Fribbels' id for Cyrene: its `cyreneActionExists` looks for this character in the request's team. */
+export const CYRENE_KERNEL_ID = '1415'
+
+/** Cyrene's ally-specific memosprite-skill effect on one ally (`Battle.cyreneEffect`). */
+export interface CyreneEffect {
+  /** Fribbels' `cyreneSpecialEffect` switch for the ally. */
+  active: boolean
+  /** Cyrene is E3 or above: the skill's Lv+1 values (Fribbels' `cyreneSpecialEffectEidolonUpgraded`). */
+  upgraded: boolean
+}
+
 const worldKey = (modifier: Modifier): string => `${modifier.target}\u0000${modifier.id}`
 
 export interface MemberSetup {
@@ -65,6 +76,11 @@ export interface MemberSetup {
   kit: Kit
   eidolon: number
   affinitiveEidolon: boolean
+  /**
+   * Whether this member uses their technique before the battle (K31). Left out, `BattleSetup.start.techniques` decides, which is
+   * the default for every member; a scenario run always sets it from the member's resolved `technique`.
+   */
+  technique?: boolean
   /** Out-of-combat stats. In-combat changes come from kits and modifiers. */
   stats: {
     maxHp: number
@@ -120,13 +136,16 @@ export interface SummonSpec {
 
 /**
  * Memosprites whose default is untargetable (DESIGN.md K6, second kind). The key is `MemospriteSpec.name`.
- * - netherwing, summer_songbirds: settled by Smitty (2026-11-14): enemies cannot target them. Netherwing has real HP
- *   (it bears HP loss for allies); Summer Songbirds' HP (70% of Robin's Max HP) only scales their damage and is never lost.
- * - little_ica, demiurge: hsr-simulator marks them "backup", i.e. untargetable. IN-GAME CHECK: can enemies target Little
- *   Ica (Hyacine) and Cyrene's Demiurge? Delete the name from this set to make one targetable.
+ * - netherwing: settled by Smitty (2026-11-14): enemies cannot target it; its in-game status is "Backup" (tooltip, 2026-11-15).
+ *   It has real HP (it bears HP loss for allies).
+ * - summer_songbirds: NOT in the set. Settled by Smitty (2026-11-15): no Backup / Out-of-Bounds tag, and a boss's "Target
+ *   Locked On" and two enemy DoTs were on them in Memory of Chaos. The 2026-11-14 note ("cannot be targeted") was wrong.
+ * - little_ica: NOT in the set. Settled by Smitty (2026-11-15, seen in Memory of Chaos): enemies target Little Ica and hit
+ *   it (hsr-simulator marks it "backup", untargetable; that is wrong).
+ * - demiurge: its own text says it "is considered as Out-of-Bounds" while on the field, and it has no SPD; untargetable.
  * A kit overrides it per memosprite with `MemospriteSpec.targetable`, and `Battle.setMemospriteTargetable` switches it later.
  */
-export const UNTARGETABLE_MEMOSPRITES: Set<string> = new Set(['netherwing', 'summer_songbirds', 'little_ica', 'demiurge'])
+export const UNTARGETABLE_MEMOSPRITES: Set<string> = new Set(['netherwing', 'demiurge'])
 
 /**
  * A memosprite (DESIGN.md, K6, second kind): a party member with its own HP and aggro, and, when it has SPD, a unit on the
@@ -333,6 +352,8 @@ export class Battle {
   private readonly downed: string[] = []
   private readonly tieRecords = new Map<string, TieRecord>()
   private readonly summonMap = new Map<UnitId, SummonSpec>()
+  /** Cyrene's effect per ally (`cyreneEffect`, `setCyreneEffect`). */
+  private readonly cyreneEffects = new Map<string, { active: boolean, source: string }>()
   private readonly memospriteMap = new Map<UnitId, MemospriteSpec>()
   /** True while `kernelResult` is collecting the kits' and modules' state: the kernel must not be asked from there. */
   private collectingState = false
@@ -577,6 +598,65 @@ export class Battle {
     const index = this.collectExtraHits(this.member(attacker), enemy).findIndex((hit) => hit.id === id)
     if (index < 0) throw new Error(`No extra hit "${id}" for ${attacker}: no teammate's teammateState gives it in the current state`)
     return index
+  }
+
+  /**
+   * What one heal hit of `healer`'s heals for, as the kernel prices it now: the amount for ONE target, with the healer's
+   * live stats (Max HP, ATK, DEF), Outgoing Healing Boost (relics, light cones, set effects, buffs) and heal boosts
+   * in it. `ability` and `hit` name the kernel's heal hit the way `attack` names a damage hit: Fribbels' ability kinds
+   * ('SKILL_HEAL', 'ULT_HEAL', 'TALENT_HEAL', ...) and the hit's position in that ability's list. The kit applies the amount
+   * itself, to whoever the text says, with `party.heal(target, amount, source)`.
+   *
+   * A heal hit has no ATK/HP/DEF multiple in the result (`HitResult.scaling` is undefined for it, K11), so it is never priced per
+   * 100%; the hit's `damage` field IS the healed amount (`HitResult.output === 'HEAL'`). Stops with an error when the named hit is
+   * not a heal hit, so a damage hit is never read as a heal.
+   *
+   * Same recursion rule as `combatStats`: call it from actions and listeners, never from `attackerState` or `teammateState`.
+   */
+  healAmount(healer: string, ability: string, hit = 0, enemy: UnitId = this.primary): number {
+    const member = this.member(healer)
+    const hits = this.abilityHits(member, ability, enemy)
+    const found = hits[hit]
+    if (found === undefined) {
+      throw new Error(`${healer}'s ${ability} has no hit ${hit} in the kernel's answer (it has ${hits.length}); a heal is read with Battle.healAmount(healer, ability, hit)`)
+    }
+    if (found.output !== 'HEAL') {
+      throw new Error(`${healer}'s ${ability} hit ${hit} is not a heal hit in the kernel's answer (output: ${found.output ?? 'damage'}), so Battle.healAmount cannot read it`)
+    }
+    return found.damage
+  }
+
+  // ---------------------------------------------------------------- Cyrene's ally-specific effects
+
+  /**
+   * What Cyrene's memosprite skill "This Ode, to All Lives" family has done to `ally`, for the ally's kit to read (default: off).
+   * Fribbels keeps each ally-specific effect inside that ally's own conditionals behind a switch named `cyreneSpecialEffect`, and
+   * a second fact, whether Cyrene is at E3 or above (`upgraded`: the skill's Lv+1 values), which it reads from Cyrene's own request
+   * entry. A kit that has such an effect passes `active` as that switch (`attackerState` or `teammateState`, whichever Fribbels
+   * reads it in) and applies the effect's attack multiplier itself where Fribbels does not price it. `upgraded` is for the values a kit
+   * supplies itself (Fribbels' own switch already picks its numbers from Cyrene's eidolon).
+   *
+   * Reads only the battle's own state, so it is safe to call from `attackerState` and `teammateState`.
+   */
+  cyreneEffect(ally: string): CyreneEffect {
+    const entry = this.cyreneEffects.get(ally)
+    if (entry === undefined || !entry.active) return { active: false, upgraded: false }
+    return { active: true, upgraded: this.member(entry.source).eidolon >= 3 }
+  }
+
+  /**
+   * Turns Cyrene's effect on `ally` on or off. For a Cyrene kit (`source` is her member key). Fribbels' effects only
+   * exist while a Cyrene is in the request's team (`cyreneActionExists`), so `source` must be a member whose kernel character is
+   * Cyrene (1415) and the ally another member: anything else would switch the effect on in the kit while Fribbels leaves it out.
+   */
+  setCyreneEffect(ally: string, active: boolean, source: string): void {
+    const cyrene = this.member(source)
+    if (cyrene.kernel.unit.characterId !== CYRENE_KERNEL_ID) {
+      throw new Error(`setCyreneEffect: ${source} is not Cyrene (kernel character ${cyrene.kernel.unit.characterId}, expected ${CYRENE_KERNEL_ID}), and Fribbels only has the effect for a Cyrene in the team`)
+    }
+    if (ally === source) throw new Error(`setCyreneEffect: Cyrene's effect is on a teammate, not on ${source} itself`)
+    this.member(ally)
+    this.cyreneEffects.set(ally, { active, source })
   }
 
   /**
@@ -956,10 +1036,10 @@ export class Battle {
    *
    * Break effects are debuffs while they last (K24): Entanglement (Entangled, 1 turn), Imprisonment (the shared Imprisoned
    * state, with its SPD cut) and Freeze (Frozen, until the skipped turn ends) are modifiers with `debuff: true`, so every
-   * debuff count and "against debuffed" check sees them. They are NOT recorded as debuffs an ability inflicted during the
-   * action in progress, so they trigger no Crimson Knot or Slashed Dream (`actionUsed.debuffed`), as before K24.
-   * IN-GAME CHECK: whether Acheron's talent counts a Weakness Break's effect (and the Lightning break's Shock, which is not
-   * modelled) as a debuff inflicted during the ability that broke the enemy.
+   * debuff count and "against debuffed" check sees them. They ARE recorded as debuffs inflicted during the action that
+   * broke the enemy (`actionUsed.debuffed`), so they trigger Acheron's talent: checked in game by Smitty 2026-11-15
+   * (a Quantum break by Fu Xuan's Basic ATK, which applies no debuff of its own, gave Acheron a Slashed Dream).
+   * The damage-over-time break effects (Shock, Burn, Bleed, Wind Shear) are not modelled at all, not even as debuffs.
    */
   private weaknessBreak(attacker: Member, enemy: UnitId): number {
     const result = this.kernelResult(attacker, enemy)
@@ -978,25 +1058,23 @@ export class Battle {
     switch (element) {
       case 'Quantum':
         this.timeline.delay(enemy, ENTANGLEMENT_DELAY * (1 + be))
-        this.timeline.modifiers.apply({
+        this.applyDebuff({
           id: ENTANGLED,
           target: enemy,
           source: attacker.key,
-          debuff: true,
           duration: { turns: 1, tick: 'turnEnd' },
         })
         break
       case 'Imaginary':
-        this.imprison(enemy, attacker.key, IMPRISONMENT_DELAY * (1 + be), false)
+        this.imprison(enemy, attacker.key, IMPRISONMENT_DELAY * (1 + be), true)
         break
       case 'Ice':
         this.enemies.freeze(enemy)
         // The frozen enemy's skipped turn is its next one; the debuff ends with it.
-        this.timeline.modifiers.apply({
+        this.applyDebuff({
           id: FROZEN,
           target: enemy,
           source: attacker.key,
-          debuff: true,
           duration: { turns: 1, tick: 'turnEnd' },
         })
         break
@@ -1077,10 +1155,21 @@ export class Battle {
     })
   }
 
+  /** Warnings kits raised (`warn`), one per code and member. */
+  private readonly kitWarnings = new Map<string, RunWarning>()
+
+  /**
+   * Records a warning for the run result (K19), once per code and member: a later call with the same code and member replaces the
+   * message (so a kit can keep a count current). No team or enemy count here: the runner in src/run adds them.
+   */
+  warn(warning: RunWarning): void {
+    this.kitWarnings.set(`${warning.code}\u0000${warning.member ?? ''}`, warning)
+  }
+
   // ---------------------------------------------------------------- running
 
   run(): BattleResult {
-    for (const member of this.members) member.instance.onBattleStart?.({ techniques: this.setup.start.techniques })
+    for (const member of this.members) member.instance.onBattleStart?.({ techniques: member.technique ?? this.setup.start.techniques })
     this.ultimateWindow()
     this.timeline.run({ cycles: this.setup.cycles, takeTurn: (turn) => this.takeTurn(turn) })
     return {
@@ -1092,7 +1181,7 @@ export class Battle {
       actions: [...this.actionLog],
       downed: [...this.downed],
       kernelCalls: this.kernelCalls,
-      warnings: this.tieWarnings(),
+      warnings: [...this.tieWarnings(), ...this.kitWarnings.values()],
     }
   }
 
@@ -1423,7 +1512,8 @@ function mixResults(parts: ReadonlyArray<readonly [DamageResult, number]>): Dama
     hits[ability] = Array.from({ length }, (_, i) => {
       const d = mean((r) => r.hits[ability]?.[i]?.damage)!
       const scaling = mean((r) => r.hits[ability]?.[i]?.scaling)
-      return scaling === undefined ? { damage: d } : { damage: d, scaling }
+      const output = parts.map(([r]) => r.hits[ability]?.[i]?.output).find((o) => o !== undefined)
+      return { damage: d, ...(output !== undefined && { output }), ...(scaling !== undefined && { scaling }) }
     })
   }
   const stats = { ...parts[0]![0].stats }

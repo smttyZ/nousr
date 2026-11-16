@@ -75,6 +75,43 @@ describe('the generic enemy on the timeline', () => {
   })
 })
 
+describe('a skipped turn that is not Freeze (Sublimation, K29)', () => {
+  it('passes the next turn without an attack or a pattern step, and no thaw advance', () => {
+    const { timeline, enemies, run } = setup(generic)
+    const used: string[] = []
+    const skipped: EngineEvents['enemyTurnSkipped'][] = []
+    timeline.bus.on('enemyAttack', (e) => used.push(e.attack))
+    timeline.bus.on('enemyTurnSkipped', (e) => skipped.push(e))
+    enemies.skipNextTurn('enemy1', 'sublimation')
+    expect(enemies.willSkipTurn('enemy1')).toBe(true)
+    const turns = run(5).filter((s) => s.kind === 'turn')
+    // Still 8 turns at the same times (no advance); the first is skipped, the pattern starts on the second.
+    expect(turns).toHaveLength(8)
+    expect(turns[1]!.at).toBeCloseTo(2 * 10_000 / 158.4, 9)
+    expect(skipped).toEqual([{ enemy: 'enemy1', reason: 'sublimation' }])
+    expect(used).toEqual(['strike', 'strike', 'sweep', 'strike', 'strike', 'sweep', 'strike'])
+    expect(enemies.willSkipTurn('enemy1')).toBe(false)
+  })
+
+  it('applied twice before the turn skips one turn; Freeze on the same turn takes it and clears the skip', () => {
+    const twice = setup(generic)
+    twice.enemies.skipNextTurn('enemy1', 'sublimation')
+    twice.enemies.skipNextTurn('enemy1', 'sublimation')
+    const skips: string[] = []
+    twice.timeline.bus.on('enemyTurnSkipped', (e) => skips.push(e.reason))
+    twice.run(2)
+    expect(skips).toEqual(['sublimation'])
+
+    const both = setup(generic)
+    both.enemies.skipNextTurn('enemy1', 'sublimation')
+    both.enemies.freeze('enemy1')
+    const reasons: string[] = []
+    both.timeline.bus.on('enemyTurnSkipped', (e) => reasons.push(e.reason))
+    both.run(2)
+    expect(reasons).toEqual(['frozen'])
+  })
+})
+
 describe('a single-target attack', () => {
   it('is split across the allies by aggro, and the shares add up to one full hit', () => {
     const { enemies, hits, timeline } = setup(only({ target: 'single', multiplier: 2.5 }))

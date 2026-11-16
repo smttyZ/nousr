@@ -60,10 +60,20 @@ function printSkill(rows, levels, note = '') {
   }
 }
 
-// Levels worth showing: Basic ATK 6 (7 with eidolons); everything else 10 (12 with eidolons).
+// Levels worth showing: the maximum of the trace node that levels the ability, then that plus what this kit's
+// eidolons add. An enhanced form (Cyrene's "To Love and Tomorrow") sits under its base ability's node, so it
+// gets that node's levels. Abilities no node levels fall back to Basic ATK 6/7 and everything else 10/12.
 console.log('\n## Abilities')
 const skillRows = load('AvatarSkillConfig')
-const shownLevels = (skillId, head) => (head.MaxLevel <= 1 ? [1] : skillId === kit.SkillList[0] ? [6, 7] : [10, 12])
+const nodeMax = new Map(tree.flatMap((n) => (n.LevelUpSkillID ?? []).map((id) => [id, n.MaxLevel])))
+const eidolonAdds = (skillId) => kitRanks.reduce((sum, r) => sum + (r.SkillAddLevelList?.[skillId] ?? 0), 0)
+const shownLevels = (skillId, head) => {
+  if (head.MaxLevel <= 1) return [1]
+  const base = nodeMax.get(skillId)
+  if (base === undefined) return skillId === kit.SkillList[0] ? [6, 7] : [10, 12]
+  const added = eidolonAdds(skillId)
+  return added > 0 ? [base, base + added] : [base]
+}
 for (const skillId of kit.SkillList) {
   const rows = skillRows.filter((s) => s.SkillID === skillId)
   if (rows.length > 0) printSkill(rows, shownLevels(skillId, rows[0]))

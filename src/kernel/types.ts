@@ -252,8 +252,17 @@ export interface CombatStats {
  * can have different damage per point of ATK.
  */
 export interface HitResult {
-  /** Expected value over crits, against the primary target. */
+  /**
+   * The hit's number. For a damage hit (`output` undefined): expected damage over crits, against the primary target. For a heal
+   * hit (`output: 'HEAL'`): the amount healed, with the healer's live Outgoing Healing Boost and heal boosts already in it
+   * (`Battle.healAmount` reads it). For a shield hit: the shield's size. The name is kept for the damage case.
+   */
   damage: number
+  /**
+   * What the hit produces when it is not damage. Undefined means damage. A heal, shield or buff hit has no `scaling` (below), so the
+   * runner cannot price it per 100%: kits read a heal's amount through `Battle.healAmount`.
+   */
+  output?: 'HEAL' | 'SHIELD' | 'BUFF'
   /**
    * The multiple of the scaling stat (ATK, HP or DEF) the kernel used for this hit: 1.6 is 160%. A
    * hit that scales on more than one stat has the multiples added, and a part priced from it must use

@@ -32,8 +32,7 @@ import type { Kit, KitInstance } from './kit'
  *   "after an ally attacks" effect of any kit and adds no enemy to any action's hit list.
  *
  * NOT MODELLED:
- * - Cyrene's effect on the Zone's Additional DMG. `cyreneSpecialEffect` is passed as off until a Cyrene kit
- *   exists; Fribbels' default (on) would double the Additional DMG's multiple.
+ * - Cyrene's effect is read from `Battle.cyreneEffect` (off unless a Cyrene kit turns it on for her), see "Cyrene" below.
  * - Memosprite attacks now count: `isAlly` covers memosprites, so a memosprite's action triggers the Zone's Additional DMG
  *   and the Pebble energy like an ally target's attack (the text says "ally target"). The Additional DMG is priced as hers.
  * - The talent follow-up's retarget when its target is defeated before it lands. Enemies are never defeated
@@ -45,6 +44,17 @@ import type { Kit, KitInstance } from './kit'
  * Toughness (K7), internal units from `node tools/gamedata/kit-text.mjs 1403` ("toughness a/b/c": the designated
  * target / every enemy / adjacent): Basic 30/0/15, Ultimate 0/60/0, talent follow-up 0/15/0 (Fribbels:
  * `toughnessDmg` 10, 20 and 5, times 3). The Zone's Additional DMG removes none. She follows weaknesses.
+ *
+ * Cyrene's "Ode to Passage" (`node tools/gamedata/kit-text.mjs 1415`, the skill for teammate Tribbie, Lv6 / Lv7 at Cyrene E3): "causes DMG
+ * dealt by Tribbie to ignore 12% (13.2%) of enemies' DEF. When Tribbie launches Follow-Up ATK and triggers the Additional DMG from Tribbie's
+ * Zone, it further deals 1 instance(s) of Additional DMG." When `Battle.cyreneEffect` is active for her:
+ * - The DEF ignore is Fribbels' (`Tribbie.ts` ~337-339): the kit passes `cyreneSpecialEffect` as the effect's `active`, and Fribbels reads the
+ *   12% / 13.2% from Cyrene's eidolon. It reaches every attack of hers, and the Zone's Additional DMG (UNIQUE) is hers too.
+ * - The extra instance is the kit's: one more Additional DMG instance of the same size per enemy the follow-up hit (E2's size, if E2),
+ *   so her follow-up's Zone hit is priced at twice its multiple. Fribbels (`Tribbie.ts` ~233-237) doubles the Additional hit of EVERY
+ *   ability it builds (Basic ATK, Ultimate, follow-up and the ally-triggered UNIQUE hit), but the text names her Follow-Up ATK only. The
+ *   kit follows the text (`CYRENE_EXTRA_INSTANCE_ON`), and Fribbels' pricing per 100% is unchanged by it (the kernel's hit and its multiple
+ *   double together). AMBIGUOUS, for Smitty: follow the text (follow-up only) or Fribbels (every Zone hit of her own and the allies').
  *
  * IN-GAME CHECK notes mark the readings Smitty will check in game. AMBIGUOUS notes mark other places where
  * the text can be read two ways.
@@ -79,6 +89,13 @@ const ZONE_ADDITIONAL_HIT = 1
 
 /** Fribbels prices an ally-triggered instance as the only hit of its UNIQUE ability. */
 const ALLY_ADDITIONAL_ABILITY = 'UNIQUE'
+
+/**
+ * The abilities whose Zone Additional DMG gets Cyrene's one further instance: the text says "when Tribbie launches Follow-Up ATK and
+ * triggers the Additional DMG from Tribbie's Zone". Fribbels doubles every ability's; add 'BASIC', 'ULT' and ALLY_ADDITIONAL_ABILITY
+ * here to follow it.
+ */
+const CYRENE_EXTRA_INSTANCE_ON: ReadonlySet<string> = new Set(['FUA'])
 
 /** Ability multiples by eidolon. E3 raises the Basic ATK, Ultimate and Zone additional; E5 the Talent. */
 export function tribbieScalings(eidolon: number) {
@@ -133,6 +150,9 @@ export const Tribbie: Kit = {
      * attack hit, all on the hit enemy with the highest current HP, read after the main hit has landed.
      * The choice is `Battle.highestHpAmong` (K10), which guards its undecided tie-break.
      */
+    /** Instances per enemy hit: Cyrene's effect adds one more of the same size for the abilities in `CYRENE_EXTRA_INSTANCE_ON`. */
+    const instances = (ability: string) => (CYRENE_EXTRA_INSTANCE_ON.has(ability) && battle.cyreneEffect(me).active ? 2 : 1)
+
     const ownZoneAdditional = (ability: string, hit: readonly UnitId[]) => {
       if (!zoneUp() || hit.length === 0) return
       battle.attack({
@@ -141,7 +161,7 @@ export const Tribbie: Kit = {
         parts: [{
           shape: 'single',
           target: battle.highestHpAmong(hit, { attacker: me, ability, hit: ZONE_ADDITIONAL_HIT }),
-          scaling: hit.length * tribbieZoneAdditional(e),
+          scaling: hit.length * tribbieZoneAdditional(e) * instances(ability),
           hit: ZONE_ADDITIONAL_HIT,
           additional: true,
         }],
@@ -164,7 +184,7 @@ export const Tribbie: Kit = {
         parts: [{
           shape: 'single',
           target: battle.highestHpAmong(action.enemiesHit, { attacker: me, ability: ALLY_ADDITIONAL_ABILITY, hit: 0 }),
-          scaling: action.expectedEnemiesHit * tribbieZoneAdditional(e),
+          scaling: action.expectedEnemiesHit * tribbieZoneAdditional(e) * instances(ALLY_ADDITIONAL_ABILITY),
           hit: 0,
           additional: true,
         }],
@@ -287,8 +307,9 @@ export const Tribbie: Kit = {
           talentFuaStacks: lambStacks(),
           // Fribbels multiplies a UNIQUE hit by this (its default is 8). One instance per priced hit.
           uniqueTickCoefficient: 1,
-          // NOT MODELLED until a Cyrene kit exists (see the header).
-          cyreneSpecialEffect: false,
+          // Cyrene's "Ode to Passage" on her (Battle.cyreneEffect, off by default): Fribbels' 12% / 13.2% DEF ignore. The extra instance
+          // is priced by the kit itself (see the header).
+          cyreneSpecialEffect: battle.cyreneEffect(me).active,
           // E1 is on whenever the Zone is up, since the Zone deals Additional DMG after every ally attack
           // that hits a target. Fribbels gates it on the eidolon and the Zone itself.
           e1TrueDmg: true,

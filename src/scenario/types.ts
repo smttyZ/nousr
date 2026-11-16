@@ -96,6 +96,10 @@ export interface MemberFile {
   light_cone?: { id: string, superimposition: number }
   relics?: 'equipped' | 'standard' | (string | ScanRelic)[]
   standard_build?: StandardBuildOverrideFile
+  /** Checked against schema/kit-options/<character>.schema.json (src/scenario/kitOptions.ts). */
+  kit_options?: Record<string, unknown>
+  /** Whether this member uses their technique before the battle (K31). Left out: `battle.start.techniques`. */
+  technique?: boolean
   notes?: string
 }
 
@@ -161,6 +165,17 @@ export interface Member {
   relics: 'standard' | ScanRelic[]
   /** Only with `relics: 'standard'` (K14c). */
   standardBuild?: StandardBuildOverride
+  /**
+   * The member's kit options with the schema's defaults filled in (K25, K26), keys as in the scenario file. Absent for a character
+   * whose kit takes no options. Given even when the scenario left `kit_options` out, so the run can echo what was used.
+   */
+  kitOptions?: Record<string, unknown>
+  /** The option names the scenario itself gave (the rest came from defaults). */
+  kitOptionsGiven?: string[]
+  /** Whether this member uses their technique before the battle: the member's own `technique`, else `battle.start.techniques` (K31). */
+  technique: boolean
+  /** True when the scenario gave this member's `technique` itself; false when `battle.start.techniques` decided. */
+  techniqueGiven: boolean
 }
 
 export interface Team {

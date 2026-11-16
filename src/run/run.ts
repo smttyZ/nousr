@@ -5,6 +5,7 @@ import { ENEMY_PROFILE_DIR, type EnemyProfile, loadEnemyProfile } from '../enemy
 import type { KernelBuild, KernelUnit, ScannedRelic, ScenarioKernel } from '../kernel/types'
 import { KITS, kitFor, type RegisteredKit } from '../kits/index'
 import type { Member, Scenario, Team } from '../scenario/types'
+import { KIT_OPTION_SCHEMAS } from '../scenario/kitOptions'
 import { loadStandardBuild, resolveStandardBuild, type StandardBuildReport, StandardBuildError } from '../standard/index'
 import type { RunWarning } from './warnings'
 
@@ -90,6 +91,26 @@ export interface TeamPlan {
   warnings: RunWarnings
   /** One per member on `"standard"` relics (none when `options.standardBuild` supplies them). */
   standardBuilds: MemberStandardBuild[]
+  /** One per member whose kit takes options (K25, K26). */
+  kitOptions: MemberKitOptions[]
+  /** One per member: whether the technique was used before the battle (K31). */
+  techniques: MemberTechnique[]
+}
+
+/** Whether a member used their technique, and whether the scenario said so for this member or the battle default decided. */
+export interface MemberTechnique {
+  member: string
+  used: boolean
+  /** True when the member's own `technique` decided; false when `battle.start.techniques` did. */
+  given: boolean
+}
+
+/** The kit options a member ran with (defaults filled in), and which of them came from defaults. */
+export interface MemberKitOptions {
+  member: string
+  options: Record<string, unknown>
+  /** Option names the scenario left out, so their schema default (or the kit's computed default) was used. */
+  defaulted: string[]
 }
 
 export interface TeamRun {
@@ -103,6 +124,10 @@ export interface TeamRun {
   warnings: RunWarnings
   /** The relics each `"standard"` member ran with: the split used, and any re-split moves (K14c). */
   standardBuilds: MemberStandardBuild[]
+  /** The kit options each member ran with (K25, K26). */
+  kitOptions: MemberKitOptions[]
+  /** Which members used their technique before the battle (K31). */
+  techniques: MemberTechnique[]
 }
 
 /** Everything that stops a team from being run, reported together. */
@@ -140,6 +165,8 @@ export function runScenario(scenario: Scenario, options: RunOptions): TeamRun[] 
       result,
       warnings: [...plan.warnings, ...result.warnings.map((w): RunWarning => ({ ...w, team, enemyCount }))],
       standardBuilds: plan.standardBuilds,
+      kitOptions: plan.kitOptions,
+      techniques: plan.techniques,
     }
   })
 }
@@ -219,7 +246,15 @@ function buildSetup(
     },
     warnings,
     standardBuilds,
+    techniques: team.members.map((m): MemberTechnique => ({ member: m.key, used: m.technique, given: m.techniqueGiven })),
+    kitOptions: team.members.flatMap((m): MemberKitOptions[] => (m.kitOptions === undefined ? [] : [kitOptionsEcho(m)])),
   }
+}
+
+function kitOptionsEcho(member: Member): MemberKitOptions {
+  const given = new Set(member.kitOptionsGiven ?? [])
+  const names = Object.keys(KIT_OPTION_SCHEMAS.get(member.character)?.properties ?? {}).filter((k) => k !== 'notes')
+  return { member: member.key, options: { ...member.kitOptions }, defaulted: names.filter((k) => !given.has(k)) }
 }
 
 function memberSetup(
@@ -234,7 +269,7 @@ function memberSetup(
   const at = `team "${team.id}", member "${member.key}"`
   const before = problems.length
 
-  const kit = attempt(() => kitFor(member.character, options.kits ?? KITS), at, problems)
+  const kit = attempt(() => kitFor(member.character, options.kits ?? KITS, member.kitOptions), at, problems)
   if (kit && kit.characterId !== member.character) {
     problems.push(`${at}: the kit registered for ${member.character} is for character ${kit.characterId}`)
   }
@@ -282,6 +317,7 @@ function memberSetup(
     kit: kit!,
     eidolon: member.eidolon,
     affinitiveEidolon: member.affinitiveEidolon,
+    technique: member.technique,
     stats: {
       maxHp: basic.HP,
       def: basic.DEF,
@@ -330,14 +366,15 @@ function standardBuildFor(
     const spd = report.spd
     if (spd?.missedBy !== undefined) {
       const swapped = report.swaps.map((s) => `${s.slot} ${s.from} -> ${s.to}`)
-      const rolls = report.path === 'explicit' ? 'the scenario gave the split' : "the file's SPD rolls stay as they are"
+      const after = swapped.length > 0 ? ` after the main-stat change (${swapped.join(', ')})` : ''
+      const head = `The standard build's SPD target ${spd.target} is missed by ${spd.missedBy.toFixed(2)}: the build has ${spd.outOfCombat.toFixed(2)} out of combat${after}. `
+      const tail = report.spdSolved
+        ? `No number of distributed SPD rolls reaches it, so the build runs with ${report.spdSolved.usedRolls} (K32, K14f).`
+        : `The distributed rolls were not re-solved for it (${report.path === 'explicit' ? 'the scenario gave the split' : "the file's SPD rolls stay as they are"}, K14f).`
       warnings.push({
         severity: 'warning',
         code: 'spd-target-missed',
-        message:
-          `The standard build's SPD target ${spd.target} is missed by ${spd.missedBy.toFixed(2)}: the build has ${spd.outOfCombat.toFixed(2)} out of combat` +
-          `${swapped.length > 0 ? ` after the main-stat change (${swapped.join(', ')})` : ''}. The distributed rolls were not re-solved for it ` +
-          `(${rolls}, K14f).`,
+        message: head + tail,
         team: team.id,
         member: member.key,
       })

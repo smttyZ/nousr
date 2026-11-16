@@ -39,7 +39,7 @@ const Ally: Kit = {
 }
 
 /** 1,000 damage per 100% on Fu Xuan's hits; her in-combat Max HP is 8000, and 6% more while her own Knowledge is on. */
-function makeKernel(requests: DamageRequest[] = []): DamageKernel {
+function makeKernel(requests: DamageRequest[] = [], ohb = 0): DamageKernel {
   return {
     actionDamage(request) {
       requests.push(request)
@@ -47,9 +47,15 @@ function makeKernel(requests: DamageRequest[] = []): DamageKernel {
       const s = fuXuanScalings(request.attacker.eidolon)
       const knowledge = request.attacker.characterConditionals?.skillActive === true
       const e6 = request.attacker.eidolon >= 6 ? 2 * Number(request.attacker.characterConditionals?.e6TeamHpLostPercent ?? 1.2) : 0
+      const hp = knowledge ? HP * (1 + s.knowledgeHp) : HP
       return fakeResult(
-        { BASIC: [{ damage: 1000 * s.basic, scaling: s.basic }], ULT: [{ damage: 1000 * (s.ult + e6), scaling: s.ult + e6 }] },
-        { ATK: 0, DEF: 0, HP: knowledge ? HP * (1 + s.knowledgeHp) : HP, SPD: 0, CR: 0, CD: 0, EHR: 0, RES: 0, BE: 0, ERR: 0, OHB: 0 },
+        {
+          BASIC: [{ damage: 1000 * s.basic, scaling: s.basic }],
+          ULT: [{ damage: 1000 * (s.ult + e6), scaling: s.ult + e6 }],
+          // Dunjia: Fribbels' TALENT_HEAL hit is 5% of her Max HP + 133 (times her Outgoing Healing Boost, here `ohb`), a heal hit with no scaling.
+          TALENT_HEAL: [{ damage: (0.05 * hp + 133) * (1 + ohb), output: 'HEAL' }],
+        },
+        { ATK: 0, DEF: 0, HP: hp, SPD: 0, CR: 0, CD: 0, EHR: 0, RES: 0, BE: 0, ERR: 0, OHB: ohb },
       )
     },
   }
@@ -79,8 +85,8 @@ const basicPolicy: Rule[] = [
   { unit: 'sup', use: 'basic', when: [] },
 ]
 
-function setup(overrides: Partial<BattleSetup> & { eidolon?: number } = {}) {
-  const { eidolon, ...rest } = overrides
+function setup(overrides: Partial<BattleSetup> & { eidolon?: number, ohb?: number } = {}) {
+  const { eidolon, ohb, ...rest } = overrides
   const requests: DamageRequest[] = []
   const battle = new Battle({
     members: [ally('dps'), fx(eidolon ?? 0), ally('sup')],
@@ -90,7 +96,7 @@ function setup(overrides: Partial<BattleSetup> & { eidolon?: number } = {}) {
     weaknesses: 'all',
     cycles: 3,
     start: { energy: 0, skillPoints: 5, techniques: false },
-    kernel: makeKernel(requests),
+    kernel: makeKernel(requests, ohb ?? 0),
     ...rest,
   })
   const dealt: EngineEvents['damageDealt'][] = []
@@ -451,6 +457,18 @@ describe('Dunjia: the Ultimate heals every other ally', () => {
     }
     expect(healed.find((h) => h.unit === 'sup')!.amount).toBeCloseTo(100, 9)
     expect(battle.party.get('dps').hp).toBeCloseTo(ALLY_MAX_HP - 3000 + amount, 9)
+  })
+})
+
+describe('Dunjia reads the kernel heal hit', () => {
+  it('heals by what the kernel prices for TALENT_HEAL, so her Outgoing Healing Boost is in it (+20% here)', () => {
+    const { battle, act, healed } = setup({ ohb: 0.2 })
+    battle.party.takeDamage('dps', 3000, 'enemy1')
+    battle.party.setEnergy('fx', 135)
+    act.ultimate!.use()
+    const toDps = healed.find((h) => h.unit === 'dps')!
+    expect(toDps.amount + toDps.overheal).toBeCloseTo((0.05 * HP + 133) * 1.2, 9)
+    expect(battle.healAmount('fx', 'TALENT_HEAL')).toBeCloseTo((0.05 * HP + 133) * 1.2, 9)
   })
 })
 

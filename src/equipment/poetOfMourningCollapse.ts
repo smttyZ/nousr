@@ -12,8 +12,10 @@ import { setWithoutBehaviour } from './equipment'
  *   after this set's own -8%. It has no `setConditionals` key (its display is not modifiable), so nothing is supplied.
  *   The threshold is evaluated from the build's SPD, which is the out-of-battle SPD the timeline starts from.
  *
- * NOT MODELLED: the CRIT Rate boost on the memosprite. Memosprites are not built (DESIGN.md K6) and none deals damage
- * here, so it changes no result yet.
+ * - The CRIT Rate boost on the memosprite: Fribbels' `p4x` targets the wearer and the memosprite
+ *   (`TargetTag.SelfAndMemosprite`), and memosprite hits are priced through the kernel as the owner's (K6), so it
+ *   reaches the memosprite's damage with nothing to supply. (Corrected 2026-11-15: this header used to say
+ *   memosprites were not built.)
  *
  * IN-GAME CHECK: "if the wearer's SPD is lower than 110/95": whether this compares the SPD after the set's own -8%
  * (as Fribbels does) or before it. Fribbels compares after it.
@@ -24,5 +26,5 @@ export const PoetOfMourningCollapse = setWithoutBehaviour({
   setId: '124',
   reason:
     'the Quantum DMG and SPD -8% are always on and Fribbels adds them; the CRIT Rate by SPD is a threshold Fribbels evaluates itself ' +
-    'from the build SPD (p4x, no setConditionals key); the memosprite part changes no result while no memosprite deals damage',
+    'from the build SPD (p4x, no setConditionals key), for the wearer and the memosprite alike',
 })

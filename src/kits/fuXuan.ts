@@ -28,7 +28,8 @@ import type { Kit, KitInstance, TeammateState } from './kit'
  *   her Ultimate deals 200% of the tally extra (as a share of her Max HP), capped at 120% of her Max HP, and the tally resets after
  *   the Ultimate. E3 and E5 are level raises (above).
  *
- * Pricing. Fribbels prices her Basic ATK (`BASIC` hit 0) and Ultimate (`ULT` hit 0); the heal and Break hits are not priced here. The
+ * Pricing. Fribbels prices her Basic ATK (`BASIC` hit 0) and Ultimate (`ULT` hit 0); the Break hit is not priced here, and the heal
+ * hit (`TALENT_HEAL`, Dunjia) is read through `Battle.healAmount`. The
  * Knowledge effect reaches every ally's price through `teammateState`: the kernel's `skillActive` switch is the live state of the
  * Matrix and `teammateHPValue` her Max HP when the Matrix was last activated or at her last turn start (Fribbels takes it as an
  * input: the HP buff is flat, 6% of it, written to both HP and its unconvertible companion). For her own attacks the same switch
@@ -54,7 +55,8 @@ import type { Kit, KitInstance, TeammateState } from './kit'
  * - E6's tally counts every point of HP any ally or memosprite loses (damage after shields, HP spent, the share she takes herself) from
  *   the first activation on, also while the Matrix is down; the cap is applied as HP is added.
  * - HP Restore is checked whenever she loses HP. Gaining a trigger count from the Ultimate while she is already at or under 50% does not
- *   heal until she loses HP again. Her healing is not changed by Outgoing Healing Boost (kits have none yet).
+ *   heal until she loses HP again. HP Restore is not changed by Outgoing Healing Boost: Fribbels has no hit for it, so the kernel gives no
+ *   amount to read (Dunjia's heal does carry it).
  * - The Ultimate's heal reaches memosprites as well as characters ("all other allies").
  * - E2 ("any ally target struck by a killing blow while the Matrix is active: all ally targets struck by a killing blow during this
  *   action are not knocked down and 70% of their Max HP is restored, once per battle") is a `Party.addKnockdownGuard`. "Ally target"
@@ -70,7 +72,7 @@ import type { Kit, KitInstance, TeammateState } from './kit'
  * - A memosprite's Knowledge Max HP (a memosprite's Max HP belongs to its owner's kit) and the Matrix's effect on its CRIT Rate (its damage
  *   is priced as its owner's, which does get the Knowledge).
  * - Her Technique's Barrier and its Attack hit (Fribbels has no number for technique damage).
- * - Outgoing Healing Boost on her heals.
+ * - Outgoing Healing Boost on HP Restore (no Fribbels hit to read it from).
  */
 
 const MAX_ENERGY = 135
@@ -91,9 +93,11 @@ const RESTORE_HP_SHARE = 0.5
 const RESTORE_START = 1
 const RESTORE_MAX = 2
 
-/** Dunjia: the Ultimate heals every other ally by 5% of her Max HP plus this much. */
-const DUNJIA_SHARE = 0.05
-const DUNJIA_FLAT = 133
+/**
+ * Dunjia: the Ultimate heals every other ally by 5% of her Max HP + 133. The amount is Fribbels' own heal hit for it
+ * (`FuXuan.ts` `TALENT_HEAL`: `hpScaling(0.05).flatHeal(133)`), read with `Battle.healAmount`, so her Outgoing Healing Boost is in it.
+ */
+const DUNJIA_HEAL_ABILITY = 'TALENT_HEAL'
 
 /** E2: the share of Max HP an ally is restored to when its knockdown is prevented. */
 const E2_RESTORE_SHARE = 0.7
@@ -302,8 +306,9 @@ export const FuXuan: Kit = {
               })
               party.gainEnergy(me, ULT_ENERGY)
               restoreCount = Math.min(RESTORE_MAX, restoreCount + 1)
-              // Dunjia: heals every other ally by 5% of her Max HP + 133. Her in-combat Max HP, with her Knowledge.
-              const heal = DUNJIA_SHARE * battle.combatStats(me).HP + DUNJIA_FLAT
+              // Dunjia: heals every other ally by 5% of her Max HP + 133, as the kernel prices it: Fribbels' TALENT_HEAL hit, with her
+              // in-combat Max HP (her Knowledge) and her Outgoing Healing Boost (relics, light cone, Giant Tree of Rapt Brooding).
+              const heal = battle.healAmount(me, DUNJIA_HEAL_ABILITY)
               for (const id of allies()) if (id !== me && party.has(id)) party.heal(id, heal, me)
               // The tally restarts after the Ultimate (E6).
               if (e >= 6) tally = 0

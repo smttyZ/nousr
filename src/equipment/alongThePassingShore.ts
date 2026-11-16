@@ -1,4 +1,3 @@
-import { certain } from '../battle/battle'
 import type { LightConeModule } from './equipment'
 
 /**
@@ -9,8 +8,8 @@ import type { LightConeModule } from './equipment'
  *
  * Mirage Fizzle is a debuff. That is why this module exists: a debuff the wearer puts on an enemy
  * feeds Acheron's talent (a Slashed Dream and a Crimson Knot per ability) and every "against debuffed
- * enemies" effect (Pioneer Diver, her E1). Fribbels has its `emptyBubblesDebuff` switch on by default,
- * which would also count the first hit of every attack as buffed.
+ * enemies" effect (Pioneer Diver, her E1). The DMG bonus itself is Fribbels' `emptyBubblesDebuff` switch, which is on for
+ * every hit of the wearer's.
  *
  * How it is modelled:
  * - On each of the wearer's `damageDealt` events, put Mirage Fizzle on that enemy (a debuff of the wearer, 1 turn counted
@@ -20,14 +19,13 @@ import type { LightConeModule } from './equipment'
  *   independent applications, which is the chance that at least one of them hit (the text's "once per target per attack"
  *   is that one Fizzle, not a count). The debuff counts towards the action's `debuffed` list and `debuffChance`, so the
  *   wearer's kit and teammates' talents see it.
- * - The kernel's `emptyBubblesDebuff` is whether the enemy being priced has the wearer's Mirage Fizzle right now, a switch
- *   priced in each debuff state and weighted by the chance (K21, `Battle.kernelResult`).
- * - The debuff lands after the damage that applied it is priced, so that hit does not get the bonus; the
- *   later attack parts of the same action and the next action (until the enemy's turn ends) do.
+ * - The kernel's `emptyBubblesDebuff` is on for every hit the wearer deals (Fribbels' default): the hit that applies Mirage Fizzle
+ *   already gets the DMG bonus, so there is no priced "without" state to weight by the debuff's chance. The debuff itself is
+ *   still applied after the damage event (so it counts for the action's `debuffed` list, Acheron's talent and the like); only
+ *   the DMG bonus ignores whether it was up beforehand.
  *
- * IN-GAME CHECK: does the hit that applies Mirage Fizzle already get the DMG bonus? The text says the
- * debuff is inflicted "when the wearer hits"; read literally, the bonus starts with the next hit. Fribbels
- * always has it on, which is the other reading. This changes every single-hit Basic ATK and Skill.
+ * Settled by Smitty in game, 2026-11-15: the hit that applies Mirage Fizzle already gets the bonus (Fribbels' reading). Non-crit
+ * 2,028, then 2,842 with Sunday's +53%: 2,842 / 2,028 = 1.4014, matching 1.85 / 1.32 = 1.4015.
  * IN-GAME CHECK: does applying it again to an enemy that already has it count as "inflicting a debuff" for
  * Acheron's talent? Read as yes (a refresh is an application).
  */
@@ -50,7 +48,7 @@ export const AlongThePassingShore: LightConeModule = {
     })
 
     return {
-      attackerState: (enemy) => ({ lightConeConditionals: { emptyBubblesDebuff: certain(battle.presence(enemy, id)) } }),
+      attackerState: () => ({ lightConeConditionals: { emptyBubblesDebuff: true } }),
     }
   },
 }

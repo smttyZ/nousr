@@ -3,24 +3,42 @@ import type { SetModule } from './equipment'
 /**
  * Giant Tree of Rapt Brooding (set 320), from the 4.7.0 in-game text (`node tools/gamedata/lc-text.mjs --set 320`).
  * Summary: an ornament, 2 pieces: SPD +6%. When the wearer's SPD is 135 or higher, the wearer's and their
- * memosprite's Outgoing Healing +12%; at 180 or higher, +20% in total.
+ * memosprite's Outgoing Healing +12%; at 180 or higher, +20% in total (Fribbels: +12%, then +8% more).
  *
  * Kind of each part:
  * - SPD +6%: always on. Fribbels adds it itself (`p2c`), so the wearer's out-of-battle SPD already has it.
- * - Outgoing Healing 12% / 20%: a threshold on the wearer's SPD. Fribbels checks it itself, in two dynamic
- *   conditionals (`sets/ornaments/GiantTreeOfRaptBrooding.ts`), against the SPD action value its rotation gives the
- *   wearer. There is no `setConditionals` key. Outgoing Healing changes healing only, never damage, so the damage
- *   kernel's numbers do not depend on it.
+ * - Outgoing Healing 12% / 20%: a threshold on the wearer's SPD, and Fribbels evaluates it itself. Its two dynamic conditionals
+ *   (`sets/ornaments/GiantTreeOfRaptBrooding.ts`) test `x.getActionValueByIndex(StatKey.SPD, SELF_ENTITY_INDEX) >= 135` / `>= 180`,
+ *   which is the wearer's IN-COMBAT SPD for the request being priced: the basic SPD plus every SPD buff the request carries
+ *   (teammates' conditionals, light cones, injected buffs), and they buff `StatKey.OHB` on the wearer and its memosprite.
+ *   There is no `setConditionals` key, so this module supplies nothing to the kernel.
  *
- * NOT MODELLED: Outgoing Healing. The engine has no outgoing-healing modifier for kits to read (`Party.heal` takes the
- * amount the kit gives), and no memosprite heals. The 2-piece's healing bonus would change every heal the wearer makes.
- * `create` cannot tell whether the wearer will heal, so the module subscribes to `healed` and throws the first time
- * the wearer, or a summon it owns (`Battle.summonsOf`), heals. That is the earliest point the missing part changes a result: a wearer that never heals is simulated
- * correctly, and the run stops on its first heal rather than produce numbers that leave the bonus out.
+ * So the bonus is already in every heal the kernel prices for the wearer: a kit reads its heal with `Battle.healAmount`
+ * (a heal hit's amount carries the healer's Outgoing Healing Boost, `HealDamageFunction`) and applies it with `Party.heal`.
+ * Checked against the real kernel (`giantTreeHeal.integration.test.ts`, Fu Xuan's Dunjia): under 135 SPD gives 0, from 135 +12%, from 180 +20%.
  *
- * IN-GAME CHECK: "When the wearer's SPD is 135/180 or higher": whether this is the SPD in battle (after the team's
- * SPD buffs) or the SPD out of battle. Fribbels reads the SPD its rotation gives the wearer when it acts.
+ * Which SPD: the kernel's in-combat SPD, not the timeline's. The two can differ, because the timeline has SPD buffs Fribbels is
+ * not told about (a timed `spdPct` modifier from Warrior Goddess' Gentle Rain, Eternal Calculus) and Fribbels has SPD buffs the
+ * timeline does not carry. The threshold is a property of the in-battle SPD in the game, and the sim holds two readings of it, so this
+ * module checks them at the wearer's heals: when the two SPDs are on different sides of 135 or of 180, the run STOPS with an
+ * error naming both, rather than price a heal with a bonus one reading says it should not have. Where they agree (no SPD buffs
+ * on the wearer, or buffs that move neither past a threshold) nothing changes.
+ *
+ * What the module cannot see: a heal whose amount the kit worked out by hand and passed to `Party.heal` without the kernel
+ * does not carry the bonus, and nothing here can tell. Kits read heals with `Battle.healAmount`.
+ *
+ * IN-GAME CHECK: "When the wearer's SPD is 135/180 or higher": whether this is the SPD in battle (after the team's SPD buffs) or the
+ * SPD out of battle. Fribbels reads the in-combat SPD, and so does this module.
  */
+
+const THRESHOLD_LOW = 135
+const THRESHOLD_HIGH = 180
+/** The tolerance of a float comparison at a threshold. */
+const EPSILON = 1e-9
+
+/** 0 below 135, 1 from 135, 2 from 180. */
+const tier = (spd: number): number => (spd + EPSILON >= THRESHOLD_HIGH ? 2 : spd + EPSILON >= THRESHOLD_LOW ? 1 : 0)
+
 export const GiantTreeOfRaptBrooding: SetModule = {
   kind: 'set',
   type: 'ornament',
@@ -29,12 +47,17 @@ export const GiantTreeOfRaptBrooding: SetModule = {
 
   create(battle, wearer) {
     const me = wearer.key
-    battle.timeline.bus.on('healed', ({ source, amount }) => {
-      // The wearer's own heals, and its summons' (the bonus covers the wearer's and its memosprite's Outgoing Healing).
-      if (source !== me && !battle.summonsOf(me).includes(source)) return
+    battle.timeline.bus.on('healed', ({ source }) => {
+      // The wearer's own heals, and its summons' and memosprites' (the bonus covers the wearer's and its memosprite's Outgoing Healing).
+      if (source !== me && !battle.summonsOf(me).includes(source) && !battle.memospritesOf(me).includes(source)) return
+      const live = battle.timeline.spd(me)
+      const priced = battle.combatStats(me).SPD
+      if (tier(live) === tier(priced)) return
       throw new Error(
-        `Giant Tree of Rapt Brooding on ${me}: NOT MODELLED: its Outgoing Healing bonus (SPD 135/180) is not built, and ${me} ` +
-          `has just healed for ${amount}, which that bonus would change. Kits have no outgoing-healing modifier yet (DESIGN.md K4).`,
+        `Giant Tree of Rapt Brooding on ${me}: the timeline has ${me} at SPD ${live.toFixed(2)} and the kernel at ${priced.toFixed(2)}, ` +
+          `on different sides of the 135 / 180 Outgoing Healing thresholds, so a heal from ${source} is priced with a bonus the timeline's ` +
+          `SPD would not give (or the other way round). The kernel's SPD is what Fribbels applies the bonus on; make the two agree ` +
+          `(an SPD buff one side does not carry), see the module's header.`,
       )
     })
     return {}

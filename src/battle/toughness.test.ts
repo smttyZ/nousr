@@ -305,7 +305,7 @@ describe('what a break does to the enemy\'s turn', () => {
   })
 
   describe('break effects are debuffs while they last (K24)', () => {
-    it('Entanglement (Quantum): an Entangled debuff of the breaker for 1 turn, off the action debuffed list', () => {
+    it('Entanglement (Quantum): an Entangled debuff of the breaker for 1 turn, recorded as inflicted by the breaking action', () => {
       const s = setup({ element: 'Quantum', toughness: 30 })
       const actions: EngineEvents['actionUsed'][] = []
       s.battle.timeline.bus.on('actionUsed', (a) => actions.push(a))
@@ -315,9 +315,10 @@ describe('what a break does to the enemy\'s turn', () => {
       expect(entangled.source).toBe('a')
       expect(s.battle.debuffCount('enemy1')).toBe(1)
       expect(s.battle.debuffChance('enemy1')).toBe(1)
-      // A break is not an ability inflicting a debuff: no talent of anyone's fires for it (IN-GAME CHECK in weaknessBreak).
-      expect(actions[0]!.debuffed).toEqual([])
-      expect(actions[0]!.debuffChance).toEqual({})
+      // A break's effect counts as a debuff inflicted during the breaking ability (checked in game 2026-11-15:
+      // a Quantum break gave Acheron a Slashed Dream), so talents keyed on that fire for it.
+      expect(actions[0]!.debuffed).toEqual(['enemy1'])
+      expect(actions[0]!.debuffChance).toEqual({ enemy1: 1 })
     })
 
     it('Entanglement ends with the next turn of the enemy', () => {

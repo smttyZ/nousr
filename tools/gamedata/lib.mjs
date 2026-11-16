@@ -29,7 +29,7 @@ export function fill(desc, params) {
     .replace(/#(\d+)\[(?:i|f\d)\](%?)/g, (_, i, pct) => {
       const p = params[Number(i) - 1]
       if (p === undefined) return '?'
-      return pct ? `${+(p * 100).toFixed(2)}%` : `${+p.toFixed(2)}`
+      return pct ? `${+(p * 100).toFixed(4)}%` : `${+p.toFixed(4)}`
     })
 }
 

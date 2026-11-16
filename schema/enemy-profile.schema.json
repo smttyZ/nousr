@@ -40,6 +40,12 @@
       "maximum": 1,
       "description": "Damage RES to an element the enemy is not weak to, as a fraction. RES to a weakness element is 0."
     },
+    "control_res": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Control RES as a fraction (the game data's STAT_CTRL resistance). Optional, 0 when left out. Effects whose text says they work only on targets without Control RES (Anaxa's Sublimation) read it; a crowd control roll is not modelled (debuffs always land, decision 4). Floor 12 Memory of Chaos Elites have none; most of its bosses have 0.5 (DESIGN.md, K29)."
+    },
     "attacks": {
       "type": "array",
       "minItems": 1,

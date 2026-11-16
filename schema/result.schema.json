@@ -1,0 +1,350 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:nousr:schema:result:1",
+  "title": "NouSR result (DRAFT)",
+  "description": "DRAFT for Smitty's review (docs/proposals/results-format.md). Nothing loads, writes or tests against this file yet. Follows the proposal's recommended options. One file per scenario run: every team at every enemy count, under the scenario's shared conditions (S1). Keys are snake_case like the scenario format. NouSR's own output matches this schema exactly; other readers should ignore keys they do not know, since optional fields may be added without a version change (decision 13).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "version", "game_version", "generator", "scenario", "teams", "runs", "comparison", "warnings"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "format": { "const": "nousr-result" },
+    "version": {
+      "const": 1,
+      "description": "Goes up only on a breaking change (a field removed, renamed or changing meaning)."
+    },
+    "game_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+$" },
+    "created": {
+      "type": "string",
+      "description": "ISO 8601 date and time. Optional, so two runs of the same inputs can be byte-identical."
+    },
+    "generator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nousr", "kernel"],
+      "properties": {
+        "nousr": { "type": "string", "description": "NouSR package version." },
+        "nousr_commit": { "type": ["string", "null"], "description": "Git commit NouSR ran from, when known." },
+        "kernel": { "type": "string", "description": "Damage kernel and its pinned commit, e.g. \"fribbels/hsr-optimizer@31644d9\"." }
+      }
+    },
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["content", "sha256"],
+      "properties": {
+        "path": { "type": "string", "description": "The scenario file as given on the command line, when there was one." },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "account_sha256": {
+          "$ref": "#/$defs/sha256",
+          "description": "Hash of the account scan file when the scenario names one by path. The scan itself is never copied in."
+        },
+        "content": {
+          "type": "object",
+          "description": "The scenario as given (urn:nousr:schema:scenario:1). A path-referenced account stays a path."
+        }
+      }
+    },
+    "teams": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/team" },
+      "description": "Each team once, in scenario order, with what does not depend on enemy count."
+    },
+    "runs": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/run" },
+      "description": "One per team and enemy count that ran."
+    },
+    "comparison": { "$ref": "#/$defs/comparison" },
+    "warnings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/warning" },
+      "description": "Every warning of the file, once each (K19). A team setup warning that holds at every enemy count has no enemy_count."
+    }
+  },
+
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "slug": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+    "damage": { "type": "number", "minimum": 0, "description": "Expected damage, unrounded." },
+
+    "team": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "members"],
+      "properties": {
+        "id": { "$ref": "#/$defs/slug" },
+        "name": { "type": "string" },
+        "members": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/member" } },
+        "standard_builds": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/standard_build" },
+          "description": "One per member on \"standard\" relics (K14c echo)."
+        },
+        "kit_options": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/kit_options" },
+          "description": "One per member whose kit takes options (K27 echo)."
+        }
+      }
+    },
+
+    "member": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "character", "ability_version", "eidolon", "affinitive_eidolon", "light_cone", "relics", "stats"],
+      "properties": {
+        "key": { "$ref": "#/$defs/slug" },
+        "character": { "type": "string", "description": "Game id, e.g. \"1308\"." },
+        "ability_version": { "type": "integer", "minimum": 0 },
+        "eidolon": { "type": "integer", "minimum": 0, "maximum": 6 },
+        "affinitive_eidolon": { "type": "boolean" },
+        "light_cone": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "superimposition"],
+          "properties": {
+            "id": { "type": "string" },
+            "superimposition": { "type": "integer", "minimum": 1, "maximum": 5 }
+          }
+        },
+        "relics": { "enum": ["equipped", "standard", "list"] },
+        "stats": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["spd", "hp", "def", "err", "effect_res"],
+          "description": "Out-of-combat stats the timeline started from.",
+          "properties": {
+            "spd": { "type": "number" },
+            "hp": { "type": "number" },
+            "def": { "type": "number" },
+            "err": { "type": "number", "description": "Energy Regeneration Rate, 1 = 100%." },
+            "effect_res": { "type": "number" }
+          }
+        }
+      }
+    },
+
+    "standard_build": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["member", "file", "path", "main_stats", "distributed", "totals"],
+      "description": "StandardBuildReport (src/standard/types.ts), snake_cased.",
+      "properties": {
+        "member": { "$ref": "#/$defs/slug" },
+        "file": { "type": "string" },
+        "relic_sets": {},
+        "ornament_set": {},
+        "main_stats": { "type": "object", "additionalProperties": { "type": "string" } },
+        "distributed": { "type": "object", "additionalProperties": { "type": "integer" } },
+        "totals": { "type": "object", "additionalProperties": { "type": "integer" } },
+        "path": { "enum": ["file", "re-split", "explicit"] },
+        "moves": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["from", "to", "rolls"],
+            "properties": { "from": { "type": "string" }, "to": { "type": "string" }, "rolls": { "type": "integer" } }
+          }
+        },
+        "swaps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["slot", "from", "to"],
+            "properties": { "slot": { "type": "string" }, "from": { "type": "string" }, "to": { "type": "string" } }
+          }
+        },
+        "spd": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["target", "out_of_combat"],
+          "properties": {
+            "target": { "oneOf": [{ "type": "number" }, { "const": "none" }] },
+            "out_of_combat": { "type": "number" },
+            "missed_by": { "type": "number" }
+          }
+        }
+      }
+    },
+
+    "kit_options": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["member", "options", "defaulted"],
+      "properties": {
+        "member": { "$ref": "#/$defs/slug" },
+        "options": { "type": "object", "description": "As validated by schema/kit-options/<character id>.schema.json, defaults filled in." },
+        "defaulted": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["team", "enemy_count", "window", "total", "per_cycle", "by_member", "downed", "objectives"],
+      "properties": {
+        "team": { "$ref": "#/$defs/slug" },
+        "enemy_count": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "window": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cycles", "action_value"],
+          "properties": {
+            "cycles": { "type": "integer", "minimum": 1 },
+            "action_value": { "type": "number", "description": "150 for cycle 1, 100 for each later one (decision 2)." }
+          }
+        },
+        "total": { "$ref": "#/$defs/damage" },
+        "per_cycle": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/damage" },
+          "description": "Index 0 is cycle 1."
+        },
+        "by_member": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/member_result" },
+          "description": "One per member, in team order. A memosprite's damage is in its owner's entry (K6)."
+        },
+        "kit_stats": {
+          "type": "array",
+          "description": "Proposal decision 7 (option B): per member, counters declared by schema/kit-stats/<character id>.schema.json.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["member", "stats"],
+            "properties": {
+              "member": { "$ref": "#/$defs/slug" },
+              "stats": { "type": "object", "additionalProperties": { "type": "number" } }
+            }
+          }
+        },
+        "downed": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["member", "at", "cycle"],
+            "properties": {
+              "member": { "$ref": "#/$defs/slug" },
+              "at": { "type": "number", "description": "Action value when the member was downed." },
+              "cycle": { "type": "integer", "minimum": 1 }
+            }
+          }
+        },
+        "objectives": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["no_downed"],
+          "properties": { "no_downed": { "type": "boolean" } }
+        },
+        "actions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/action" },
+          "description": "Every ally action in order. Left out with --no-log."
+        }
+      }
+    },
+
+    "member_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["member", "damage", "share", "actions"],
+      "properties": {
+        "member": { "$ref": "#/$defs/slug" },
+        "damage": { "$ref": "#/$defs/damage" },
+        "share": { "type": "number", "minimum": 0, "maximum": 1, "description": "damage / run total; 0 when the total is 0." },
+        "actions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["basic", "skill", "ultimate", "follow_up"],
+          "properties": {
+            "basic": { "type": "integer", "minimum": 0 },
+            "skill": { "type": "integer", "minimum": 0 },
+            "ultimate": { "type": "integer", "minimum": 0 },
+            "follow_up": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "by_ability": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/damage" },
+          "description": "Damage per ability name as priced, including memosprite abilities, EXTRA (K23) and Break DMG."
+        }
+      }
+    },
+
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["serial", "at", "cycle", "actor", "action", "kind", "damage", "sp_before", "sp_after", "expected_enemies_hit", "debuffed"],
+      "properties": {
+        "serial": { "type": "integer", "minimum": 1 },
+        "at": { "type": "number", "description": "Action value when the action started." },
+        "cycle": { "type": "integer", "minimum": 1 },
+        "actor": { "type": "string", "description": "Member key, or a memosprite's unit id." },
+        "owner": { "type": "string", "description": "Set when the actor is a memosprite: the member it belongs to." },
+        "action": { "type": "string" },
+        "kind": { "enum": ["basic", "skill", "ultimate", "follow_up"] },
+        "damage": { "$ref": "#/$defs/damage" },
+        "sp_before": { "type": "integer", "minimum": 0 },
+        "sp_after": { "type": "integer", "minimum": 0 },
+        "expected_enemies_hit": { "type": "number", "minimum": 0 },
+        "debuffed": {
+          "type": "object",
+          "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 },
+          "description": "Enemy id to the chance at least one debuff landed on it during the action (K22)."
+        }
+      }
+    },
+
+    "comparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseline", "ratios"],
+      "description": "Ratios of totals against one baseline team, per enemy count (decision 11). No blend across enemy counts.",
+      "properties": {
+        "baseline": { "$ref": "#/$defs/slug" },
+        "ratios": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["team", "enemy_count", "ratio"],
+            "properties": {
+              "team": { "$ref": "#/$defs/slug" },
+              "enemy_count": { "type": "integer", "minimum": 1, "maximum": 5 },
+              "ratio": { "type": ["number", "null"], "description": "team total / baseline total; null when the baseline total is 0." }
+            }
+          }
+        }
+      }
+    },
+
+    "warning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["severity", "code", "message"],
+      "description": "RunWarning (src/run/warnings.ts), snake_cased.",
+      "properties": {
+        "severity": { "enum": ["warning", "info"] },
+        "code": {
+          "enum": [
+            "spd-may-be-understated",
+            "undecided-tie",
+            "spd-target-missed",
+            "kit-option-default-used",
+            "kit-option-list-exhausted"
+          ]
+        },
+        "message": { "type": "string" },
+        "team": { "$ref": "#/$defs/slug" },
+        "enemy_count": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "member": { "$ref": "#/$defs/slug" }
+      }
+    }
+  }
+}

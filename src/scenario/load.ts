@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path'
 import { Ajv2020 } from 'ajv/dist/2020.js'
 import type { ErrorObject } from 'ajv'
 import schema from '../../schema/scenario.schema.json' with { type: 'json' }
+import { defaultKitOptions, resolveKitOptions } from './kitOptions'
 import type {
   AccountScan,
   Member,
@@ -75,7 +76,7 @@ export function parseScenario(input: unknown, options: ParseOptions = {}): Scena
   file.teams.forEach((team, i) => {
     if (teamIds.has(team.id)) problems.push(`teams[${i}]: team id "${team.id}" is used more than once`)
     teamIds.add(team.id)
-    teams.push(resolveTeam(team, account, problems))
+    teams.push(resolveTeam(team, account, file.battle.start?.techniques ?? DEFAULT_START.techniques, problems))
   })
 
   if (problems.length > 0) throw new ScenarioError(problems)
@@ -140,11 +141,12 @@ function resolveAccount(
   return scan as AccountScan
 }
 
-function resolveTeam(team: TeamFile, account: AccountScan | undefined, problems: string[]): Team {
+function resolveTeam(team: TeamFile, account: AccountScan | undefined, defaultTechnique: boolean, problems: string[]): Team {
   const at = `team "${team.id}"`
   const keys = new Set<string>()
   const characters = new Set<string>()
   const members: Member[] = []
+  const teamKeys: ReadonlySet<string> = new Set(team.members.map((m) => m.key))
 
   for (const member of team.members) {
     if (RESERVED_KEYS.includes(member.key)) {
@@ -157,7 +159,7 @@ function resolveTeam(team: TeamFile, account: AccountScan | undefined, problems:
     }
     characters.add(member.character)
 
-    const resolved = resolveMember(member, account, `${at}, member "${member.key}"`, problems)
+    const resolved = resolveMember(member, account, teamKeys, defaultTechnique, `${at}, member "${member.key}"`, problems)
     if (resolved) members.push(resolved)
   }
 
@@ -194,6 +196,8 @@ function resolveTeam(team: TeamFile, account: AccountScan | undefined, problems:
 function resolveMember(
   member: MemberFile,
   account: AccountScan | undefined,
+  teamKeys: ReadonlySet<string>,
+  defaultTechnique: boolean,
   at: string,
   problems: string[],
 ): Member | undefined {
@@ -222,6 +226,10 @@ function resolveMember(
     problems.push(`${at}: standard_build changes a standard build, but this member's relics are ${given}; set relics to "standard" or remove standard_build`)
   }
 
+  const kitOptions = member.kit_options !== undefined
+    ? resolveKitOptions(member.character, member.kit_options, teamKeys, member.key, at, problems)
+    : defaultKitOptions(member.character)
+
   if (problems.length > before) return undefined
   return {
     key: member.key,
@@ -231,7 +239,10 @@ function resolveMember(
     affinitiveEidolon: member.affinitive_eidolon ?? false,
     lightCone: lightCone!,
     relics: relics!,
+    technique: member.technique ?? defaultTechnique,
+    techniqueGiven: member.technique !== undefined,
     ...(member.standard_build !== undefined && { standardBuild: resolveOverride(member.standard_build) }),
+    ...(kitOptions !== undefined && { kitOptions, kitOptionsGiven: Object.keys(member.kit_options ?? {}).filter((k) => k !== 'notes') }),
   }
 }
 

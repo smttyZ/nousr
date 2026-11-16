@@ -11,6 +11,7 @@
   "hp": 2904993,
   "toughness": 480,
   "res": 0.2,
+  "control_res": 0,
   "attacks": [
     { "id": "tap", "name": "Harmless attack", "target": "single", "multiplier": 0, "energy": 10 }
   ],

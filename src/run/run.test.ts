@@ -57,11 +57,12 @@ const BASIC: BasicStats = {
   ATK: 3000, DEF: 1200, HP: 1_000_000, SPD: 134.5, CR: 0.5, CD: 1, EHR: 0, RES: 0.35, BE: 0, ERR: 0.194, OHB: 0, baseSPD: 101,
 }
 
-/** Knows character 9001 in versions 0 and 1. 1,000 damage per 100% ATK. */
+/** Knows character 9001 in versions 0 and 1, and 1407 in version 0. 1,000 damage per 100% ATK. */
 function fakeKernel() {
   const calls = { basicStats: [] as { unit: KernelUnit, build: KernelBuild }[], damage: [] as DamageRequest[] }
   const kernel: ScenarioKernel = {
     characterId(gameId, abilityVersion) {
+      if (gameId === '1407' && (abilityVersion ?? 0) === 0) return '1407' // for the kit-options tests (a stand-in kit)
       if (gameId !== '9001') throw new Error(`no character ${gameId}`)
       if (abilityVersion === undefined || abilityVersion === 1) return '9001b1'
       if (abilityVersion === 0) return '9001'
@@ -260,6 +261,49 @@ describe('warnings from the battle', () => {
   })
 })
 
+describe('kit options (K25, K26)', () => {
+  // A stand-in kit for Castorice's id: the loader uses the real schema/kit-options/1407.schema.json.
+  const configured: Record<string, unknown>[] = []
+  const Plain: Kit = { ...Striker, characterId: '1407' }
+  const optionKits: ReadonlyMap<string, RegisteredKit> = new Map([
+    ['1407', { name: 'Optioned', kit: Plain, configure: (o) => { configured.push(o); return { ...Plain } } }],
+  ])
+  const withMember = (extra: object) => {
+    const file = scenarioFile()
+    file.teams[0]!.members[0] = { ...file.teams[0]!.members[0]!, key: 'cas', character: '1407', ...extra }
+    file.teams[0]!.policy = [{ unit: 'cas', use: 'basic' }]
+    return file
+  }
+
+  it("the kit is configured with the member's options, defaults filled in, and the plan echoes them", () => {
+    configured.length = 0
+    const { scenario, options } = setup(withMember({ kit_options: { netherwing_finish_turn: 3 } }))
+    const plan = planTeam(scenario, 'solo', 1, { ...options, kits: optionKits })
+    expect(configured).toEqual([{ netherwing_finish_turn: 3 }])
+    expect(plan.setup.members[0]!.kit).not.toBe(Plain)
+    expect(plan.kitOptions).toEqual([{ member: 'cas', options: { netherwing_finish_turn: 3 }, defaulted: [] }])
+  })
+
+  it('without kit_options the kit gets the defaults, and the echo says they were defaulted', () => {
+    configured.length = 0
+    const { scenario, options } = setup(withMember({}))
+    const plan = planTeam(scenario, 'solo', 1, { ...options, kits: optionKits })
+    expect(configured).toEqual([{ netherwing_finish_turn: 1 }])
+    expect(plan.kitOptions).toEqual([{ member: 'cas', options: { netherwing_finish_turn: 1 }, defaulted: ['netherwing_finish_turn'] }])
+  })
+
+  it('a kit registered without configure for a character that has an options schema is refused', () => {
+    const { scenario, options } = setup(withMember({}))
+    const kits: ReadonlyMap<string, RegisteredKit> = new Map([['1407', { name: 'NoConfigure', kit: Plain }]])
+    expect(() => planTeam(scenario, 'solo', 1, { ...options, kits })).toThrow(/takes no kit options, but the scenario has a schema/)
+  })
+
+  it('members whose kit takes no options are not echoed', () => {
+    const { scenario, options } = setup()
+    expect(planTeam(scenario, 'solo', 1, options).kitOptions).toEqual([])
+  })
+})
+
 describe('what cannot be run yet is refused clearly', () => {
   it('a character with no kit, listing the kits that exist', () => {
     const file = scenarioFile()
@@ -270,9 +314,9 @@ describe('what cannot be run yet is refused clearly', () => {
 
   it('the real registry lists every reviewed kit', () => {
     const file = scenarioFile()
-    file.teams[0]!.members[0]!.character = '1407' // Castorice: no kit yet
+    file.teams[0]!.members[0]!.character = '1101' // no kit
     const { scenario, options } = setup(file)
-    expect(() => buildBattleSetup(scenario, 'solo', 1, { ...options, kits: undefined })).toThrow(/Kits that exist: 1308 \(Acheron\), 1403 \(Tribbie\), 1204 \(Jing Yuan\), 1006 \(Silver Wolf\), 1004 \(Welt\), 1414 \(Dan Heng • Permansor Terrae\), 1313 \(Sunday\), 1208 \(Fu Xuan\), 1512 \(Robin • Summeretto\)$/m)
+    expect(() => buildBattleSetup(scenario, 'solo', 1, { ...options, kits: undefined })).toThrow(/Kits that exist: 1308 \(Acheron\), 1403 \(Tribbie\), 1204 \(Jing Yuan\), 1006 \(Silver Wolf\), 1004 \(Welt\), 1414 \(Dan Heng • Permansor Terrae\), 1313 \(Sunday\), 1208 \(Fu Xuan\), 1512 \(Robin • Summeretto\), 1407 \(Castorice\), 1409 \(Hyacine\), 1415 \(Cyrene\), 1401 \(The Herta\), 1405 \(Anaxa\)$/m)
   })
 
   describe('scanned relics', () => {
@@ -479,5 +523,43 @@ describe('what cannot be run yet is refused clearly', () => {
       'team "second", member "striker": no ability_version 3 of 9001',
     ])
     expect(calls.damage).toEqual([])
+  })
+})
+
+describe('technique per member (K31)', () => {
+  const seen: Record<string, boolean> = {}
+  const Spy: Kit = {
+    ...Striker,
+    create: (battle, self) => ({ ...Striker.create(battle, self), onBattleStart: ({ techniques }) => { seen[self.key] = techniques } }),
+  }
+  const spyKits: ReadonlyMap<string, RegisteredKit> = new Map([['9001', { name: 'Spy', kit: Spy }]])
+
+  it('each kit is told its own resolved technique through onBattleStart, and the plan and the run echo who used it', () => {
+    const file = scenarioFile()
+    file.battle.start = { techniques: false }
+    const first = file.teams[0]!
+    const team = (id: string, key: string, technique?: boolean) => ({
+      ...first,
+      id,
+      members: [{ ...first.members[0]!, key, ...(technique !== undefined && { technique }) }],
+      policy: [{ unit: key, use: 'basic' as const }],
+    })
+    file.teams = [team('t_on', 'on', true), team('t_default', 'default'), team('t_off', 'off', false)]
+    const { scenario, options } = setup(file)
+    const plans = ['t_on', 't_default', 't_off'].map((id) => planTeam(scenario, id, 1, { ...options, kits: spyKits }))
+    expect(plans.map((p) => p.setup.members.map((m) => m.technique))).toEqual([[true], [false], [false]])
+    expect(plans.map((p) => p.techniques)).toEqual([
+      [{ member: 'on', used: true, given: true }],
+      [{ member: 'default', used: false, given: false }],
+      [{ member: 'off', used: false, given: true }],
+    ])
+    const runs = runScenario(scenario, { ...options, kits: spyKits })
+    expect(runs.filter((r) => r.team === 't_on').every((r) => r.techniques[0]!.used)).toBe(true)
+    expect(seen).toEqual({ on: true, default: false, off: false })
+  })
+
+  it('with no member setting, battle.start.techniques applies to everyone, and the echo says it was not given', () => {
+    const { scenario, options } = setup()
+    expect(planTeam(scenario, 'solo', 1, options).techniques).toEqual([{ member: 'striker', used: true, given: false }])
   })
 })

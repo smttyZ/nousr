@@ -113,6 +113,42 @@ describe('taking damage', () => {
     expect(() => party.shieldOf('nobody', 'mine')).toThrow(/No combatant/)
   })
 
+  it('shieldFrom is the largest shield a unit holds from one source, whatever its key; the default source is the holder', () => {
+    const { party } = setup()
+    party.add(member('a', 0))
+    party.add(member('b', 1))
+    expect(party.shieldFrom('a', 'b')).toBe(0)
+    party.setShield('a', 'b.skill', 300, 'b')
+    party.setShield('a', 'b.lc', 500, 'b')
+    party.setShield('a', 'other', 2000, 'c')
+    party.setShield('a', 'own', 700)
+    expect(party.shieldFrom('a', 'b')).toBe(500)
+    expect(party.shieldFrom('a', 'c')).toBe(2000)
+    expect(party.shieldFrom('a', 'a')).toBe(700)
+    expect(party.shieldFrom('b', 'b')).toBe(0)
+    // A key set again by another source belongs to that source now.
+    party.setShield('a', 'b.lc', 400, 'c')
+    expect(party.shieldFrom('a', 'b')).toBe(300)
+    party.setShield('a', 'b.skill', undefined)
+    expect(party.shieldFrom('a', 'b')).toBe(0)
+    expect(() => party.shieldFrom('nobody', 'b')).toThrow(/No combatant/)
+  })
+
+  it('shieldFrom follows a shield worn away by hits and the shields cleared when the holder is downed', () => {
+    const { party } = setup()
+    party.add(member('a', 0))
+    party.setShield('a', 'b.skill', 300, 'b')
+    party.setShield('a', 'c.skill', 1000, 'c')
+    party.takeDamage('a', 300, 'enemy')
+    expect(party.shieldFrom('a', 'b')).toBe(0)
+    expect(party.shieldFrom('a', 'c')).toBe(700)
+    party.setShield('a', 'b.skill', 300, 'b')
+    party.takeDamage('a', 100_000, 'enemy')
+    expect(party.get('a').downed).toBe(true)
+    expect(party.shieldFrom('a', 'b')).toBe(0)
+    expect(party.shieldFrom('a', 'c')).toBe(0)
+  })
+
   it('several shields do not add up: the largest absorbs and each loses the hit', () => {
     const { party } = setup()
     party.add(member('a', 0))
@@ -159,6 +195,15 @@ describe('healing', () => {
     expect(party.heal('a', 800, 'healer')).toBe(500)
     expect(party.get('a').hp).toBe(4000)
     expect(log).toEqual(['healed a 500 overheal 300'])
+  })
+
+  it('gainHp raises HP up to max HP without a healed event', () => {
+    const { party, log } = setup()
+    party.add({ ...member('a', 0), hp: 3500 })
+    expect(party.gainHp('a', 800)).toBe(500)
+    expect(party.get('a').hp).toBe(4000)
+    expect(party.gainHp('a', 100)).toBe(0)
+    expect(log).toEqual([])
   })
 })
 

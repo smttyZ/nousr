@@ -114,6 +114,8 @@ describe('the example scenario', () => {
       affinitiveEidolon: true,
       lightCone: { id: '23024', superimposition: 1 },
       relics: 'standard',
+      technique: true,
+      techniqueGiven: false,
     })
     expect(welt!.members[1]).toMatchObject({ character: '1006', abilityVersion: 1, affinitiveEidolon: false })
     expect(tribbie!.members[2]).toMatchObject({ key: 'tribbie', eidolon: 1, lightCone: { id: '21018', superimposition: 3 } })
@@ -385,5 +387,32 @@ describe('standard_build on a member (K14c)', () => {
     expect(problemsOf(file)[0]).toContain('relics are a list')
     file.teams[0]!.members[0]!.relics = 'equipped'
     expect(problemsOf(file)[0]).toContain('relics are "equipped";')
+  })
+})
+
+describe('technique per member (K31)', () => {
+  const withTechniques = (start: boolean | undefined, members: (boolean | undefined)[]): ScenarioFile => {
+    const file = minimal()
+    if (start !== undefined) file.battle.start = { techniques: start }
+    const first = file.teams[0]!.members[0]!
+    file.teams[0]!.members = members.map((technique, i) => ({ ...first, key: `m${i}`, character: String(1000 + i), ...(technique !== undefined && { technique }) }))
+    file.teams[0]!.policy = [{ unit: 'm0', use: 'basic' }]
+    return file
+  }
+  const resolved = (file: ScenarioFile) => parseScenario(file).teams[0]!.members.map((m) => [m.technique, m.techniqueGiven])
+
+  it('a member without technique takes battle.start.techniques, which defaults to true', () => {
+    expect(resolved(withTechniques(undefined, [undefined]))).toEqual([[true, false]])
+    expect(resolved(withTechniques(false, [undefined, undefined]))).toEqual([[false, false], [false, false]])
+  })
+
+  it('the own technique of a member overrides the default, in both directions, and is reported as given', () => {
+    expect(resolved(withTechniques(true, [false, undefined, true]))).toEqual([[false, true], [true, false], [true, true]])
+    expect(resolved(withTechniques(false, [true, undefined]))).toEqual([[true, true], [false, false]])
+  })
+
+  it('the schema takes a boolean and nothing else', () => {
+    expect(problemsOf(withTechniques(true, ['yes' as unknown as boolean]))[0]).toMatch(/technique/)
+    expect(problemsOf(withTechniques(true, [true]))).toEqual([])
   })
 })

@@ -88,6 +88,6 @@ export interface KitInstance {
    * `attackerState`: never ask the kernel from here (`Battle.combatStats` included).
    */
   teammateState(attacker: Member, enemy: UnitId): TeammateState
-  /** Effects at the start of battle. `techniques` is the scenario's setting. */
+  /** Effects at the start of battle. `techniques` is this member's own setting (K31): the member's `technique`, else the scenario's default. */
   onBattleStart?(options: { techniques: boolean }): void
 }

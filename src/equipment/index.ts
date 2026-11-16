@@ -4,6 +4,7 @@ import { createRegistry, setWithoutBehaviour } from './equipment'
 import { EternalCalculus } from './eternalCalculus'
 import { PioneerDiverOfDeadWaters } from './pioneerDiverOfDeadWaters'
 import { TodayIsAnotherPeacefulDay } from './todayIsAnotherPeacefulDay'
+import { TheGreatCosmicEnterprise } from './theGreatCosmicEnterprise'
 import { GoodNightAndSleepWell } from './goodNightAndSleepWell'
 import { InTheNameOfTheWorld } from './inTheNameOfTheWorld'
 import { TextureOfMemories } from './textureOfMemories'
@@ -26,11 +27,15 @@ import { PoetOfMourningCollapse } from './poetOfMourningCollapse'
 import { GiantTreeOfRaptBrooding } from './giantTreeOfRaptBrooding'
 import { WorldRemakingDeliverer } from './worldRemakingDeliverer'
 import { AmphoreusTheEternalLand } from './amphoreusTheEternalLand'
+import { MakeFarewellsMoreBeautiful } from './makeFarewellsMoreBeautiful'
+import { TheStorysNextPage } from './theStorysNextPage'
+import { ThisLoveForever } from './thisLoveForever'
 
 export * from './equipment'
 export { AlongThePassingShore, DanceDanceDance, EternalCalculus, PioneerDiverOfDeadWaters, TodayIsAnotherPeacefulDay }
 export { GoodNightAndSleepWell, InTheNameOfTheWorld, TextureOfMemories }
 export { MemorysCurtainNeverFalls, PastAndFuture, TrendOfTheUniversalMarket }
+export { MakeFarewellsMoreBeautiful, TheStorysNextPage, ThisLoveForever }
 export { TheAshblazingGrandDuke, RutilantArena, TheWondrousBananAmusementPark, ScholarLostInErudition, GeniusOfBrilliantStars, WarriorGoddessOfSunAndThunder, BrokenKeel, SacerdosRelivedOrdeal, SelfEnshroudedRecluse, LushakaTheSunkenSeas, BoneCollectionsSereneDemesne, PoetOfMourningCollapse, GiantTreeOfRaptBrooding, WorldRemakingDeliverer, AmphoreusTheEternalLand }
 
 /**
@@ -76,5 +81,6 @@ export const InertSalsotto = setWithoutBehaviour({
 export const EQUIPMENT = createRegistry([AlongThePassingShore, DanceDanceDance, EternalCalculus, TodayIsAnotherPeacefulDay, PioneerDiverOfDeadWaters, IzumoGensei, MusketeerOfWildWheat, InertSalsotto,
   GoodNightAndSleepWell, InTheNameOfTheWorld, TextureOfMemories,
   MemorysCurtainNeverFalls, PastAndFuture, TrendOfTheUniversalMarket,
+  MakeFarewellsMoreBeautiful, TheStorysNextPage, ThisLoveForever, TheGreatCosmicEnterprise,
   TheAshblazingGrandDuke, RutilantArena, TheWondrousBananAmusementPark, ScholarLostInErudition, GeniusOfBrilliantStars, WarriorGoddessOfSunAndThunder, BrokenKeel, SacerdosRelivedOrdeal, SelfEnshroudedRecluse, LushakaTheSunkenSeas, BoneCollectionsSereneDemesne, PoetOfMourningCollapse, GiantTreeOfRaptBrooding, WorldRemakingDeliverer, AmphoreusTheEternalLand,
 ])

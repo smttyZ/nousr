@@ -116,6 +116,10 @@ Consequence of S6 to keep in mind: effects that trigger on a kill, overkill, and
   each, so after one application "has any Bug" reads 0.70 where the game has exactly one (expected counts are
   exact); Acheron's talent treats enemies as independent for "a debuff landed"; Pioneer Diver's doubling and its
   triggering debuff are independent states (exact when the wearer's debuffs are certain).
+- **Anaxa's weakness counts (K28)** treat enemies as independent (Roaming Signifier's "no enemy in Disclosure"), treat the
+  implants left by his chance-weighted extra Skill as independent of each other (they land together or not at all; the means
+  are exact, the spread of live implants is not), and give Qualitative Shift the expected type count (DEF in the kernel is not
+  linear in it). Default runs (all weaknesses) are exact: every enemy has 7 types.
 - **Acheron's Ultimate waits for an expected 9 Slashed Dream** (a threshold on an expected value: an action cannot
   be scaled by a chance). Exact whenever her stacks are whole, which is every case in the repo today.
 - **Allies are never crowd-controlled,** so "Lightning-Lord cannot act while Jing Yuan is under Crowd Control" is
@@ -140,22 +144,23 @@ Consequence of S6 to keep in mind: effects that trigger on a kill, overkill, and
 
 ## Open questions
 
-**In-game checks for Smitty.** Each is implemented one way and marked `IN-GAME CHECK:` in the code.
+**In-game checks for Smitty.** Each is implemented one way and marked `IN-GAME CHECK:` in the code. The working to-do
+list, ordered by effect on results and with step-by-step procedures, is `docs/in-game-checks.md`; results go there first.
 
 | Where | Question | As implemented |
 |---|---|---|
-| Acheron | Does Thunder Core's +30% apply to the Rainblade that grants it? | From the next hit on |
+| Acheron | Does Thunder Core's +30% apply to the Rainblade that grants it? | **Settled by Smitty 2026-11-15: no**, from the next hit on (the buff icon appears after the slash; the text does not say otherwise) |
 | Tribbie | E2: one extra Zone instance per instance, or one per attack? | Per instance (Fribbels' reading) |
 | Tribbie | Does the Glass Ball Max HP bonus count her own HP? | Other allies only |
 | Tribbie | Does her Ultimate's own hit get the Zone's damage bonus? | Yes |
 | Tribbie | Does the Lamb trace buff last one turn longer when applied on her own turn? | It does, as coded |
-| Along the Passing Shore | Does the hit that applies Mirage Fizzle already get its DMG bonus? Moves single-hit Basic and Skill damage by about 24% | No (Fribbels: yes) |
+| Along the Passing Shore | Does the hit that applies Mirage Fizzle already get its DMG bonus? Moves single-hit Basic and Skill damage by about 24% | **Settled by Smitty in game, 2026-11-15: yes** (Fribbels' reading). Non-crit 2,028, then 2,842 with Sunday's +53%: 2,842 / 2,028 = 1.4014, matching 1.85 / 1.32 = 1.4015 |
 | Along the Passing Shore | Does re-applying Mirage Fizzle count as inflicting a debuff for Acheron's talent? | Yes |
 | Pioneer Diver | Is the doubling's "1 turn" the wearer's next turn or the current one? | Next turn |
 | Pioneer Diver | Does the 4% CRIT Rate double with fewer than 2 debuffs? | Follows Fribbels |
 | Pioneer Diver | Does Acheron's E4 battle-start debuff count as the wearer inflicting one? | Yes |
 | Dance! Dance! Dance! | Does "all allies" include the wearer? | Yes |
-| Memosprites | Can enemies target Netherwing and Little Ica? (hsr-simulator says no) | Settled by Smitty 2026-11-14: Netherwing cannot be targeted but has real HP, spends it on its own attacks and bears allies' HP loss below 1 HP at 500% (its talent calls this "backup"); Summer Songbirds cannot be targeted, and their HP (70% of Robin Summeretto's Max HP) only scales their damage. Little Ica still to check |
+| Memosprites | Can enemies target Netherwing and Little Ica? (hsr-simulator says no) | Settled by Smitty 2026-11-14: Netherwing cannot be targeted but has real HP, spends it on its own attacks and bears allies' HP loss below 1 HP at 500% (its talent calls this "backup"); Summer Songbirds cannot be targeted, and their HP (70% of Robin Summeretto's Max HP) only scales their damage. **Little Ica: settled by Smitty 2026-11-15, enemies can target it** (seen hit in Memory of Chaos). Demiurge stays untargetable (its text: "Out-of-Bounds"). **Game statuses, from in-game tooltips (Smitty's screenshots, 2026-11-15):** *Out-of-Bounds* (Demiurge): "Neither allies nor enemies can actively select Out-of-Bounds units." *Backup* (Netherwing): "Enemies cannot actively target backup units. Allies' Blast-type abilities cannot Blast to backup units." Little Ica shows neither, so it is a normal unit. **To build:** replace the `UNTARGETABLE_MEMOSPRITES` name list with a per-memosprite status (normal / backup / out-of-bounds); enemy targeting, ally ability targets and blast splash follow from it. Kits accept memosprite targets per their text; Sunday's Skill and Ultimate and Robin's Ultimate on Netherwing are legal (Backup), nothing selects Demiurge. **Summer Songbirds: settled by Smitty 2026-11-15, a normal unit** (no tag; a boss's "Target Locked On" and two enemy DoTs were on them), so the 2026-11-14 "cannot be targeted" note was wrong; Robin's Skill now restores their HP (100%, 110% from E3), and an enemy attack skips a memosprite that left earlier in the same attack. How a scenario names a memosprite target is waiting on Smitty (dotted `castorice.netherwing` vs a separate field). Same screenshots: Netherwing 34,000 / 34,000 HP at his account's levels, the same as `NEWBUD_MAX`; Demiurge 5,585 / 6,557, its HP percentage following Cyrene's |
 | Break | Is Break DMG itself reduced by the 0.9 not-broken multiplier? | No (Fribbels' default: yes) |
 | Break | Does a frozen enemy stay broken through its skipped turn? | Yes |
 | Break | Does Acheron's own Lightning break count as inflicting a debuff for her talent? | No |
@@ -164,8 +169,8 @@ Consequence of S6 to keep in mind: effects that trigger on a kill, overkill, and
 | Jing Yuan | Is one Lightning-Lord action one "ally attack" (one Tribbie Zone instance), or is each hit? | One per action |
 | Jing Yuan | E6 Vulnerable: does the hit that applies a stack benefit, and do adjacent splash hits apply stacks? | No and no |
 | Eternal Calculus | Does Lightning-Lord's action count as the wearer's attack, and do stacks count distinct enemies? | Yes and yes |
-| Break | Does a break effect (e.g. Entanglement) trigger Acheron's talent, as "a debuff inflicted during an ability"? Large: one Acheron-with-Tribbie battle's cycle 5 goes from 308,839 to 1,276,193 | No |
-| Welt | Skill energy: 30 in total (the data prints 6 per hit over 5 hits) | 30 |
+| Break | Does a break effect (e.g. Entanglement) trigger Acheron's talent, as "a debuff inflicted during an ability"? | **Settled by Smitty 2026-11-15: yes** (a Quantum break by Fu Xuan's Basic ATK gave Acheron a Slashed Dream). Built; two pinned battles' cycle 5 rose (308,839 to 1,276,193 and 275,506 to 932,104) |
+| Welt | Skill energy: 30 in total (the data prints 6 per hit over 5 hits) | **Settled by Smitty 2026-11-15: 30** (90 to 120 after one Skill) |
 | Welt | Ultimate as 2 hits (10%/90%, from Fribbels, not the text): sets Talent triggers, E2 energy and Weightless delays | 2 hits |
 | Welt | Weightless delay per hit, cap 8 per target per turn, reset at that enemy's turn start | As written |
 | Welt | Retribution: one stack per attack, given after it | As written |
@@ -181,8 +186,11 @@ Consequence of S6 to keep in mind: effects that trigger on a kill, overkill, and
 | Memosprites | Do memosprite actions count for "after a teammate attacks" (Acheron's Affinitive Eidolon) and for equipment that reacts to the wearer's attacks (Ashblazing, Eternal Calculus, Dance! Dance! Dance!, Scholar)? | Acheron: yes; equipment: no (they check the wearer as actor) |
 | Fu Xuan | Is the redirected 65% taken before or after the ally's damage reductions, and does Fu Xuan's own Misfortune Avoidance reduce it? | After the ally's reductions; hers do not apply |
 | Fu Xuan | Does her redirection cover memosprites ("teammates")? | Yes |
-| Fu Xuan | Knowledge's HP buff (6% of her Max HP): her Max HP before or after her own Knowledge? Fribbels' input is labelled "Fu Xuan's Combat HP" | Before |
+| Fu Xuan | Knowledge's HP buff (6% of her Max HP): her Max HP before or after her own Knowledge? | **Settled by Smitty 2026-11-15: before** (her out-of-combat Max HP 9,420 x 6% = 565.2; an ally showed +565 in battle; after would be about 599) |
 | Fu Xuan | E4 energy: scaled by Energy Regeneration Rate? | Yes |
+| Fu Xuan | Does her HP Restore (a share of missing HP) get Outgoing Healing Boost? Fribbels has no hit for it, so NouSR applies none | No |
+| Giant Tree | Its SPD thresholds read in-battle SPD (Fribbels' in-combat SPD)? NouSR stops the run if the timeline's SPD and Fribbels' SPD fall on different sides of 135 or 180 | In-battle |
+| Cyrene x Tribbie | Ode to Passage's extra Zone instance: on her Follow-Up ATK only (the text), or on Basic ATK, Ultimate and ally-triggered hits too (Fribbels)? | Follow-Up only |
 | Robin Summeretto | During Fever she takes no turns: is her action gauge frozen (kept as it was), and do advances or delays she receives meanwhile still apply? | Frozen; they apply to the frozen gauge |
 | Robin Summeretto | Do the Songbirds and the countdown enter Fever with a full gauge? | Yes |
 | Robin Summeretto | "Ally target" for Vibes: every character including Robin, and every memosprite including the Songbirds; summon actions count as their owner's? | Yes |
@@ -201,6 +209,14 @@ Consequence of S6 to keep in mind: effects that trigger on a kill, overkill, and
 | Sunday | E6: does a new Talent stack renew all stacks' duration? | Yes |
 | Sunday | Does his Skill advance the target's memosprites ("their summon"), and cover a memosprite summoned after the Skill or Ultimate? | Yes and yes |
 | Sunday | His Ultimate on himself: does it consume the Technique buff or give the E6 Talent stack? | Neither (not modelled) |
+| Cyrene | Her Ultimate "activates all teammates' Ultimate": what does it do? | **Settled by Smitty 2026-11-15: it fills every teammate's energy to full** (hovering a teammate shows full energy); the team policy then casts their Ultimates as usual. Guides only repeat the line ([Prydwen](https://www.prydwen.gg/star-rail/characters/cyrene)) |
+| Cyrene | Is Ode to Ego always on, or only after an Ode on her? Can "This Ode, to All Lives" target her? | **Settled by Smitty in game, 2026-11-15: always on** (every Minuet gets the bounces, 1 per distinct teammate she has gained Recollection from, characters and memosprites, never Demiurge; Story and E1/E4/E6 work from the start). **The Ode cannot target Cyrene herself:** a `demiurge_order` entry naming her own key is rejected by the loader (`x-nousr-domain.exclude_self`, K27) |
+| Cyrene | Ultimate cost: the first needs 24 and spends 12? Reunion at First Sight? | **Settled by Smitty in game, 2026-11-15: the first needs 24 and spends 12** (leaves the rest); **Reunion at First Sight needs 12 and spends 12** |
+| Cyrene | Recollection at the start of a Memory of Chaos battle | **Settled by Smitty in game, 2026-11-15: 0 + trace only** (6 of 24 with 3 Chrysos Heir / Remembrance teammates, E0/E1); the 50% start energy adds nothing. The kit already did this |
+| Cyrene | Story from the first Ultimate | **Settled by Smitty in game, 2026-11-15: 2** (1 for using the Ultimate, 1 for summoning Demiurge) |
+| Cyrene | Do teammates' Ultimates (activated by the energy fill) come before or after Demiurge's extra turn? | **Settled by Smitty in game, 2026-11-15: before.** The Ultimate window runs to the end before the timeline gives the extra turn, and again before Demiurge's turn starts; no engine change was needed, a test pins it |
+| Castorice | Does Contained Dark Tide count overheal? | **Settled by Smitty in game, 2026-11-15: yes** (Newbud 47% to 63% from Hyacine's Ultimate on 3 full-HP allies); the full heal (`amount + overheal`) counts, still capped at 12% of max Newbud per ally per action |
+| Hyacine | Does her Ultimate heal use her Max HP before or after After Rain's buff? | **Settled by Smitty in game, 2026-11-15: before.** 4,946 Max HP, 34.5% Outgoing Healing, Lv10: +1,073 on allies, +1,288 on Little Ica. The Ultimate heals first, then starts After Rain |
 | Past and Future | "The next ally taking action": a character's turn start (not a summon such as Lightning-Lord, not a memosprite, not an Ultimate in the window)? Fribbels sends it to the memosprite for owners like Castorice | A character's turn start; summons and memosprites never get it |
 
 
@@ -361,15 +377,15 @@ Affinitive Eidolon. This is the text kits are transcribed from. Game text is not
 | K12 | Generic enemy stats (2026-11-13) | Max HP 2,904,993 and toughness 480 (internal units): the floor 12 elite medians over the last 9 periods (`node tools/gamedata/moc-enemies.mjs`). Bosses: HP median 8,510,721, toughness 600 |
 | K13 | Kit versions (2026-11-13) | Each kit lists the ability versions it implements; a scenario naming another version stops with an error. Silver Wolf and Welt are written for version 1 (Nova Flare) |
 | K14 | Standard build (2026-11-13) | Deterministic and static, KQMS-style (after KQM's Genshin standard; KQM publishes no Star Rail one): 24 fixed rolls (2 on each of the 12 substat types) plus 24 distributed rolls, every roll at its average value, at most 2 distributed rolls of a stat per relic whose main stat is not that stat. The same build in every team; no search or optimizer. Prior work: hsr-simulator uses a fixed 50-roll total with hand-set SPD; Fribbels' 100% benchmark is a search over a team and a typed-in SPD; Prydwen's method could not be read |
-| K14b | Standard build files (2026-11-13) | NouSR ships one small file per character with its standard build's sets, main stats and the split of the 24 distributed rolls (SPD included), drafted from Fribbels' preset and reviewed by Smitty, so every choice is visible. A scenario can switch a standard member's main stats (for example CRIT Rate or CRIT DMG body), so one character can be compared across main-stat choices. That is a scenario schema addition, drafted for Smitty's review before it is built |
+| K14b | Standard build files (2026-11-13) | NouSR ships one small file per character with its standard build's sets, main stats and the split of the 24 distributed rolls (the SPD count is a starting point: K32 re-solves it at load), drafted from Fribbels' preset and reviewed by Smitty, so every choice is visible. A scenario can switch a standard member's main stats (for example CRIT Rate or CRIT DMG body), so one character can be compared across main-stat choices. That is a scenario schema addition, drafted for Smitty's review before it is built |
 | K14c | Standard-build override (2026-11-13) | A scenario member on `"standard"` relics may carry `standard_build` with `main_stats` (any of Body, Feet, Planar Sphere, Link Rope) and optionally `distributed` (a whole 24-roll split). A bare main-stat swap re-splits automatically by one published rule: rolls above the new cap move to the next stat in that character file's priority order. The run result echoes the split it actually used. An explicit `distributed` overrides the rule; a split that breaks the total or a cap is an error, never silently fixed. Sets are not overridable in v1. Draft: `docs/proposals/scenario-standard-build-override.md` (to be updated to this rule) |
 | K14d | Standard-build roll values (2026-11-13) | `BenchmarkBuild` gains two optional fields, roll quality and SPD roll value, which Fribbels' stat simulation already accepts. Standard builds set K14's averages (quality 0.9, SPD 2.3 per roll); anything that does not set them keeps today's high-roll defaults (1.0, 2.6) |
-| K14e | SPD in standard builds (2026-11-13) | Each standard-build file declares a SPD target with its reason (a breakpoint, a set threshold, or none). SPD rolls may pass the KQMS cap only as far as needed to reach it; every other stat keeps KQMS rules. KQMS was written for Genshin, which has no SPD stat; Fribbels also allocates SPD first to a target and only soft-penalizes it (`benchmarks.md:80-107`). Evidence: Smitty's Cyrene is 192 SPD out of combat, while strict KQMS caps top out at 162.6. Targets set with Smitty 2026-11-13: Cyrene 180 (her trace and Fribbels' breakpoint), Hyacine 200 (her Tempestuous Halt trace and Fribbels' breakpoint), most others 133.34 (two turns in cycle 1), Tribbie none, Castorice a ceiling under 95 |
+| K14e | SPD in standard builds (2026-11-13) | Each standard-build file declares a SPD target with its reason (a breakpoint, a set threshold, or none); K32 solves the roll count for the member's light cone at load. SPD rolls may pass the KQMS cap only as far as needed to reach it; every other stat keeps KQMS rules. KQMS was written for Genshin, which has no SPD stat; Fribbels also allocates SPD first to a target and only soft-penalizes it (`benchmarks.md:80-107`). Evidence: Smitty's Cyrene is 192 SPD out of combat, while strict KQMS caps top out at 162.6. Targets set with Smitty 2026-11-13: Cyrene 180 (her trace and Fribbels' breakpoint), Hyacine 200 (her Tempestuous Halt trace and Fribbels' breakpoint), most others 133.34 (two turns in cycle 1), Tribbie none, Castorice a ceiling under 95 |
 | K15 | Ability and trace levels (2026-11-13) | A member's ability levels and traces come from the scan by default, and a scenario can override them per member with any legal value: for example a character's current state or fully built. Never a blocker as long as the values are legal for that character. Scenario schema addition, drafted for Smitty's review before it is built |
 | K15a | Ability-level buffs (2026-11-13) | Option A: Fribbels applies level-dependent buffs at max level only (its ability helper is keyed on eidolon, `conditionalUtils.ts:36-40`). For a member below max, the kit switches Fribbels' copy of that buff off and supplies the level-scaled value itself, from the game data's per-level tables, through one generic kernel feature for injected buffs. Minor traces switch off through Fribbels' trace-override list; major traces and attack multipliers are kit-side. Proposal: `docs/proposals/scenario-ability-trace-levels.md`. **Mechanism (2026-11-13): delta injection.** Fribbels' switch stays on and NouSR injects the difference between the right level's value and the max-level value Fribbels applied (for a level-1 Cyrene Zone: +12% - 24% = -12%). Exact for every additive stat on the roster (DMG%, CRIT Rate, CRIT DMG, RES PEN, DEF PEN, Vulnerability, True DMG, ATK%, HP%), and safe where one switch gates several effects or there is no switch (Acheron's talent RES PEN). Verified: an injected buff matches Fribbels' own to 6 decimals on every ability (Acheron with a Cyrene teammate) |
 | K16 | Jing Yuan E6 (2026-11-13) | Vulnerable stacks build hit by hit, as the text says: each Lightning-Lord hit sees the stacks earlier hits left on its target (`E6_VULNERABILITY_RAMP` in `src/kits/jingYuan.ts`). Fribbels gives every hit all 3 stacks, which overstates E6 |
 | K17 | Enemies hit by random hits (2026-11-13) | Effects that count "per enemy hit" use the expected number of distinct enemies an action hits, not every enemy a random-target attack could reach (for 3 random hits on 5 enemies: 5 x (1 - (4/5)^3) = 2.44, not 5). Affects Tribbie's Zone instances and Pebble energy, Eternal Calculus's stacks and its 3-enemy SPD buff |
-| K14f | Swapping SPD boots away (2026-11-13) | Option A: a standard-build override that changes the Feet main stat leaves the distributed rolls as they are, runs at the resulting SPD, and reports in the run result that the SPD target was missed (by how much). SPD is never re-solved silently |
+| K14f | Swapping SPD boots away (2026-11-13) | Option A: a standard-build override that changes the Feet main stat leaves the distributed rolls as they are, runs at the resulting SPD, and reports in the run result that the SPD target was missed (by how much). SPD is never re-solved silently. **Superseded in part by K32 (2026-11-15):** the loader now re-solves SPD for the actual main stats and says so in the echo (`spdSolved`), so a Feet swap no longer misses unless no roll count reaches the target (then `spd-target-missed` as described here); an explicit `distributed` is still taken as given and still warns. **Confirmed by Smitty 2026-11-16:** keep re-solving; a user who wants "swap boots and lose the speed" gives the split explicitly |
 | K18 | Schema drafts approved (2026-11-13) | Smitty approved `schema/standard-build.schema.json` with the 14 files in `data/standard-builds/`, the override proposal (`docs/proposals/scenario-standard-build-override.md`, with K14c's re-split rule) and the levels proposal (`docs/proposals/scenario-ability-trace-levels.md`) |
 | K19 | Warnings are structured (2026-11-13) | Every run warning carries a severity, a short stable code (e.g. `spd-target-missed`, `undecided-tie`, `spd-may-be-understated`), the message, and where it applies (team, enemy count, member). Front ends render them: the CLI in red with a warning sign, a web UI as a warning box. Part of the results format (K8) |
 | K20 | Level data in the repo (2026-11-13) | Ability max levels, per-level values (1 to 15) and trace lists are extracted by a script from the game data into a small committed file under `data/`, regenerated when the game version changes. Numbers only, no game text. Users need no game-data download |
@@ -377,6 +393,14 @@ Affinitive Eidolon. This is the text kits are transcribed from. Game text is not
 | K22 | Random-target debuffs (2026-11-14) | A debuff from a random-target hit is present on each enemy with the chance it landed there (expected value), not on every enemy the hit could reach. Debuff counts become expected values; thresholds on them use K21's scaled form; "once per action" triggers use the chance. Silver Wolf's random Bug is each of ATK, DEF and SPD at 1/3. Affects Silver Wolf, Welt's Skill slow, Along the Passing Shore on bounces, and every debuff consumer (Acheron's talent, Pioneer Diver, Good Night and Sleep Well, Silver Wolf E1/E4/E6) |
 | K23 | Extra hits for teammates (2026-11-14) | A damage request can carry extra Additional DMG hits. A kit hands one to a teammate through its teammate state, and it is priced in that teammate's own request (the teammate's ATK, crits, element and buffs). First use: Dan Heng • Permansor Terrae's Bondmate Additional DMG (enhanced Souldragon, Sublimity, E6), which Fribbels does not price. Built 2026-11-14: Fribbels builds all hits in one pass inside `generateContext`, so the adapter adds the extra hit through Fribbels' own per-character `actionModifiers` hook (the extension point its Hidden Shadow light cone uses), for one synchronous call, restored afterwards, and reports it as ability `EXTRA`. Priced exactly as Fribbels' own Additional hits (tested against Pela with Hidden Shadow and Tribbie's Zone) |
 | K24 | Break effects are debuffs (2026-11-14) | Each break effect NouSR models (Entanglement and Imprisonment delays, Imprisonment's slow, Freeze) counts as a debuff while it lasts, and one shared Imprisoned state serves both a break and Welt. Damage over time stays out (K7b) |
+| K25 | Netherwing burn or hold (2026-11-15) | Both are modelled and the user picks per scenario: burn (Breath into the finisher on Netherwing's first turn, what the game's auto-battle does, the default) or hold (Breath only above 25% HP until a chosen turn 2 or 3, Claw Splits the Veil on held turns with no HP above 25%, finish on that turn). Built as Castorice's `finishOnTurn`, set from a scenario with `kit_options.netherwing_finish_turn` (K27). Purpose: the experiment under "Planned experiments" |
+| K26 | Demiurge's order (2026-11-15) | Demiurge's choice turns follow a user-set order (an ally key per Ode, or attack), as part of the rotation, e.g. Hyacine, Castorice, Robin (never Cyrene herself: the Ode cannot target her, settled 2026-11-15). Every option like this has a finite, schema-declared domain so the optimizer can search it. Scenario field `kit_options.demiurge_order` / `after_order` (K27); the order's default (every other member in party order, then attack) is a placeholder that raises `kit-option-default-used`, to be replaced by a priority derived from runs before anyone outside the private beta relies on it; running past the list raises `kit-option-list-exhausted` |
+| K27 | Kit options (2026-11-15) | A scenario member may carry `kit_options`, checked against `schema/kit-options/<character id>.schema.json` (`src/scenario/kitOptions.ts`). Every option has a finite domain and a default, enforced by a test, so an optimizer enumerates any kit's options from its schema; values naming members are checked against the team (`x-nousr-domain`; `exclude_self: true` also refuses the member's own key, which Cyrene's `demiurge_order` uses). Kits take them through `RegisteredKit.configure`; the run result echoes the options used and which were defaulted. Parallel search needs nothing more; branching on shared prefixes later needs kit state that can be snapshotted (kit state lives in closures today). Proposal: `docs/proposals/scenario-kit-options.md` |
+| K28 | Anaxa's weaknesses (2026-11-15) | His kit counts each enemy's weakness types itself, as expected values, starting from the scenario's setting (S5): his implants and Sublimation raise the count, which drives Qualitative Disclosure, Qualitative Shift and The Great Cosmic Enterprise. Teammates' RES and toughness keep the scenario's list (a documented approximation). Under the default `"all"` every enemy has 7 types from the start, so default runs are unaffected. Per-enemy weaknesses in the engine are a roadmap item. hsr-simulator implements them per enemy |
+| K29 | Enemy Control RES (2026-11-15) | Enemies are entities built from a template, as characters are (real bosses later: a template plus a behaviour module, like a kit). The enemy profile gains `control_res` (a fraction, the game data's `STAT_CTRL`; optional, 0 when left out); the generic enemy has 0, since floor 12 Elites have none (Computed: 0 of 22 Elites over the last 9 periods; 9 of 13 bosses have 0.5, 1 has 1.0). So Anaxa's Sublimation stops the generic enemy from acting: its next turn passes (`Enemies.skipNextTurn`, no thaw advance) |
+| K30 | The Herta's aim (2026-11-15) | Her Enhanced Skill aims at the enemy with the most Interpretation, ties to the middle enemy; her other actions and her teammates keep the middle (K3). Every generic enemy is Elite-level, so the Ultimate's rearrangement changes nothing. Choosing Basic ATK over her Skill in Skill Point-heavy teams is the team policy's job (`team.skill_points` conditions); planning Skill Points ahead is an optimizer item |
+| K31 | Techniques per member (2026-11-15) | Every member's pre-fight Technique has its own switch: a scenario member's `technique` (true/false) overrides `battle.start.techniques`, which stays the default for everyone. Every kit's technique honours it, and the optimizer can search it (some niche teams skip a technique). Hyacine's Technique is modelled: at battle start all allies healed 30% of her Max HP + 600, and all allies +20% Max HP for 2 turns (numbered K31 because the Herta/Anaxa branch uses K28-K30). **Built 2026-11-15:** `technique` on a member, resolved at load (`Member.technique`, `techniqueGiven`), `MemberSetup.technique`, echoed per member in the run result (`techniques`); Hyacine heals characters first (an overheal at full HP, counted in her tally), then Max HP +20% as a timeline modifier on each, counted by that ally's own turns, injected into the kernel as HP% (five in-game checks in `docs/in-game-checks.md` item 7) |
+| K32 | Standard-build SPD solved at load (2026-11-15) | A standard build file states its SPD target, and the loader works out the fewest distributed SPD rolls that reach it with the member's actual light cone and main stats (K14e's rule, applied at load instead of written into the file); the rolls that frees or needs move along the file's `distributed.priority` (K14c's re-split rule). So the default build always fits the light cone equipped (Cyrene with This Love, Forever: 10 SPD rolls; with a light cone without SPD: about 18). A target out of reach runs with the `spd-target-missed` warning (K14f). The run result echoes the split used. Found because Cyrene's file had 18 SPD rolls computed without her light cone and was refused |
 | K11 | Multi-hit pricing (2026-11-13) | The kernel returns damage per hit, not one number per ability, and a kit says which hit each attack part is. One reference multiple per ability gave every hit a blended rate wherever hits get different buffs (Tribbie's E6 follow-up came out at 0.689 of the correct total on 3 enemies) |
 
 K4, K6 and K7 were agreed before the prior-work check on them had come back; anything in srsim, hsr-simulator or
@@ -392,7 +416,7 @@ Also agreed 2026-11-12: the five timeline rules under "Open questions" stay as i
 rules stay as implemented while each is checked against a source; technique damage stays out; the schema `$id`
 waits for a publication address. Still open: what Aha's extra turn does (step 7, needs the full rule text).
 
-**Open, for an in-game check:** does Thunder Core's +30% apply to the Rainblade that grants it? Implemented as
+**Settled in game (Smitty, 2026-11-15):** Thunder Core's +30% does not apply to the Rainblade that grants it. Implemented as
 "from the next hit on", so the first Rainblade is unbuffed and its Crimson Knot detonation is buffed. Fribbels
 assumes all three stacks for the whole Ultimate.
 
@@ -421,9 +445,25 @@ the technique's Quadrivalent Ascendance stack is modelled.
   it names has an equipment module. Every set the 14 roster files name now has one (2026-11-14, written by Haiku
   and reviewed). Some still refuse cases the engine cannot model, and stop the run with an error: World-Remaking
   Deliverer 4-piece and Amphoreus for memosprite wearers, The Wondrous BananAmusement Park for memosprite wearers,
-  Sacerdos' Relived Ordeal 4-piece (the targeted ally is not recorded), Self-Enshrouded Recluse 4-piece (shield
-  sources are not recorded), Giant Tree's Outgoing Healing (at the wearer's first heal). Broken Keel's team buff
+  Giant Tree's Outgoing Healing (at the wearer's first heal). Broken Keel's team buff
   uses out-of-combat Effect RES.
+- **All 14 roster standard builds run** (2026-11-15; 4 could not when this was found). **Fixed 2026-11-15, later:** Sunday
+  (Sacerdos' Relived Ordeal 4-piece) and Dan Heng • PT (Self-Enshrouded Recluse 4-piece), so the Acheron and Jing Yuan teams
+  can run on standard builds. No event change (Smitty, 2026-11-15: "a buff lives on the unit that holds it"; proposal
+  `docs/proposals/engine-ability-target-shield-source.md`). Sacerdos finds the ability's target from the buffs the wearer's own
+  Skill or Ultimate put on one ally character (`modifierApplied`, matched to the action by `Battle.actionSerialInProgress`), and
+  gives that ally the CRIT DMG stack as a modifier on the holder. Recluse reads the new `Party.shieldFrom(holder, source)`: the
+  party now keeps each shield's source. Both pass their live values to Fribbels (`teamRelicSet` "Sacerdos' Relived Ordeal 1x/2x",
+  "Self-Enshrouded Recluse"; the wearers' own switches). Real-kernel test: `src/kernel/fribbels/shieldAndTargetSets.integration.test.ts`.
+  Readings to check are in `docs/in-game-checks.md` (Tier 1 #7, Tier 2 #19 to #23). Recluse's Shield Effect +10% / +12% is NOT
+  MODELLED (Dan Heng PT's shields are 22% smaller than in game at 4 pieces; HP and shield duration only); Smitty put it on the
+  roadmap. **Fixed earlier 2026-11-15:** Robin Summeretto and Cyrene. World-Remaking Deliverer and
+  Amphoreus refused memosprite wearers with "memosprites are not built (K6)", written before memosprites existed; they now
+  model the memosprite condition (WRD: live on the wearer's Basic ATK / Skill, Max HP kept in step on the party; Amphoreus:
+  +8% SPD on every ally while the wearer's memosprite is on the field, one shared modifier). Robin's standard build runs
+  through the real kernel (`src/kernel/fribbels/memospriteSets.integration.test.ts`). The same stale wording in Bone
+  Collection's and Poet's headers was only wording: Fribbels applies their memosprite buffs itself. BananAmusement Park
+  still refuses memosprite wearers (no roster member needs it).
 - Equipment modules for every light cone and relic set the roster wears. K4 is built (`src/equipment/`) with
   Along the Passing Shore, Dance! Dance! Dance!, Pioneer Diver of Dead Waters, and three items registered as
   having no conditional behaviour. A light cone or set with no module stops the run with an error, because
@@ -438,8 +478,108 @@ Following hsr-simulator: one HP-loss pipeline. Every point of HP lost by an ally
 pipeline, and an `on_hp_loss` event lets other effects react. Enemy targeting is split fractionally by aggro
 (character + memosprite aggro; Taunt forces the target).
 
+## Where things stand (2026-11-16)
+
+Branch `castorice-team` (not pushed). `main` has everything through PR #3 (Jing Yuan's team). The three side branches (The Herta and Anaxa; Sunday's and Dan Heng PT's relic sets; the results-report draft) are merged in (2026-11-16). All 14 roster kits are registered, all 14 standard builds run, and all 1,823 tests pass.
+
+- **Kits registered and reviewed:** Acheron, Tribbie, Jing Yuan, Silver Wolf, Welt, Dan Heng • PT, Sunday, Fu Xuan,
+  Robin • Summeretto.
+- **Written and tested on this branch, not yet reviewed or registered:** **Hyacine** (+ The Story's Next Page) and
+  **Castorice** (+ Make Farewells More Beautiful). **Cyrene** has not been started (the plumbing for her ally effects
+  exists: `battle.cyreneEffect`).
+- **Reviewed 2026-11-15** (one Sonnet reviewer each): no wrong numbers in either kit. Fixed: Castorice's Cyrene bounce
+  rate used the text's rounded 0.26% / 0.53% (game data 0.264% / 0.528%); Netherwing's HP gain is now `Party.gainHp` (no
+  `healed` event, so Robin no longer gets Vibes from it). Netherwing's Breath: both modes built (K25), the old
+  `maxBreathsPerTurn` option is gone. Hyacine's fixes and missing tests were delegated; her Technique (skipped today) waits on
+  Smitty: heal into the tally only, heal plus the +20% Max HP, or leave out.
+- **Castorice notes:** max Newbud is Fribbels' 34,000 (the text gives no formula); her E1 follows the text's enemy-HP bands
+  (120% below 80%, 140% below 50%) rather than Fribbels' flat bonus; E4's healing-received bonus for other healers is not
+  modelled. Small open: `removeMemosprite` drops the memosprite's owner before `memospriteRemoved`, so the HP-out Wings
+  Sweep's `actionUsed` has no `owner`.
+- **New in-game checks from the reviews:** After Rain covering 2 or 3 actions after an out-of-turn Ultimate; whether her Technique
+  heal on full-HP allies counts in Little Ica's tally; Take Sky in Hand in After Rain (two heals? Ica healing herself?). Settled by
+  Smitty in game, 2026-11-15: Hyacine's Ultimate heals on her Max HP before After Rain's buff; Contained Dark Tide counts overheal.
+- **Registered 2026-11-15:** Castorice and Hyacine, with Make Farewells More Beautiful and The Story's Next Page. Kit options
+  (K27) are built; Castorice's runs end to end through the real kernel (a scratch 3-member run, Castorice / Hyacine / Tribbie on
+  standard builds, finish turns 1 to 3 at 1, 3 and 5 enemies). That run is a wiring check, not the K25 experiment: no Cyrene,
+  a placeholder policy, and Robin Summeretto and Sunday could not join (their standard builds' World-Remaking Deliverer and
+  Sacerdos' 4-piece effects were refused then; both are modelled now).
+- **Cyrene (2026-11-15):** written by a Sonnet agent, reviewed by another, registered with This Love, Forever. Demiurge's
+  order is her kit option (K26/K27). The review found no wrong numbers. Open:
+  - **Her standard build runs (fixed by K32, 2026-11-15):** the file's 18 SPD rolls were computed without the light cone;
+    the loader now solves SPD for the equipped light cone (10 rolls with This Love, Forever).
+  - **Non-heir Ode on a memosprite owner (Robin Summeretto):** Fribbels puts the +40% on its single-target entity, which for
+    Robin (memo buff priority) is the Songbirds, so her own hits miss it (Computed by the reviewer: Basic ATK the same with
+    the Ode on and off). The text says it "also applies on memosprites". Fix: inject the delta for the other entity (K15a).
+  - Not modelled on the teammates' side: Hyacine's Ode to Sky (Ica's tally +72% of healing), Dan Heng PT's Ode to Earth
+    beyond the 24% DMG. (Anaxa's Ode to Reason is in his kit since 2026-11-16.) Engine gaps: `performAction` reads a memosprite's owner after its body (a memosprite
+    that leaves in its own action logs no owner); no quiet HP setter (the kit works around it).
+  - **In-game checks** (the code has each as `IN-GAME CHECK`): whether the first Ode to Ego Minuet already has E6's DEF -20%;
+    whether a teammate's Ultimate or follow-up consumes Future; whether a Max HP rise raises current HP. **Settled by Smitty in
+    game, 2026-11-15:** Ode to Ego is always on; "This Ode, to All Lives" cannot target Cyrene herself; the first Ultimate needs
+    24 Recollection and spends 12, Reunion at First Sight needs 12 and spends 12; her Recollection at the start of a Memory of Chaos
+    battle is 0 + trace; the first Ultimate gives 2 Story; teammates' Ultimates come before Demiurge's extra turn.
+  - **Ode to Ego (settled 2026-11-15): always on**, as Fribbels has it. Each Minuet gets 1 to 6 or more bounces from the first one
+    (up to about 7x its damage at E0), Story and E1/E4/E6 work from the start, and her own key is not a valid `demiurge_order`
+    entry (the loader and the kit both refuse it).
+  - First end-to-end run (reviewer, on a scratch build with 10 SPD rolls; Cyrene, Castorice, Hyacine, Tribbie, standard relics,
+    5 cycles): runs with no warnings with an order, with `kit-option-default-used` without one; her SPD 180.812 on both the
+    timeline and the kernel; Castorice deals about 70% of the team's damage at 1 enemy.
+- **The Herta and Anaxa (2026-11-16, branch `claude/practical-khayyam-2c2d55`, cut from `castorice-team` at 92e0c4b):** each
+  written by a Sonnet agent, reviewed by another with mutation tests, registered, with The Great Cosmic Enterprise (22004). All
+  1,768 tests pass and both typechecks are clean.
+  - **Engine (K29):** the enemy profile has `control_res` (generic 0); `Enemies.skipNextTurn(enemy, 'sublimation')` skips the
+    next turn without Freeze's thaw advance (Freeze on the same turn takes it and clears the skip).
+  - **The Herta (K30):** Interpretation and Answer kept per enemy as expected values (cap 42 / 99); her Enhanced Skill aims at the
+    most-stacked enemy. Her Skill is 3 widening instances (designated 3 hits, neighbours 2, outer 1) and the stack bonus is
+    added once per enemy (Fribbels' reading); both are in-game checks. One difference from Fribbels: at E6 with exactly 2
+    enemies the Ultimate gets +250% (the text), Fribbels +140%. Review: no wrong numbers; 118 mutations, all killed but 3
+    equivalent ones.
+  - **Anaxa (K28):** weakness types counted per enemy in his kit (`src/kits/weaknessTypes.ts`, which the light cone reads);
+    Qualitative Disclosure is P(5+ types), K21-scaled; his talent's extra Skill is cast with that chance and priced given that it
+    is cast (Disclosure certain on its target). The Skill's 4 added instances prefer enemies not yet hit (5 enemies: one each).
+    Cyrene's Ode to Reason: 3 more instances for the turn and True Knowledge (ATK and Skill DMG for Erudition allies until his
+    next turn). Skill energy is 6 per instance (30 per Skill, 48 with the Ode), by analogy with Welt and not yet checked for him.
+    Review: no wrong numbers; 46 mutations, all killed.
+  - **End to end** (temporary test, deleted; The Herta / Anaxa / Tribbie / Hyacine on standard builds, 5 cycles, Computed):
+    every member's timeline SPD equals the kernel's (133.632, 133.532, 125.632, 201.332); no warnings, nobody downed; total
+    2.74M / 7.45M / 12.77M at 1 / 3 / 5 enemies with all weaknesses, 2.36M / 6.50M / 12.56M with Ice/Fire/Lightning. Anaxa casts
+    2 to 4 Ultimates. Solo, each is downed early at 3 and 5 enemies (no healer), as Robin Summeretto is.
+  - **In-game checks:** `docs/in-game-checks.md` 7 and 8 (Tier 1: Anaxa's Skill energy; The Herta's stack bonus once or per
+    hit) and 20 to 32 (Tier 2).
+  - **Open for Smitty (small, not decided):** (1) The Herta's tie rules when the middle enemy is not among the tied (aim and
+    Message stack: nearest the middle, then standing order); (2) Anaxa's own Wind RES and toughness after a Wind implant outside
+    Sublimation (today only Sublimation removes it; matters only with a weakness list without Wind); (3) The Great Cosmic
+    Enterprise on a non-Anaxa wearer reads the scenario's count, not Anaxa's per-enemy count.
+- **Next:** settle the standard-build SPD question and fix 1415.json, then one PR for the Castorice team and this one for The
+  Herta and Anaxa. Then the period module (step 7) and the results report (K8).
+- **How waves run:** one branch per wave; Sonnet agents (medium effort) write each kit in its own files, never
+  touching battle.ts or the registries; a separate Sonnet reviewer checks each kit against the text and Fribbels,
+  with mutation tests; the orchestrator verifies, registers, commits, opens a PR; CI runs on the PR; Auto-fix on.
+
+## Planned experiments
+
+Questions the simulator exists to answer, recorded so they are run once the pieces exist.
+
+- **Is burning Netherwing a mistake?** (Smitty, 2026-11-15.) The game's auto-battle launches Breath into the finisher on Netherwing's
+  first turn, as Fribbels' combo does. Holding above 25% HP until turn 2 or 3 trades West Wind stacks (reset each turn) and an
+  earlier Wings Sweep for refilled HP paying for more Breaths and a longer Territory (-20% All-Type RES on every enemy) and backup.
+  Method: one scenario, the Castorice team three times, differing only in `netherwing_finish_turn` (1, 2, 3), at 1, 3 and 5 enemies,
+  E0 and Smitty's own eidolons. Read: total and per-cycle damage, Breaths launched, Territory uptime in action value, downed allies.
+  Needs: Cyrene registered, the kit-options scenario field (K25), the results report (K8). The Contained Dark Tide check is settled (overheal
+  counts, 2026-11-15); rerun once the Breath stopping rule comes back.
+- **Best Demiurge order** for the Castorice team (K26). Every order of Odes over the team's members (plus attack), searched
+  exhaustively by the optimizer once it exists; until then, a few hand-written orders as teams in one scenario. Read the same as above.
+
 ## Roadmap
 
+**Principle (Smitty, 2026-11-15): never make a decision for the end user.** NouSR designs the options and ships its own
+defaults; a user can run any legal build, however odd. The simulator refuses only what can't exist in the game (impossible
+relic stats) or what it can't model yet, so nobody gets a confidently wrong number.
+
+- **Named standard-build variants** (Smitty, 2026-11-15). Several default builds per character, picked by name in a
+  scenario, e.g. "signature" (the current default), "f2p" or "budget" (cheaper light cones and sets). K32 already fits each
+  build's SPD to the light cone equipped.
 - **User-facing documentation of standard builds** (Smitty, 2026-11-13). A rendered page (a wiki or docs site)
   that shows, per character, the standard build's sets, main stats, roll split and SPD target with its reason,
   in a form a player can read without opening JSON. Generated from `data/standard-builds/` so it cannot drift.
@@ -448,6 +588,8 @@ pipeline, and an `on_hp_loss` event lets other effects react. Enemy targeting is
   - Turn order: a unit acts before or after another (a buffer ahead of its DPS, or a "-1 SPD" tune behind it).
   - Skill points: a rotation that needs a Skill never finds the team at 0 SP on that turn.
   - Breakpoints: maximize damage at a target turn count per cycle (e.g. 134 SPD for 2 turns in cycle 1).
+  - Skill Points planned ahead across turns (Smitty, 2026-11-15): for example The Herta using Basic ATK on a turn so a
+    teammate's Skill fits later. Not MVP: today a policy decides each turn from the current state (`team.skill_points`).
   What it needs first: a way for a policy rule to be marked required (today a missing Skill quietly falls to the
   next rule, usually a basic attack), and the action log to carry each action's action value and skill points.
 - **Stochastic battle mode** (proposed by Smitty 2026-11-13). An opt-in mode beside the deterministic one, which
@@ -466,6 +608,13 @@ pipeline, and an `on_hp_loss` event lets other effects react. Enemy targeting is
   - **What it measures that expected value cannot:** the first "Known approximation" (thresholds evaluated on
     expected values), directly, and objectives that are really probabilities.
   - **Results are estimates.** Their precision depends on the number of runs and on the outcome measured.
+- **Shield Effect bonuses** (Smitty, 2026-11-15: roadmap, not MVP). Self-Enshrouded Recluse makes the wearer's shields
+  bigger (Dan Heng • PT at 3,000 ATK: 1,000 → about 1,220). Not modelled: it changes HP and how long a shield lasts (which
+  can end the set's +15% CRIT DMG a little early), not MVP damage. Needs a way for equipment to raise a kit's shields.
+- **Per-enemy weaknesses in the engine** (Smitty, 2026-11-15; "of the same caliber as the optimizer"). Weakness implants
+  (Anaxa's talent, Sublimation) become per-enemy weakness state, so teammates hitting an implanted element get the weak RES
+  and break toughness (K28 keeps the count in Anaxa's kit until then). When it lands, report Anaxa two ways: warmed up (5+
+  types, the bonus on), the number players care about, and including the warm-up.
 - Real MoC stage bosses
 - Pure Fiction, Apocalyptic Shadow, Anomaly Arbitration
 - Graphs and a readable action log

@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:nousr:kit-options:1415",
+  "title": "NouSR kit options: Cyrene (1415)",
+  "description": "A scenario member's kit_options for Cyrene (docs/proposals/scenario-kit-options.md, DESIGN.md K26). Every option has a finite domain, so an optimizer can enumerate it from this file. Demiurge chooses only on the extra turns Cyrene's Ultimates give it; its Story and Trailblazer (Remembrance) extra turns are automatic.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "demiurge_order": {
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "type": "string",
+        "x-nousr-domain": { "member_keys": true, "exclude_self": true, "values": ["attack"] },
+        "description": "A member key of the same team other than Cyrene's own: \"This Ode, to All Lives\" on that member (it cannot target Cyrene herself). \"attack\": Minuet of Blooms and Plumes."
+      },
+      "x-nousr-computed-default": "Every other team member in party order, then \"attack\". A placeholder: a run that uses it carries the warning kit-option-default-used.",
+      "description": "Demiurge's choice turns, in order."
+    },
+    "after_order": {
+      "enum": ["attack", "repeat", "cycle"],
+      "default": "attack",
+      "description": "What Demiurge does on a choice turn after demiurge_order is used up: attack, repeat the last entry, or start the list again. A run that gets there carries the warning kit-option-list-exhausted."
+    },
+    "notes": { "type": "string" }
+  }
+}

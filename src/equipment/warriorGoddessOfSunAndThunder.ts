@@ -47,7 +47,7 @@ export const WarriorGoddessOfSunAndThunder: SetModule = {
       if (pieces < 4) return
       if (unit === me || !battle.isAlly(unit)) return
       if (!(amount + overheal > 0)) return
-      if (!(source === me || (battle.isSummon(source) && source.startsWith(`${me}.`)))) return
+      if (!(source === me || battle.summonsOf(me).includes(source) || battle.memospritesOf(me).includes(source))) return
       const turn = timeline.activeTurn
       if (turn && turn.serial === triggeredOnTurn) return
       triggeredOnTurn = turn?.serial

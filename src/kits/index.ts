@@ -1,12 +1,18 @@
 import { Acheron } from './acheron'
+import { Anaxa } from './anaxa'
+import { Castorice, makeCastorice } from './castorice'
+import { type AfterOrder, Cyrene, makeCyrene } from './cyrene'
+import { Hyacine } from './hyacine'
 import { DanHengPT } from './danHengPT'
 import { FuXuan } from './fuXuan'
 import { JingYuan } from './jingYuan'
 import { RobinSummeretto } from './robinSummeretto'
 import { SilverWolf } from './silverWolf'
 import { Sunday } from './sunday'
+import { TheHerta } from './theHerta'
 import { Welt } from './welt'
 import type { Kit } from './kit'
+import type { KitOptions } from '../scenario/kitOptions'
 import { Tribbie } from './tribbie'
 
 /**
@@ -17,7 +23,13 @@ import { Tribbie } from './tribbie'
  */
 export interface RegisteredKit {
   name: string
+  /** The kit with its default options. */
   kit: Kit
+  /**
+   * For a kit that takes options (schema/kit-options/<character id>.schema.json, K25/K26): the kit for a member's options, as
+   * the loader resolved them (validated, defaults filled in, keys as in the scenario file).
+   */
+  configure?: (options: KitOptions) => Kit
 }
 
 export const KITS: ReadonlyMap<string, RegisteredKit> = new Map(
@@ -35,14 +47,40 @@ export const KITS: ReadonlyMap<string, RegisteredKit> = new Map(
     { name: 'Sunday', kit: Sunday },
     { name: 'Fu Xuan', kit: FuXuan },
     { name: 'Robin • Summeretto', kit: RobinSummeretto },
-  ].map((entry) => [entry.kit.characterId, entry]),
+    // Reviewed 2026-11-15, then fixed. Readings awaiting an in-game check are marked IN-GAME CHECK.
+    {
+      name: 'Castorice',
+      kit: Castorice,
+      configure: (o: KitOptions) => makeCastorice({ finishOnTurn: (o.netherwing_finish_turn ?? 1) as 1 | 2 | 3 }),
+    },
+    { name: 'Hyacine', kit: Hyacine },
+    // Reviewed 2026-11-15. Readings awaiting an in-game check are marked IN-GAME CHECK; Ode to Ego, Recollection costs, Story and the Ultimate order were settled by Smitty in game, 2026-11-15.
+    {
+      name: 'Cyrene',
+      kit: Cyrene,
+      configure: (o: KitOptions) =>
+        makeCyrene({
+          ...(o.demiurge_order !== undefined && { demiurgeOrder: o.demiurge_order as string[] }),
+          afterOrder: (o.after_order ?? 'attack') as AfterOrder,
+        }),
+    },
+    // Reviewed 2026-11-15. Readings awaiting an in-game check are marked IN-GAME CHECK. Anaxa counts weakness types in his
+    // kit (K28); The Herta aims her Enhanced Skill at the most Interpretation (K30).
+    { name: 'The Herta', kit: TheHerta },
+    { name: 'Anaxa', kit: Anaxa },
+  ].map((entry): [string, RegisteredKit] => [entry.kit.characterId, entry]),
 )
 
-/** The kit for a game character id, or an error that lists the kits that exist. */
-export function kitFor(characterId: string, kits: ReadonlyMap<string, RegisteredKit> = KITS): Kit {
+/**
+ * The kit for a game character id, or an error that lists the kits that exist. With `options` (a member's resolved kit options),
+ * the kit configured for them; a kit that takes no options must not be given any.
+ */
+export function kitFor(characterId: string, kits: ReadonlyMap<string, RegisteredKit> = KITS, options?: KitOptions): Kit {
   const entry = kits.get(characterId)
-  if (entry) return entry.kit
-  throw new Error(`No kit for character ${characterId}. Kits that exist: ${describeKits(kits)}`)
+  if (!entry) throw new Error(`No kit for character ${characterId}. Kits that exist: ${describeKits(kits)}`)
+  if (options === undefined) return entry.kit
+  if (!entry.configure) throw new Error(`The kit for ${characterId} (${entry.name}) takes no kit options, but the scenario has a schema for them`)
+  return entry.configure(options)
 }
 
 /** "1308 (Acheron), ..." */

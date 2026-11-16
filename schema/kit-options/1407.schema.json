@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:nousr:kit-options:1407",
+  "title": "NouSR kit options: Castorice (1407)",
+  "description": "A scenario member's kit_options for Castorice (docs/proposals/scenario-kit-options.md, DESIGN.md K25). Every option has a finite domain, so an optimizer can enumerate it from this file.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "netherwing_finish_turn": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3,
+      "default": 1,
+      "description": "The Netherwing turn (its own, counted from the summoning) on which it launches Breath down into the finisher. 1 = burn, as the game's auto-battle and Fribbels' combo do. 2 or 3 = hold: on earlier turns Netherwing launches Breath only while its HP is above 25%, and uses Claw Splits the Veil on a turn that starts at 25% or less."
+    },
+    "notes": { "type": "string" }
+  }
+}

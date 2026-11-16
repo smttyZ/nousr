@@ -1,4 +1,4 @@
-import type { TurnInfo, UnitId } from '../engine/events'
+import type { SkipReason, TurnInfo, UnitId } from '../engine/events'
 import type { Timeline } from '../engine/timeline'
 import type { EnemyAttack, EnemyProfile } from '../enemy/profile'
 import type { Party } from './party'
@@ -77,6 +77,8 @@ export class Enemies {
   private readonly toughnessLeft = new Map<UnitId, number>()
   private readonly broken = new Set<UnitId>()
   private readonly frozen = new Set<UnitId>()
+  /** Enemies whose next turn is skipped for a reason other than Freeze, with that reason (no thaw advance). */
+  private readonly skipping = new Map<UnitId, Exclude<SkipReason, 'frozen'>>()
   private readonly turnsTaken = new Map<UnitId, number>()
   private readonly forcedTargets = new Map<UnitId, UnitId>()
   /** Current HP per enemy. Empty when the profile has no HP. May go below 0. */
@@ -152,6 +154,22 @@ export class Enemies {
     this.frozen.add(enemy)
   }
 
+  /**
+   * Crowd control that is not Freeze (Anaxa's Sublimation, K29): the enemy's next turn passes without an action, with
+   * no thaw advance and no step in its attack pattern. Whether the enemy can be controlled at all (its Control RES,
+   * `profile.controlRes`) is the caller's rule. Applying it again before that turn changes nothing.
+   */
+  skipNextTurn(enemy: UnitId, reason: Exclude<SkipReason, 'frozen'>): void {
+    this.requireEnemy(enemy)
+    this.skipping.set(enemy, reason)
+  }
+
+  /** Whether the enemy's next turn is skipped by `skipNextTurn` (Freeze is `isFrozen`). */
+  willSkipTurn(enemy: UnitId): boolean {
+    this.requireEnemy(enemy)
+    return this.skipping.has(enemy)
+  }
+
   /** The start of the enemy's turn: refill the bar and end the broken state. */
   private recover(enemy: UnitId): void {
     if (!this.broken.has(enemy)) return
@@ -208,8 +226,17 @@ export class Enemies {
     if (this.frozen.has(enemy)) {
       // Frozen: no action this turn, and the next turn comes sooner. The gauge has refilled by now.
       this.frozen.delete(enemy)
+      // A pending skip ("unable to act until the start of its turn") ends with this turn as well.
+      this.skipping.delete(enemy)
       this.timeline.bus.emit('enemyTurnSkipped', { enemy, reason: 'frozen' })
       this.timeline.advance(enemy, THAW_ADVANCE)
+      return
+    }
+    const skipped = this.skipping.get(enemy)
+    if (skipped !== undefined) {
+      // Unable to act until this turn starts: the turn passes. Freeze takes precedence above (it also clears it).
+      this.skipping.delete(enemy)
+      this.timeline.bus.emit('enemyTurnSkipped', { enemy, reason: skipped })
       return
     }
     const attack = this.nextAttack(enemy)
@@ -251,6 +278,8 @@ export class Enemies {
 
     for (const { ally, hits, damage } of plan) {
       if (hits <= 0) continue
+      // A memosprite that left earlier in this same attack (its owner downed by an earlier hit) is skipped.
+      if (!this.party.has(ally)) continue
       this.party.takeDamage(ally, damage, enemy)
       // A memosprite defeated by this very attack has left the party: it gains no energy.
       if (this.party.has(ally)) this.party.gainEnergy(ally, hits * attack.energy)

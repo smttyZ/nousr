@@ -11,7 +11,7 @@ import type { Kit, KitInstance, TeammateState } from './kit'
  * Abilities
  * - Basic ATK (The Sea Sings in My Key): +20 energy, +1 Skill Point, 50% of her Max HP Wind to one enemy (55% at E5), toughness 30.
  * - Skill (Summer Strums the Soul): +30 energy, -1 Skill Point, no damage. With no Songbirds on the field it summons the memosprite
- *   "Summer Songbirds" as Bessie (1 member). With any on the field it restores their HP (never lost here, so nothing to restore)
+ *   "Summer Songbirds" as Bessie (1 member). With any on the field it restores their HP by 100% of their Max HP (110% from E3)
  *   and gives her 6 Vibes.
  * - Ultimate (Ascend That Rhapsody in Blue): costs 140, +5 energy. One designated ally (never her, the policy rule's `target`) is
  *   advanced 100% and regenerates a fixed 20% of its Max Energy (21.6% at E5), then holds "Special Guest" for 2 turns, counted down
@@ -20,8 +20,8 @@ import type { Kit, KitInstance, TeammateState } from './kit'
  *   Bessie is on the field, Vibes 6 or more summon Drummie and 12 or more Paddie. With all three out the Fever state starts, and with
  *   it a Zone: allies' damage ignores 15% + 0.5% per Vibe of enemy DEF (16% at E3). In Fever she cannot take a turn.
  * - Memosprite "Summer Songbirds" (a party member through `Battle.addMemosprite`, K6 second kind; one unit for the three members):
- *   SPD 180% of hers, Max HP 70% of her Max HP (`Battle.combatStats`, read once when summoned; it only sizes its damage and is
- *   never lost: it is untargetable, `UNTARGETABLE_MEMOSPRITES`), aggro 100 (4 points). Memosprite Skill (Chirrup Quartet): 150% of
+ *   SPD 180% of hers, Max HP 70% of her Max HP (`Battle.combatStats`, read once when summoned; it sizes their damage; enemies can target
+ *   them and take it: settled by Smitty in game, 2026-11-15), aggro 100 (4 points). Memosprite Skill (Chirrup Quartet): 150% of
  *   the Songbirds' Max HP Wind to all enemies (165% at E5, doubled at E6), +20 energy for her, toughness 30 on every enemy, used at
  *   every turn of theirs. Their talent (A Warble of Wings): in Fever the Songbirds and a countdown (SPD 140) are in the action order;
  *   Robin's and their damage is raised by 60% + 2% per Vibe (66% + 2.2% at E3); at each countdown turn 50% of the current Vibes
@@ -111,7 +111,7 @@ import type { Kit, KitInstance, TeammateState } from './kit'
  * - Shields set by kits and equipment that do not pass a provider to `Party.setShield` (Dan Heng • Permansor Terrae's, Texture of
  *   Memories) are counted as provided by the shielded unit, so Vibes and Groove from them are attributed to the wrong unit.
  * - Dispelling Crowd Control, and Crowd Control immunity in Fever: allies are never crowd-controlled here.
- * - The technique's Attack hit and the Songbirds' heal (their HP is never lost).
+ * - The technique's Attack hit.
  */
 
 const MAX_ENERGY = 140
@@ -483,6 +483,10 @@ export const RobinSummeretto: Kit = {
                 // Vibes she already has (the Technique's 6) call the others at once.
                 callSongbirds()
               } else {
+                // "Restores their HP by an amount equal to 100% (Lv12, E3: 110%) of Summer Songbirds' Max HP." IN-GAME CHECK: the heal is a heal from her, so it
+                // gives a Vibe like any ally's heal (Wings Heed No Borders), even on full-HP Songbirds.
+                const birds = party.get(songbirds)
+                party.heal(songbirds, birds.maxHp * (e >= 3 ? 1.1 : 1), me)
                 gainVibes(SKILL_VIBES)
               }
             }),

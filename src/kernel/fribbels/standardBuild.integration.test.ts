@@ -181,9 +181,20 @@ describe('a scenario on "standard" relics, end to end, with the real kernel', ()
     expect(runs[0]!.result.totalDamage).not.toBe(shipped[0]!.result.totalDamage)
   })
 
-  it('Feet on ATK% warns that the SPD target was missed, by the real kernel\'s numbers', () => {
+  it('Feet on ATK% re-solves SPD with the real kernel (K32): more rolls, target reached, no warning', () => {
     const file = JSON.parse(readFileSync(resolve(FIXTURES, 'acheron-solo.scenario.json'), 'utf8')) as ScenarioFile
     file.teams[0]!.members[0]!.standard_build = { main_stats: { Feet: 'ATK%' } }
+    const plan = planTeam(parseScenario(file), 'acheron_solo', 1, options())
+    expect(plan.warnings).toEqual([])
+    const { report } = plan.standardBuilds[0]!
+    expect(report.spdSolved).toMatchObject({ fileRolls: 2, reachable: true })
+    expect(report.distributed.SPD).toBeGreaterThan(10)
+    expect(report.spd!.outOfCombat).toBeGreaterThanOrEqual(133.34)
+  })
+
+  it('a whole split from the scenario is taken as given: Feet on ATK% with 2 SPD rolls warns, by the numbers of the real kernel', () => {
+    const file = JSON.parse(readFileSync(resolve(FIXTURES, 'acheron-solo.scenario.json'), 'utf8')) as ScenarioFile
+    file.teams[0]!.members[0]!.standard_build = { main_stats: { Feet: 'ATK%' }, distributed: { rolls: { SPD: 2, 'CRIT DMG': 12, 'CRIT Rate': 10 } } }
     const { warnings } = planTeam(parseScenario(file), 'acheron_solo', 1, options())
     expect(warnings).toEqual([expect.objectContaining({ severity: 'warning', code: 'spd-target-missed', team: 'acheron_solo', member: 'acheron' })])
     expect(warnings[0]!.message).toMatch(/target 133\.34 is missed by 23\.14: the build has 110\.20 out of combat/)
@@ -206,5 +217,70 @@ describe('a scenario on "standard" relics, end to end, with the real kernel', ()
     const scenario = parseScenario(file)
     expect(() => planTeam(scenario, 'jy', 1, { kernel })).not.toThrow()
     expect(() => runScenario(scenario, { kernel })).not.toThrow()
+  })
+})
+
+describe('K32: SPD solved at load, with the light cone the member wears (Cyrene, 1415)', () => {
+  const scenarioWith = (lightCone: string, key = 'cyrene') => parseScenario({
+    format: 'nousr-scenario', version: 1, game_version: '4.7',
+    battle: { mode: 'moc', cycles: 1, period: null },
+    enemies: { profile: 'generic-moc', counts: [1] },
+    teams: [{
+      id: 'cyrene_solo',
+      members: [{ key, character: '1415', eidolon: 0, light_cone: { id: lightCone, superimposition: 1 }, relics: 'standard' }],
+      policy: [{ unit: key, use: 'basic' }],
+    }],
+  } satisfies ScenarioFile)
+  const planWith = (lightCone: string) => planTeam(scenarioWith(lightCone), 'cyrene_solo', 1, { kernel })
+
+  it('This Love, Forever S1 (23052, +18% SPD) reaches 180 with 10 distributed SPD rolls, on the timeline and in the kernel', () => {
+    const plan = planWith('23052')
+    const { report } = plan.standardBuilds[0]!
+    expect(report.distributed.SPD).toBe(10)
+    expect(report.spdSolved).toMatchObject({ fileRolls: 18, usedRolls: 10, reachable: true })
+    expect(report.spdSolved!.moves.reduce((n, m) => n + m.rolls, 0)).toBe(8)
+    expect(Object.values(report.distributed).reduce((a, b) => a + b, 0)).toBe(24)
+    expect(plan.warnings).toEqual([])
+
+    const member = plan.setup.members[0]!
+    expect(member.stats.baseSpd + member.stats.spdFlat!).toBeGreaterThanOrEqual(180) // the timeline's SPD
+    const unit: KernelUnit = { characterId: kernel.characterId('1415', 0), eidolon: 0, lightConeId: '23052', superimposition: 1 }
+    const kernelSpd = kernel.basicStats(unit, member.kernel.build).SPD
+    expect(kernelSpd).toBeGreaterThanOrEqual(180)
+    expect(kernelSpd).toBeCloseTo(member.stats.baseSpd + member.stats.spdFlat!, PRECISION)
+    expect(report.spd).toMatchObject({ target: 180, outOfCombat: kernelSpd })
+    expect(report.spd!.missedBy).toBeUndefined()
+
+    // 10 is the fewest: one roll fewer misses.
+    const nine = { ...member.kernel.build, substatRolls: { ...(member.kernel.build as BenchmarkBuild).substatRolls, SPD: 2 + 9 } }
+    expect(kernel.basicStats(unit, nine).SPD).toBeLessThan(180)
+  })
+
+  it('and the damage kernel agrees: the SPD of the attacker in an action is at least 180', () => {
+    const member = planWith('23052').setup.members[0]!
+    const { stats } = kernel.actionDamage({ attacker: member.kernel.unit, teammates: [], build: member.kernel.build as BenchmarkBuild })
+    expect(stats.SPD).toBeGreaterThanOrEqual(180)
+  })
+
+  it('a light cone with no SPD (Along the Passing Shore, 23024) needs more rolls than with This Love, Forever', () => {
+    const without = planWith('23024').standardBuilds[0]!.report
+    expect(without.spdSolved!.reachable).toBe(true)
+    expect(without.distributed.SPD).toBeGreaterThan(10)
+    expect(without.distributed.SPD).toBeLessThanOrEqual(18)
+    expect(without.spd!.outOfCombat).toBeGreaterThanOrEqual(180)
+  })
+})
+
+describe('K32: every roster file through the loader with the real kernel', () => {
+  it('reaches its target (or has none), and the solved count is the fewest', () => {
+    const rows: string[] = []
+    for (const file of readdirSync(STANDARD_BUILD_DIR).filter((f) => f.endsWith('.json'))) {
+      const raw = JSON.parse(readFileSync(join(STANDARD_BUILD_DIR, file), 'utf8'))
+      const unit = unitFor(raw.character, raw.ability_version)
+      const { report } = resolveStandardBuild(loadStandardBuild(raw.character, raw.ability_version), { spd: spdProbe(unit) })
+      expect(report.spd?.missedBy, raw.name).toBeUndefined()
+      rows.push(`${raw.name}: file ${report.spdSolved?.fileRolls ?? raw.distributed.rolls.SPD ?? 0} -> used ${report.distributed.SPD}`)
+    }
+    expect(rows).toHaveLength(14)
   })
 })

@@ -1,5 +1,11 @@
 # In-game checks
 
+> **Players: you can contribute here without writing code.** Each check below is a question the game's text does not settle.
+> Pick one, follow its steps in the game, and report what you saw with the
+> [in-game check result issue template](../.github/ISSUE_TEMPLATE/in_game_check.md) (which check, what you saw, screenshots,
+> game version). See [CONTRIBUTING.md](../CONTRIBUTING.md#contributing-in-game-checks-without-code). The maintainer or an agent
+> applies the answer to the code.
+
 A to-do list for Smitty, to work through in the game when there's time. Each check answers a question the game text
 doesn't settle. The simulator already does one thing for each (marked `IN-GAME CHECK` in the code), and the check says
 whether that's right. **You only need to write down what you see.** Claude does the arithmetic and updates the code.

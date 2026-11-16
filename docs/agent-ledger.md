@@ -1,5 +1,11 @@
 # Agent ledger
 
+> **Why this file is public.** NouSR was built with AI coding agents under the maintainer's direction: the lead session runs
+> on Claude Opus, subagents on Sonnet and Haiku, and a Fable model has also done review. This ledger records each
+> subagent run (what it did, what it cost, what was found wrong with its work afterwards) so the project's use of agents can be
+> checked and learned from rather than taken on trust. It is kept public for that reason, and as an example for contributors who
+> work with agents. The rows are a record: they are not edited after the fact. See also [agent-briefs/](agent-briefs/README.md).
+
 One row per subagent run, kept as we go, so a scorecard per model (Haiku, Sonnet, ...) can be charted at the end.
 Requested by Smitty, 2026-11-16. Side sessions (separate Claude Code sessions on their own branches) are listed apart:
 they run on the lead's model and do their own delegating.

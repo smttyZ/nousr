@@ -55,3 +55,18 @@ npm run test:fribbels -- src/lib/simulations/tests/statSim   # run some of Fribb
   DESIGN.md cites, and `kit-text.mjs <characterId>` prints a character's in-game kit text.
 - `src/scenario` loads a scenario: it checks the file against that schema, then resolves each member's
   eidolon, light cone and relics against the account scan.
+
+## Contributing
+
+Contributions are welcome from people and from AI agents. Start with [CONTRIBUTING.md](CONTRIBUTING.md): the project's
+rules, how to add a kit, a light cone, a relic set or a period module, and what a pull request needs. Agents should
+also read [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md). Design decisions belong to the maintainer; contributors
+propose them.
+
+- Play the game? You can help without code: [docs/in-game-checks.md](docs/in-game-checks.md), reported with the
+  [in-game check issue template](.github/ISSUE_TEMPLATE/in_game_check.md).
+- Found a wrong number? Use the [bug report template](.github/ISSUE_TEMPLATE/bug_report.md) (attach the scenario, the
+  result file and the output of `nousr version`). Want a character supported? Use the
+  [kit request template](.github/ISSUE_TEMPLATE/kit_request.md).
+- How the project was built with AI agents: [docs/agent-ledger.md](docs/agent-ledger.md) and
+  [docs/agent-briefs/](docs/agent-briefs/README.md).

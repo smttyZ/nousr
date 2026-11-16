@@ -11,6 +11,7 @@
   "hp": 2904993,
   "toughness": 480,
   "res": 0.2,
+  "control_res": 0,
   "attacks": [
     { "id": "strike", "name": "Single-target attack", "target": "single", "multiplier": 2.5, "energy": 10 },
     { "id": "sweep", "name": "AoE attack", "target": "aoe", "multiplier": 3.0, "energy": 10 }

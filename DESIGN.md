@@ -116,6 +116,10 @@ Consequence of S6 to keep in mind: effects that trigger on a kill, overkill, and
   each, so after one application "has any Bug" reads 0.70 where the game has exactly one (expected counts are
   exact); Acheron's talent treats enemies as independent for "a debuff landed"; Pioneer Diver's doubling and its
   triggering debuff are independent states (exact when the wearer's debuffs are certain).
+- **Anaxa's weakness counts (K28)** treat enemies as independent (Roaming Signifier's "no enemy in Disclosure"), treat the
+  implants left by his chance-weighted extra Skill as independent of each other (they land together or not at all; the means
+  are exact, the spread of live implants is not), and give Qualitative Shift the expected type count (DEF in the kernel is not
+  linear in it). Default runs (all weaknesses) are exact: every enemy has 7 types.
 - **Acheron's Ultimate waits for an expected 9 Slashed Dream** (a threshold on an expected value: an action cannot
   be scaled by a chance). Exact whenever her stacks are whole, which is every case in the repo today.
 - **Allies are never crowd-controlled,** so "Lightning-Lord cannot act while Jing Yuan is under Crowd Control" is
@@ -385,6 +389,9 @@ Affinitive Eidolon. This is the text kits are transcribed from. Game text is not
 | K25 | Netherwing burn or hold (2026-11-15) | Both are modelled and the user picks per scenario: burn (Breath into the finisher on Netherwing's first turn, what the game's auto-battle does, the default) or hold (Breath only above 25% HP until a chosen turn 2 or 3, Claw Splits the Veil on held turns with no HP above 25%, finish on that turn). Built as Castorice's `finishOnTurn`, set from a scenario with `kit_options.netherwing_finish_turn` (K27). Purpose: the experiment under "Planned experiments" |
 | K26 | Demiurge's order (2026-11-15) | Demiurge's choice turns follow a user-set order (an ally key per Ode, or attack), as part of the rotation, e.g. Hyacine, Castorice, Robin, Cyrene. Every option like this has a finite, schema-declared domain so the optimizer can search it. Scenario field `kit_options.demiurge_order` / `after_order` (K27); the order's default is a placeholder that raises `kit-option-default-used`, to be replaced by a priority derived from runs before anyone outside the private beta relies on it; running past the list raises `kit-option-list-exhausted` |
 | K27 | Kit options (2026-11-15) | A scenario member may carry `kit_options`, checked against `schema/kit-options/<character id>.schema.json` (`src/scenario/kitOptions.ts`). Every option has a finite domain and a default, enforced by a test, so an optimizer enumerates any kit's options from its schema; values naming members are checked against the team (`x-nousr-domain`). Kits take them through `RegisteredKit.configure`; the run result echoes the options used and which were defaulted. Parallel search needs nothing more; branching on shared prefixes later needs kit state that can be snapshotted (kit state lives in closures today). Proposal: `docs/proposals/scenario-kit-options.md` |
+| K28 | Anaxa's weaknesses (2026-11-15) | His kit counts each enemy's weakness types itself, as expected values, starting from the scenario's setting (S5): his implants and Sublimation raise the count, which drives Qualitative Disclosure, Qualitative Shift and The Great Cosmic Enterprise. Teammates' RES and toughness keep the scenario's list (a documented approximation). Under the default `"all"` every enemy has 7 types from the start, so default runs are unaffected. Per-enemy weaknesses in the engine are a roadmap item. hsr-simulator implements them per enemy |
+| K29 | Enemy Control RES (2026-11-15) | Enemies are entities built from a template, as characters are (real bosses later: a template plus a behaviour module, like a kit). The enemy profile gains `control_res` (a fraction, the game data's `STAT_CTRL`; optional, 0 when left out); the generic enemy has 0, since floor 12 Elites have none (Computed: 0 of 22 Elites over the last 9 periods; 9 of 13 bosses have 0.5, 1 has 1.0). So Anaxa's Sublimation stops the generic enemy from acting: its next turn passes (`Enemies.skipNextTurn`, no thaw advance) |
+| K30 | The Herta's aim (2026-11-15) | Her Enhanced Skill aims at the enemy with the most Interpretation, ties to the middle enemy; her other actions and her teammates keep the middle (K3). Every generic enemy is Elite-level, so the Ultimate's rearrangement changes nothing. Choosing Basic ATK over her Skill in Skill Point-heavy teams is the team policy's job (`team.skill_points` conditions); planning Skill Points ahead is an optimizer item |
 | K11 | Multi-hit pricing (2026-11-13) | The kernel returns damage per hit, not one number per ability, and a kit says which hit each attack part is. One reference multiple per ability gave every hit a blended rate wherever hits get different buffs (Tribbie's E6 follow-up came out at 0.689 of the correct total on 3 enemies) |
 
 K4, K6 and K7 were agreed before the prior-work check on them had come back; anything in srsim, hsr-simulator or
@@ -456,7 +463,7 @@ Following hsr-simulator: one HP-loss pipeline. Every point of HP lost by an ally
 pipeline, and an `on_hp_loss` event lets other effects react. Enemy targeting is split fractionally by aggro
 (character + memosprite aggro; Taunt forces the target).
 
-## Where things stand (2026-11-15)
+## Where things stand (2026-11-16)
 
 Branch `castorice-team` (not pushed). `main` has everything through PR #3 (Jing Yuan's team). All 1,496 tests pass.
 
@@ -491,7 +498,7 @@ Branch `castorice-team` (not pushed). `main` has everything through PR #3 (Jing 
     Robin (memo buff priority) is the Songbirds, so her own hits miss it (Computed by the reviewer: Basic ATK the same with
     the Ode on and off). The text says it "also applies on memosprites". Fix: inject the delta for the other entity (K15a).
   - Not modelled on the teammates' side: Hyacine's Ode to Sky (Ica's tally +72% of healing), Dan Heng PT's Ode to Earth
-    beyond the 24% DMG, Anaxa's (no kit). Engine gaps: `performAction` reads a memosprite's owner after its body (a memosprite
+    beyond the 24% DMG. (Anaxa's Ode to Reason is in his kit since 2026-11-16.) Engine gaps: `performAction` reads a memosprite's owner after its body (a memosprite
     that leaves in its own action logs no owner); no quiet HP setter (the kit works around it).
   - **In-game checks** (the code has each as `IN-GAME CHECK`): Ode to Ego's activation, below; how much Recollection an
     Ultimate consumes (the data says "costs 12 energy" for both Ultimates, the kit takes 24 for the first); her Recollection
@@ -507,8 +514,34 @@ Branch `castorice-team` (not pushed). `main` has everything through PR #3 (Jing 
   - First end-to-end run (reviewer, on a scratch build with 10 SPD rolls; Cyrene, Castorice, Hyacine, Tribbie, standard relics,
     5 cycles): runs with no warnings with an order, with `kit-option-default-used` without one; her SPD 180.812 on both the
     timeline and the kernel; Castorice deals about 70% of the team's damage at 1 enemy.
-- **Next:** settle the standard-build SPD question and fix 1415.json, then one PR for the Castorice team. After that: The
-  Herta and Anaxa, then the period module (step 7) and the results report (K8).
+- **The Herta and Anaxa (2026-11-16, branch `claude/practical-khayyam-2c2d55`, cut from `castorice-team` at 92e0c4b):** each
+  written by a Sonnet agent, reviewed by another with mutation tests, registered, with The Great Cosmic Enterprise (22004). All
+  1,768 tests pass and both typechecks are clean.
+  - **Engine (K29):** the enemy profile has `control_res` (generic 0); `Enemies.skipNextTurn(enemy, 'sublimation')` skips the
+    next turn without Freeze's thaw advance (Freeze on the same turn takes it and clears the skip).
+  - **The Herta (K30):** Interpretation and Answer kept per enemy as expected values (cap 42 / 99); her Enhanced Skill aims at the
+    most-stacked enemy. Her Skill is 3 widening instances (designated 3 hits, neighbours 2, outer 1) and the stack bonus is
+    added once per enemy (Fribbels' reading); both are in-game checks. One difference from Fribbels: at E6 with exactly 2
+    enemies the Ultimate gets +250% (the text), Fribbels +140%. Review: no wrong numbers; 118 mutations, all killed but 3
+    equivalent ones.
+  - **Anaxa (K28):** weakness types counted per enemy in his kit (`src/kits/weaknessTypes.ts`, which the light cone reads);
+    Qualitative Disclosure is P(5+ types), K21-scaled; his talent's extra Skill is cast with that chance and priced given that it
+    is cast (Disclosure certain on its target). The Skill's 4 added instances prefer enemies not yet hit (5 enemies: one each).
+    Cyrene's Ode to Reason: 3 more instances for the turn and True Knowledge (ATK and Skill DMG for Erudition allies until his
+    next turn). Skill energy is 6 per instance (30 per Skill, 48 with the Ode), by analogy with Welt and not yet checked for him.
+    Review: no wrong numbers; 46 mutations, all killed.
+  - **End to end** (temporary test, deleted; The Herta / Anaxa / Tribbie / Hyacine on standard builds, 5 cycles, Computed):
+    every member's timeline SPD equals the kernel's (133.632, 133.532, 125.632, 201.332); no warnings, nobody downed; total
+    2.74M / 7.45M / 12.77M at 1 / 3 / 5 enemies with all weaknesses, 2.36M / 6.50M / 12.56M with Ice/Fire/Lightning. Anaxa casts
+    2 to 4 Ultimates. Solo, each is downed early at 3 and 5 enemies (no healer), as Robin Summeretto is.
+  - **In-game checks:** `docs/in-game-checks.md` 7 and 8 (Tier 1: Anaxa's Skill energy; The Herta's stack bonus once or per
+    hit) and 20 to 32 (Tier 2).
+  - **Open for Smitty (small, not decided):** (1) The Herta's tie rules when the middle enemy is not among the tied (aim and
+    Message stack: nearest the middle, then standing order); (2) Anaxa's own Wind RES and toughness after a Wind implant outside
+    Sublimation (today only Sublimation removes it; matters only with a weakness list without Wind); (3) The Great Cosmic
+    Enterprise on a non-Anaxa wearer reads the scenario's count, not Anaxa's per-enemy count.
+- **Next:** settle the standard-build SPD question and fix 1415.json, then one PR for the Castorice team and this one for The
+  Herta and Anaxa. Then the period module (step 7) and the results report (K8).
 - **How waves run:** one branch per wave; Sonnet agents (medium effort) write each kit in its own files, never
   touching battle.ts or the registries; a separate Sonnet reviewer checks each kit against the text and Fribbels,
   with mutation tests; the orchestrator verifies, registers, commits, opens a PR; CI runs on the PR; Auto-fix on.
@@ -537,6 +570,8 @@ Questions the simulator exists to answer, recorded so they are run once the piec
   - Turn order: a unit acts before or after another (a buffer ahead of its DPS, or a "-1 SPD" tune behind it).
   - Skill points: a rotation that needs a Skill never finds the team at 0 SP on that turn.
   - Breakpoints: maximize damage at a target turn count per cycle (e.g. 134 SPD for 2 turns in cycle 1).
+  - Skill Points planned ahead across turns (Smitty, 2026-11-15): for example The Herta using Basic ATK on a turn so a
+    teammate's Skill fits later. Not MVP: today a policy decides each turn from the current state (`team.skill_points`).
   What it needs first: a way for a policy rule to be marked required (today a missing Skill quietly falls to the
   next rule, usually a basic attack), and the action log to carry each action's action value and skill points.
 - **Stochastic battle mode** (proposed by Smitty 2026-11-13). An opt-in mode beside the deterministic one, which
@@ -555,6 +590,10 @@ Questions the simulator exists to answer, recorded so they are run once the piec
   - **What it measures that expected value cannot:** the first "Known approximation" (thresholds evaluated on
     expected values), directly, and objectives that are really probabilities.
   - **Results are estimates.** Their precision depends on the number of runs and on the outcome measured.
+- **Per-enemy weaknesses in the engine** (Smitty, 2026-11-15; "of the same caliber as the optimizer"). Weakness implants
+  (Anaxa's talent, Sublimation) become per-enemy weakness state, so teammates hitting an implanted element get the weak RES
+  and break toughness (K28 keeps the count in Anaxa's kit until then). When it lands, report Anaxa two ways: warmed up (5+
+  types, the bonus on), the number players care about, and including the warm-up.
 - Real MoC stage bosses
 - Pure Fiction, Apocalyptic Shadow, Anomaly Arbitration
 - Graphs and a readable action log

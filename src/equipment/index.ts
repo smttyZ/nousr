@@ -4,6 +4,7 @@ import { createRegistry, setWithoutBehaviour } from './equipment'
 import { EternalCalculus } from './eternalCalculus'
 import { PioneerDiverOfDeadWaters } from './pioneerDiverOfDeadWaters'
 import { TodayIsAnotherPeacefulDay } from './todayIsAnotherPeacefulDay'
+import { TheGreatCosmicEnterprise } from './theGreatCosmicEnterprise'
 import { GoodNightAndSleepWell } from './goodNightAndSleepWell'
 import { InTheNameOfTheWorld } from './inTheNameOfTheWorld'
 import { TextureOfMemories } from './textureOfMemories'
@@ -80,6 +81,6 @@ export const InertSalsotto = setWithoutBehaviour({
 export const EQUIPMENT = createRegistry([AlongThePassingShore, DanceDanceDance, EternalCalculus, TodayIsAnotherPeacefulDay, PioneerDiverOfDeadWaters, IzumoGensei, MusketeerOfWildWheat, InertSalsotto,
   GoodNightAndSleepWell, InTheNameOfTheWorld, TextureOfMemories,
   MemorysCurtainNeverFalls, PastAndFuture, TrendOfTheUniversalMarket,
-  MakeFarewellsMoreBeautiful, TheStorysNextPage, ThisLoveForever,
+  MakeFarewellsMoreBeautiful, TheStorysNextPage, ThisLoveForever, TheGreatCosmicEnterprise,
   TheAshblazingGrandDuke, RutilantArena, TheWondrousBananAmusementPark, ScholarLostInErudition, GeniusOfBrilliantStars, WarriorGoddessOfSunAndThunder, BrokenKeel, SacerdosRelivedOrdeal, SelfEnshroudedRecluse, LushakaTheSunkenSeas, BoneCollectionsSereneDemesne, PoetOfMourningCollapse, GiantTreeOfRaptBrooding, WorldRemakingDeliverer, AmphoreusTheEternalLand,
 ])

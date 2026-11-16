@@ -3,6 +3,9 @@ import type { Modifier } from './modifiers'
 
 export type UnitId = string
 
+/** Why an enemy's turn passed without an action. */
+export type SkipReason = 'frozen' | 'sublimation'
+
 /** One turn of one unit. The same object is passed to turnStart, the turn handler and turnEnd. */
 export interface TurnInfo {
   unit: UnitId
@@ -154,8 +157,8 @@ export interface EngineEvents {
 
   // ---- enemy turns (src/battle/enemies.ts)
   enemyAttack: { enemy: UnitId, attack: string }
-  /** The enemy's turn came and it did not act. Today only Freeze does this. */
-  enemyTurnSkipped: { enemy: UnitId, reason: 'frozen' }
+  /** The enemy's turn came and it did not act: Freeze, or a kit's `Enemies.skipNextTurn` (Anaxa's Sublimation). */
+  enemyTurnSkipped: { enemy: UnitId, reason: SkipReason }
 
   // ---- toughness (src/battle/enemies.ts, src/battle/battle.ts; DESIGN.md K7 and K7b)
   /**

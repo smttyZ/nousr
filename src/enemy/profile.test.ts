@@ -108,12 +108,26 @@ describe('enemy HP in a profile', () => {
   })
 })
 
+describe('Control RES in a profile (K29)', () => {
+  it('is 0 when left out, read when given, and a fraction from 0 to 1', () => {
+    expect(parseEnemyProfile(valid()).controlRes).toBe(0)
+    expect(parseEnemyProfile({ ...valid(), control_res: 0.5 }).controlRes).toBe(0.5)
+    expect(problemsOf({ ...valid(), control_res: 1.5 }).join('\n')).toMatch(/\/control_res: must be <= 1/)
+    expect(problemsOf({ ...valid(), control_res: -0.1 }).join('\n')).toMatch(/\/control_res: must be >= 0/)
+  })
+
+  it('is 0 on the generic Memory of Chaos enemy (floor 12 Elites have none)', () => {
+    expect(loadEnemyProfile('generic-moc').controlRes).toBe(0)
+  })
+})
+
 describe('the test fixture profile', () => {
   it('has the same numbers as generic-moc except for its attack, so the kernel sees the same enemy', () => {
     const dummy = loadEnemyProfile('test-dummy', resolve(import.meta.dirname, '../run/fixtures'))
     const generic = loadEnemyProfile('generic-moc')
-    expect({ level: dummy.level, atk: dummy.atk, spd: dummy.spd, hp: dummy.hp, toughness: dummy.toughness, res: dummy.res }).toEqual({
+    expect({ level: dummy.level, atk: dummy.atk, spd: dummy.spd, hp: dummy.hp, toughness: dummy.toughness, res: dummy.res, controlRes: dummy.controlRes }).toEqual({
       level: generic.level, atk: generic.atk, spd: generic.spd, hp: generic.hp, toughness: generic.toughness, res: generic.res,
+      controlRes: generic.controlRes,
     })
   })
 })

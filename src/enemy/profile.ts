@@ -30,6 +30,8 @@ export interface EnemyProfile {
   toughness: number
   /** Damage RES to a non-weakness element. */
   res: number
+  /** Control RES as a fraction, 0 when the file leaves it out (K29). Read by effects that need "no Control RES". */
+  controlRes: number
   attacks: EnemyAttack[]
   /** The attacks in the order they are used, one per turn, repeating. */
   pattern: EnemyAttack[]
@@ -54,6 +56,7 @@ interface ProfileFile {
   hp?: number
   toughness: number
   res: number
+  control_res?: number
   attacks: AttackFile[]
   pattern: string[]
 }
@@ -138,6 +141,7 @@ export function parseEnemyProfile(input: unknown): EnemyProfile {
     spd: file.spd,
     ...(file.hp !== undefined && { hp: file.hp }),
     toughness: file.toughness,
+    controlRes: file.control_res ?? 0,
     res: file.res,
     attacks: [...byId.values()],
     pattern,

@@ -28,7 +28,10 @@ async function cli(argv: string[], cwd = repoPath('.')) {
   return { code, out, err }
 }
 
-describe('the example scenario runs through the real kernel', () => {
+// Full battles through the real kernel (2 teams x 3 enemy counts x 5 cycles): seconds each, more on CI's runners.
+const FULL_RUN = { timeout: 60_000 }
+
+describe('the example scenario runs through the real kernel', FULL_RUN, () => {
   it('loads and runs: every team at every enemy count, damage above zero, same totals as runScenario', () => {
     const scenario = loadScenarioFile(repoPath(EXAMPLE))
     expect(scenario.battle.period).toBeNull()
@@ -56,7 +59,7 @@ describe('the example scenario runs through the real kernel', () => {
   })
 })
 
-describe('nousr run on the example, in process', () => {
+describe('nousr run on the example, in process', FULL_RUN, () => {
   it('prints the tables and writes a result that matches the schema and the engine\'s own numbers', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'nousr-cli-'))
     const out = join(dir, 'result.json')

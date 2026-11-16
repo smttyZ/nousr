@@ -42,7 +42,7 @@ function header(result: NousrResult): string {
   const g = result.generator
   const content = result.scenario.content as {
     name?: string
-    battle?: { cycles?: number, start?: { energy?: number, skill_points?: number, techniques?: boolean } }
+    battle?: { cycles?: number, period?: string | null, start?: { energy?: number, skill_points?: number, techniques?: boolean } }
     enemies?: { profile?: string, weaknesses?: 'all' | string[] }
   }
   const first = result.runs[0]!
@@ -53,6 +53,7 @@ function header(result: NousrResult): string {
     `Scenario: ${content.name ?? '(unnamed)'}${result.scenario.path !== undefined ? ` (${result.scenario.path})` : ''}`,
     [
       `MoC, ${first.window.cycles} cycles (${first.window.action_value} AV)`,
+      `period: ${content.battle?.period ?? 'none'}`,
       content.enemies?.profile ?? 'unknown profile',
       `weakness: ${Array.isArray(weaknesses) ? weaknesses.join(', ') : weaknesses}`,
       `start ${Math.round((start?.energy ?? DEFAULT_START.energy) * 100)}% energy`,

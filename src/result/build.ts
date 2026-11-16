@@ -85,6 +85,17 @@ function resultTeam(team: Team, run: TeamRun, content: Record<string, unknown>):
     ...(run.kitOptions.length > 0 && {
       kit_options: run.kitOptions.map((k) => ({ member: k.member, options: { ...k.options }, defaulted: [...k.defaulted] })),
     }),
+    ...(run.levels.length > 0 && {
+      levels: run.levels.map((l) => ({
+        member: l.member,
+        source: l.source,
+        abilities: Object.fromEntries(
+          Object.entries(l.abilities).map(([key, level]) => [key, { level: level!, max: l.maxAbilities[key as keyof typeof l.maxAbilities]! }]),
+        ),
+        major_traces: [...l.majorTraces],
+        minor_traces: [...l.minorTraces],
+      })),
+    }),
   }
 }
 

@@ -1,5 +1,6 @@
 import type { Battle, HitPart, Member } from '../battle/battle'
 import type { UnitId } from '../engine/events'
+import { levelBuff, levelsOf } from '../levels/levels'
 import type { Kit, KitInstance, TeammateState } from './kit'
 
 /**
@@ -193,12 +194,32 @@ export function makeCyrene(options: CyreneOptions = {}): Kit {
     maxEnergy: 0,
     // Fribbels has no buffed version of her: only the original kit (K13).
     abilityVersions: [0],
+    // Ability levels (K15, K15a): Basic ATK and its enhanced form (multiples), Skill (Zone True DMG), Ultimate (CRIT Rate), Talent
+    // (DMG) and Waiting, In Every Past (Max HP) follow the member's levels. The Memosprite Skill's Minuet multiple, This Ode's DMG
+    // and Ode to Sky's energy do too, but the special effects of the Chrysos Heirs' Odes are priced in their own kits at the
+    // maximum level, so `memo_skill` is not claimed. No major trace is modelled: a locked one warns.
+    levelsModelled: { abilities: ['basic', 'skill', 'ult', 'talent', 'memo_talent'], majorTraces: [] },
 
     create(battle: Battle, self: Member): KitInstance {
       const { timeline, party } = battle
       const me = self.key
       const e = self.eidolon
-      const s = cyreneScalings(e)
+      // Ability levels (K15, K15a): the multiples below are the maximum level's, scaled by the table's ratio; the buffs Fribbels
+      // applies at the maximum level are corrected by injecting the difference.
+      const lv = levelsOf(self)
+      const base = cyreneScalings(e)
+      const s = {
+        ...base,
+        basic: base.basic * lv.ratio('basic', '141501', 0),
+        enhanced: base.enhanced * lv.ratio('basic', '141508', 0),
+        minuet: base.minuet * lv.ratio('memo_skill', '1141501', 0),
+        odeToSkyEnergy: base.odeToSkyEnergy * lv.ratio('memo_skill', '1141519', 1),
+      }
+      const zoneDelta = lv.delta('skill', '141502', 0)
+      const ultCrDelta = lv.delta('ult', '141503', 2)
+      const talentDelta = lv.delta('talent', '141504', 1)
+      const memoHpDelta = lv.delta('memo_talent', '1141503', 0)
+      const odeDmgDelta = lv.delta('memo_skill', '1141502', 1)
       const demi = demiurgeId(me)
       const modifiers = timeline.modifiers
 
@@ -620,20 +641,37 @@ export function makeCyrene(options: CyreneOptions = {}): Kit {
           choice_turns: () => choices,
         },
 
-        attackerState: () => ({
-          characterConditionals: attackerFlags(),
-        }),
+        attackerState: () => {
+          const injected = [
+            ...(zoneUp() ? levelBuff('TRUE_DMG', zoneDelta, 'team', 'Cyrene Zone True DMG') : []),
+            ...(alive() ? levelBuff('DMG_PERCENT', talentDelta, 'team', 'Cyrene talent DMG') : []),
+            // Fribbels' `memospriteActive` carries the Ultimate's CRIT Rate and Waiting, In Every Past's Max HP, for her and Demiurge.
+            ...(demiurgeOn() && !suppressMemo
+              ? [...levelBuff('CRIT_RATE', ultCrDelta, 'selfAndMemosprite', 'Cyrene Ultimate CRIT Rate'), ...levelBuff('HP_PERCENT', memoHpDelta, 'selfAndMemosprite', 'Cyrene Max HP')]
+              : []),
+          ]
+          return { characterConditionals: attackerFlags(), ...(injected.length > 0 && { injectedBuffs: injected }) }
+        },
 
-        teammateState: (attacker: Member): TeammateState => ({
-          characterConditionals: {
-            zoneActive: zoneUp(),
-            cyreneSpdDmg: alive() && timeline.has(me) && timeline.spd(me) + EPSILON >= SPD_THRESHOLD,
-            specialEffect: !isChrysosHeir(attacker.kernel.unit.characterId) && holdsOde(attacker.key),
-            talentDmgBuff: alive(),
-            e2TrueDmgStacks: e >= 2 ? Math.min(E2_MAX_ALLIES, odeTargets.size) : 0,
-            e6DefPen: e >= 6 && egoTriggers >= 1 && demiurgeOn(),
-          },
-        }),
+        teammateState: (attacker: Member): TeammateState => {
+          const odeOn = !isChrysosHeir(attacker.kernel.unit.characterId) && holdsOde(attacker.key)
+          const injected = [
+            ...(zoneUp() ? levelBuff('TRUE_DMG', zoneDelta, 'team', 'Cyrene Zone True DMG') : []),
+            ...(alive() ? levelBuff('DMG_PERCENT', talentDelta, 'team', 'Cyrene talent DMG') : []),
+            ...(odeOn ? levelBuff('DMG_PERCENT', odeDmgDelta, 'team', 'Cyrene This Ode DMG') : []),
+          ]
+          return {
+            ...(injected.length > 0 && { injectedBuffs: injected }),
+            characterConditionals: {
+              zoneActive: zoneUp(),
+              cyreneSpdDmg: alive() && timeline.has(me) && timeline.spd(me) + EPSILON >= SPD_THRESHOLD,
+              specialEffect: odeOn,
+              talentDmgBuff: alive(),
+              e2TrueDmgStacks: e >= 2 ? Math.min(E2_MAX_ALLIES, odeTargets.size) : 0,
+              e6DefPen: e >= 6 && egoTriggers >= 1 && demiurgeOn(),
+            },
+          }
+        },
 
         onBattleStart: ({ techniques }) => {
           // Ripples Across Time and E2, then Future for everyone.

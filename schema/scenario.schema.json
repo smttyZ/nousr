@@ -252,6 +252,57 @@
             }
           ]
         },
+        "levels": {
+          "description": "Ability levels and traces of this member (DESIGN.md K15, K18; docs/proposals/scenario-ability-trace-levels.md). \"scan\": what the account scan shows (the default when there is an account). \"max\": every ability at its maximum for the member's eidolon and all 13 traces unlocked (the default without an account; what runs did before K15). An object starts from \"base\" (default as above) and changes what it names. Levels are the in-game totals, eidolon bonus included. The loader checks every value against data/levels/ (legal range per ability and eidolon, the traces' prerequisites) and reports all problems together. The run result echoes the levels used.",
+          "oneOf": [
+            { "enum": ["scan", "max"] },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "base": { "enum": ["scan", "max"], "description": "What the items this object does not name start from." },
+                "abilities": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "minProperties": 1,
+                  "description": "In-game total level per ability. memo_* only for a character with a memosprite, elation only on that path.",
+                  "properties": {
+                    "basic": { "type": "integer", "minimum": 1 },
+                    "skill": { "type": "integer", "minimum": 1 },
+                    "ult": { "type": "integer", "minimum": 1 },
+                    "talent": { "type": "integer", "minimum": 1 },
+                    "memo_skill": { "type": "integer", "minimum": 1 },
+                    "memo_talent": { "type": "integer", "minimum": 1 },
+                    "elation": { "type": "integer", "minimum": 1 }
+                  }
+                },
+                "traces": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "minProperties": 1,
+                  "properties": {
+                    "major": {
+                      "type": "array",
+                      "items": { "type": "boolean" },
+                      "description": "B1..B3, exactly 3 entries: true = unlocked."
+                    },
+                    "minor": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "minProperties": 1,
+                      "maxProperties": 1,
+                      "description": "S numbers (1 to 10) of the minor traces: give the ones that are locked, or the ones that are unlocked (all others locked).",
+                      "properties": {
+                        "locked": { "type": "array", "items": { "type": "integer", "minimum": 1, "maximum": 10 }, "uniqueItems": true },
+                        "unlocked": { "type": "array", "items": { "type": "integer", "minimum": 1, "maximum": 10 }, "uniqueItems": true }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
         "standard_build": {
           "$ref": "#/$defs/standard_build",
           "description": "Changes this member's standard build (DESIGN.md, K14c). Allowed only when the member's relics are \"standard\" (stated, or the default when there is no account); the loader rejects it otherwise, since there is no standard build to change."

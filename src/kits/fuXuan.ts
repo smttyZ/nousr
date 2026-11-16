@@ -1,5 +1,6 @@
 import type { Battle, Member } from '../battle/battle'
 import type { UnitId } from '../engine/events'
+import { levelsOf } from '../levels/levels'
 import type { Kit, KitInstance, TeammateState } from './kit'
 
 /**
@@ -137,12 +138,24 @@ export const FuXuan: Kit = {
   maxEnergy: MAX_ENERGY,
   // Fribbels has no buffed version of her: only the original kit (K13).
   abilityVersions: [0],
+  levelsModelled: { abilities: ['basic', 'ult', 'talent'], majorTraces: [] },
 
   create(battle: Battle, self: Member): KitInstance {
     const { timeline, party } = battle
     const me = self.key
     const e = self.eidolon
-    const s = fuXuanScalings(e)
+    // Ability levels (K15, K15a): Basic ATK, Ultimate (multiples) and the Talent (damage reduction, HP Restore) scale by the table's
+    // ratio. The Skill's Knowledge is priced by Fribbels at the maximum level (Max HP and CRIT Rate for the team), so a lower Skill
+    // level warns instead.
+    const lv = levelsOf(self)
+    const base = fuXuanScalings(e)
+    const s = {
+      ...base,
+      basic: base.basic * lv.ratio('basic', '120801', 0),
+      ult: base.ult * lv.ratio('ult', '120803', 0),
+      damageReduction: base.damageReduction * lv.ratio('talent', '120804', 0),
+      restoreShare: base.restoreShare * lv.ratio('talent', '120804', 2),
+    }
 
     /** Her Max HP (before her own Knowledge) when the Matrix was last activated or at her last turn start with it up. */
     let sourceHp = 0

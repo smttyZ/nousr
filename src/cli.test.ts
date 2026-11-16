@@ -192,12 +192,16 @@ describe('nousr run', () => {
     expect(unrunnable.out).toBe('')
   })
 
-  it('refuses a period module that does not exist yet, as the runner does', async () => {
+  it('stops on an unknown period id and lists the known ones; a known one runs and is shown in the header', async () => {
     const dir = tempDir()
-    writeJson(dir, 's.json', scenarioFile({ battle: { mode: 'moc', cycles: 3, period: 'moc-2026-11-survival-of-the-fittest' } }))
-    const r = await run(['run', 's.json'], dir)
-    expect(r.code).toBe(1)
-    expect(r.err).toMatch(/period modules are not built yet/)
+    writeJson(dir, 'bad.json', scenarioFile({ battle: { mode: 'moc', cycles: 3, period: 'moc-2099-01-nope' } }))
+    const bad = await run(['run', 'bad.json'], dir)
+    expect(bad.code).toBe(1)
+    expect(bad.err).toMatch(/unknown period "moc-2099-01-nope" \(known periods: moc-2026-11-survival-of-the-fittest\)/)
+    writeJson(dir, 'ok.json', scenarioFile({ battle: { mode: 'moc', cycles: 3, period: 'moc-2026-11-survival-of-the-fittest' } }))
+    const ok = await run(['run', 'ok.json'], dir)
+    expect(ok.code).toBe(0)
+    expect(ok.out).toContain('period: moc-2026-11-survival-of-the-fittest')
   })
 })
 

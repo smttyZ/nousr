@@ -1,3 +1,4 @@
+import type { PeriodModule } from '../periods/period'
 import type { EngineEvents, TurnInfo, UnitId } from '../engine/events'
 import type { EquipmentInstance, MemberEquipment } from '../equipment/equipment'
 import { attackerEquipmentState, createEquipment, teammateEquipmentState } from '../equipment/equipment'
@@ -7,6 +8,7 @@ import { Timeline } from '../engine/timeline'
 import type { EnemyProfile } from '../enemy/profile'
 import type { CombatStats, DamageKernel, DamageRequest, DamageResult, ExtraHit, HitResult, InjectedBuff, KernelBuild, KernelTeammate, KernelUnit } from '../kernel/types'
 import type { Kit, KitInstance } from '../kits/kit'
+import type { LevelView } from '../levels/levels'
 import type { RunWarning } from '../run/warnings'
 import type { Condition, Element, Rule } from '../scenario/types'
 import { BREAK_BASE_DELAY, ENTANGLEMENT_DELAY, Enemies, IMPRISONMENT_DELAY, IMPRISONMENT_SLOW } from './enemies'
@@ -76,6 +78,11 @@ export interface MemberSetup {
   kit: Kit
   eidolon: number
   affinitiveEidolon: boolean
+  /**
+   * The member's ability levels and traces (K15) with the character's level table, for a kit that models them. Left out (tests,
+   * hand-built setups): everything at maximum, which a kit reads through `levelsOf`.
+   */
+  levels?: LevelView
   /**
    * Whether this member uses their technique before the battle (K31). Left out, `BattleSetup.start.techniques` decides, which is
    * the default for every member; a scenario run always sets it from the member's resolved `technique`.
@@ -202,6 +209,8 @@ export interface BattleSetup {
   cycles: number
   start: { energy: number, skillPoints: number, techniques: boolean }
   kernel: DamageKernel
+  /** The MoC period module (src/periods) to attach after the kits are created; none when left out. */
+  period?: PeriodModule
 }
 
 /**
@@ -437,6 +446,8 @@ export class Battle {
     // when they are asked for state, never while they are created.
     for (const member of this.members) member.equipmentInstances = createEquipment(this, member)
     for (const member of this.members) member.instance = member.kit.create(this, member)
+    // The period last: it may look at every kit and equipment module.
+    setup.period?.create(this)
     this.checkPolicy()
   }
 

@@ -3,8 +3,8 @@
 Status: APPROVED by Smitty 2026-11-15 (generic `kit_options`) and BUILT: `schema/scenario.schema.json` (`member.kit_options`),
 `schema/kit-options/1407.schema.json` and `1415.schema.json`, `src/scenario/kitOptions.ts` (validation, defaults, member keys,
 the finiteness rule), `RegisteredKit.configure` in `src/kits/index.ts`, and the echo `TeamRun.kitOptions` in `src/run/run.ts`.
-Castorice's option runs; Cyrene's schema exists but her kit is not written yet. The two warning codes exist (`src/run/warnings.ts`)
-for Cyrene's kit to raise through `Battle.warn`.
+Both kits take their options: Castorice's `netherwing_finish_turn` and Cyrene's `demiurge_order` / `after_order`
+(`src/kits/cyrene.ts`, written 2026-11-15, raises the two warning codes through `Battle.warn`).
 Related: DESIGN.md K25 and K26 (the decisions this serves), S4 (team policy), S7 (strictness), the optimizer roadmap item.
 
 ## The problem

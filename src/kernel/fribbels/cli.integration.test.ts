@@ -34,7 +34,7 @@ const FULL_RUN = { timeout: 60_000 }
 describe('the example scenario runs through the real kernel', FULL_RUN, () => {
   it('loads and runs: every team at every enemy count, damage above zero, same totals as runScenario', () => {
     const scenario = loadScenarioFile(repoPath(EXAMPLE))
-    expect(scenario.battle.period).toBeNull()
+    expect(scenario.battle.period).toBe('moc-2026-11-survival-of-the-fittest')
     const runs = runScenario(scenario, { kernel: new FribbelsKernel() })
     expect(runs.map((r) => [r.team, r.enemyCount])).toEqual([
       ['sw_welt_dhpt', 1], ['sw_welt_dhpt', 3], ['sw_welt_dhpt', 5],
@@ -44,6 +44,14 @@ describe('the example scenario runs through the real kernel', FULL_RUN, () => {
       expect(r.result.totalDamage).toBeGreaterThan(0)
       expect(r.result.actions.length).toBeGreaterThan(10)
     }
+  })
+
+  it('Survival of the Fittest changes nothing for these teams (no Elation-path member): same results as period null (step 7)', () => {
+    const scenario = loadScenarioFile(repoPath(EXAMPLE))
+    const kernel = new FribbelsKernel()
+    const withPeriod = runScenario(scenario, { kernel })
+    const without = runScenario({ ...scenario, battle: { ...scenario.battle, period: null } }, { kernel })
+    expect(withPeriod.map((r) => r.result)).toEqual(without.map((r) => r.result))
   })
 
   it("has no workaround on Dan Heng's Skill rule: a downed Acheron just skips it (K36)", () => {

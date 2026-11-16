@@ -1,7 +1,8 @@
 # NouSR — design
 
-Status: build order steps 1–5 built (setup, timeline engine, damage kernel adapter, scenario format, generic
-enemy with the HP and aggro pipeline).
+Status: build order steps 1–6 built (setup, timeline engine, damage kernel adapter, scenario format, generic
+enemy with the HP and aggro pipeline, the 14 roster kits), plus the `nousr run` command and results format (K33).
+Step 7 (the period module) is not built. "Where things stand" has the dated detail.
 Pinned target: Honkai: Star Rail 4.7.
 
 NouSR (`nousr`) is a deterministic, action-value timeline simulator for Honkai: Star Rail teams.
@@ -97,7 +98,7 @@ Consequence of S6 to keep in mind: effects that trigger on a kill, overkill, and
   over all enemies (K2), so an action's `enemiesHit` lists all of them, even when a few random hits would on
   average reach fewer. Example: a 3-hit Lightning-Lord action on 5 enemies counts as 5 enemies hit, where the
   expected number of distinct enemies is 5 x (1 - (4/5)^3) = 2.44. Effects keyed on "per enemy hit" are biased
-  upward: Tribbie's Zone instances and Pebble energy, Eternal Calculus's stacks and its 3-enemy SPD buff. Size
+  upward: Tribbie's Zone instances and Pebble energy, Eternal Calculus's stacks and its 3-enemy SPD buff.
   Found by the Jing Yuan review, 2026-11-13. **Fixed by K17:** each action now records each enemy's chance of
   being hit at least once (`actionUsed.hitChance`) and their sum (`expectedEnemiesHit`); `enemiesHit` stays
   "could have been hit". Remaining: Tribbie's highest-HP choice still picks among every enemy a random-target
@@ -124,11 +125,22 @@ Consequence of S6 to keep in mind: effects that trigger on a kill, overkill, and
   be scaled by a chance). Exact whenever her stacks are whole, which is every case in the repo today.
 - **Allies are never crowd-controlled,** so "Lightning-Lord cannot act while Jing Yuan is under Crowd Control" is
   not modelled. The generic enemy applies no crowd control.
-- **Every character is simulated fully built: all traces unlocked, abilities at the kit text's levels.**
-  The scan's ability and trace levels are not read (nothing in `src/scenario` or `src/run` uses them), and
-  kits follow Fribbels in assuming everything unlocked. Found 2026-11-13: Smitty's Cyrene has three abilities
-  at level 1 and what look like four minor traces (CRIT DMG x3, HP x1) not unlocked, so a run with his scan
-  overstates her. To fix: read the levels from the scan and pass them to the kernel, if Fribbels accepts them.
+- **Ability and trace levels (K15, K15a, K18): read from the scan and followed by 12 of the 14 kits; the rest warn.**
+  Built 2026-11-16. A member's `levels` (scan by default with an account, else max) reaches `Member.levels`
+  and the kits (`LevelView`, `src/levels`); locked minor traces go to Fribbels through its trace override;
+  the result echoes the levels. Level-aware kits (their `levelsModelled` lists what they follow): Cyrene,
+  Hyacine, Tribbie, Silver Wolf, Welt, Dan Heng PT, Robin Summeretto, The Herta (Basic ATK only), Anaxa,
+  Sunday, Fu Xuan (Basic, Ultimate, Talent only). Multiples scale by the table's ratio; buffs Fribbels applies
+  at the maximum level get the difference injected. Silver Wolf and Welt also switch locked major traces off.
+  **Still full strength, with a `levels-not-modelled` warning naming what is below:** Acheron, Castorice and
+  Jing Yuan at any level below maximum, every ability a kit does not list (Hyacine's Skill, Ultimate and
+  memosprite; Robin's Memosprite Talent; Cyrene's Memosprite Skill, whose Chrysos Heir Odes are priced in
+  the heirs' kits; Fu Xuan's Skill; The Herta's Skill, Ultimate, Talent), and every locked major trace the
+  kit does not list (all kits but Silver Wolf and Welt). Minor traces never warn: the kernel follows them.
+  Unverified: the scan's `stat_N` / `ability_N` order is read as S N / B N (consistent with every
+  prerequisite chain in Smitty's scan, and with the game's tree order for Silver Wolf and Welt). A teammate's
+  locked minor traces are given to the kernel for its own form, but Fribbels may not read them for the buffs
+  a teammate's stats feed.
 - **"Highest HP" ties go to the first enemy in standing order** when the primary target is not among the tied
   enemies (K10). The game text does not say how such a tie is broken. Implemented once for every kit in
   `Battle.highestHpAmong` (`src/battle/battle.ts`); first used by Tribbie's Zone Additional DMG. It happens right after an attack that hits the primary harder than its
@@ -255,6 +267,20 @@ A MoC period (Memory Turbulence) is a module with the same hook interface as a k
 (cycle start, Ult used, SP spent …) and registers modifiers. A scenario selects one by ID
 (`"period": "moc-2026-11-survival-of-the-fittest"`). Swapping periods means adding a file and changing one field.
 
+**Built (step 7, 2026-11-16).** `src/periods/`: `PeriodModule` (`id`, `name`, optional `check(members)` that returns
+a problem line per member the module cannot model, and `create(battle)` that runs after the kits and equipment
+exist) and `PERIODS`, the registry by ID. `run.ts` resolves `battle.period`; an unknown ID stops the run and lists
+the known ones, and the module's `check` runs while each team is planned. `BattleSetup.period` carries it into the
+`Battle`, and the result header shows `period: <id>` (the scenario file embedded in the result has it too).
+
+*To add a period:* write `src/periods/<name>.ts` exporting a `PeriodModule`, add it to the list in
+`src/periods/index.ts`, and set `battle.period` in the scenario to its ID. Nothing else changes.
+
+*`moc-2026-11-survival-of-the-fittest`:* its rule is about Punchlines and Aha, which are the Elation path's
+mechanic and not modelled. A team with no Elation-path character (kit `path` is `'Elation'`, the same word
+Fribbels uses) runs exactly as with `period: null`; a team with one stops with an error naming the member.
+The in-game text is in the module's header.
+
 ## Enemy profiles
 
 JSON, modelled on hsr-simulator's format: level, HP, ATK, DEF, SPD, toughness, RES per element, and an
@@ -324,6 +350,8 @@ Earlier findings these build on:
 For step 7, the current period's rule text (Game8, read 2026-11-11): an ally gains 5 Punchlines on using
 their Ultimate; at the start of each cycle Aha takes an extra turn counted at a fixed 20 Punchlines, which
 does not consume Punchlines. Runs 2026-11-02 to 2026-12-14.
+
+**Settled by Smitty 2026-11-16** (in-game text: "When an ally target uses their Ultimate, they gain 5 Punchlines. At the start of each Cycle, Aha immediately gains 1 extra turn with a fixed 20 Punchlines taken into account. This turn does not consume Punchlines."): Punchlines and Aha's turn are the Elation path's mechanic (the period's banner is Aha with three Elation characters). For teams with no Elation character the period changes nothing, so the module is a documented no-op for them; a team with an Elation character stops with an error naming it until Elation is modelled.
 
 ## Step 6 notes (2026-11-12, in progress)
 
@@ -472,7 +500,7 @@ the technique's Quadrivalent Ascendance stack is modelled.
   Along the Passing Shore, Dance! Dance! Dance!, Pioneer Diver of Dead Waters, and three items registered as
   having no conditional behaviour. A light cone or set with no module stops the run with an error, because
   Fribbels' defaults count conditional buffs as always on.
-- The period module (step 7): a scenario that names a period stops with an error until then.
+- The period module (step 7): built 2026-11-16; see "Period modules".
 - The other characters, and a results report.
 
 ## Castorice / HP loss
@@ -486,7 +514,7 @@ pipeline, and an `on_hp_loss` event lets other effects react. Enemy targeting is
 
 Branch `castorice-team` (not pushed). `main` has everything through PR #3 (Jing Yuan's team). The three side branches (The Herta and Anaxa; Sunday's and Dan Heng PT's relic sets; the results-report draft) are merged in (2026-11-16). All 14 roster kits are registered, all 14 standard builds run, and all 1,823 tests pass.
 
-- **Results report and command line built (2026-11-16, branch `cli-results`, K33/K34):** `nousr run | validate | version` (`npm run build`, then `node dist/cli.js`), writing `nousr-result` JSON that follows `schema/result.schema.json` (version 1) and printing the totals, ratios and per-member tables; the action log now carries action value, cycle, damage and Skill Points. The example scenario runs (period null until step 7).
+- **Results report and command line built (2026-11-16, branch `cli-results`, K33/K34):** `nousr run | validate | version` (`npm run build`, then `node dist/cli.js`), writing `nousr-result` JSON that follows `schema/result.schema.json` (version 1) and printing the totals, ratios and per-member tables; the action log now carries action value, cycle, damage and Skill Points. The example scenario runs.
 - **Kits registered and reviewed:** Acheron, Tribbie, Jing Yuan, Silver Wolf, Welt, Dan Heng • PT, Sunday, Fu Xuan,
   Robin • Summeretto.
 - **Written and tested on this branch, not yet reviewed or registered:** **Hyacine** (+ The Story's Next Page) and
@@ -557,7 +585,7 @@ Branch `castorice-team` (not pushed). `main` has everything through PR #3 (Jing 
     Sublimation (today only Sublimation removes it; matters only with a weakness list without Wind); (3) The Great Cosmic
     Enterprise on a non-Anaxa wearer reads the scenario's count, not Anaxa's per-enemy count.
 - **Next:** settle the standard-build SPD question and fix 1415.json, then one PR for the Castorice team and this one for The
-  Herta and Anaxa. Then the period module (step 7) and the results report (K8).
+  Herta and Anaxa. The period module (step 7) is built; the results report (K8) is built.
 - **How waves run:** one branch per wave; Sonnet agents (medium effort) write each kit in its own files, never
   touching battle.ts or the registries; a separate Sonnet reviewer checks each kit against the text and Fribbels,
   with mutation tests; the orchestrator verifies, registers, commits, opens a PR; CI runs on the PR; Auto-fix on.

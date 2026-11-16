@@ -9,9 +9,8 @@
   "battle": {
     "mode": "moc",
     "cycles": 5,
-    "period": null,
-    "start": { "energy": 0.5, "skill_points": 3, "techniques": true },
-    "notes": "period is null until the period module exists (build order step 7); it will name moc-2026-11-survival-of-the-fittest."
+    "period": "moc-2026-11-survival-of-the-fittest",
+    "start": { "energy": 0.5, "skill_points": 3, "techniques": true }
   },
 
   "enemies": {

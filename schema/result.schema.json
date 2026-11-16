@@ -87,6 +87,11 @@
           "type": "array",
           "items": { "$ref": "#/$defs/kit_options" },
           "description": "One per member whose kit takes options (K27 echo)."
+        },
+        "levels": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/levels" },
+          "description": "Optional. One per member whose character has a level table (K15 echo): the ability levels and traces the battle ran with."
         }
       }
     },
@@ -190,6 +195,31 @@
             "missed_by": { "type": "number" }
           }
         }
+      }
+    },
+
+    "levels": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["member", "source", "abilities", "major_traces", "minor_traces"],
+      "properties": {
+        "member": { "$ref": "#/$defs/slug" },
+        "source": { "enum": ["scan", "max", "scenario"], "description": "\"scan\": from the account scan. \"max\": everything at maximum. \"scenario\": the member's levels object decided something." },
+        "abilities": {
+          "type": "object",
+          "description": "By ability (basic, skill, ult, talent, memo_skill, memo_talent, elation): the in-game total level used and the maximum for the member's eidolon.",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["level", "max"],
+            "properties": {
+              "level": { "type": "integer", "minimum": 1 },
+              "max": { "type": "integer", "minimum": 1 }
+            }
+          }
+        },
+        "major_traces": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "boolean" }, "description": "B1..B3, true = unlocked." },
+        "minor_traces": { "type": "array", "minItems": 10, "maxItems": 10, "items": { "type": "boolean" }, "description": "S1..S10, true = unlocked." }
       }
     },
 
@@ -362,7 +392,9 @@
             "undecided-tie",
             "spd-target-missed",
             "kit-option-default-used",
-            "kit-option-list-exhausted"
+            "kit-option-list-exhausted",
+            "levels-not-modelled",
+            "levels-scan-missing"
           ]
         },
         "message": { "type": "string" },

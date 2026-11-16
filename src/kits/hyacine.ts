@@ -1,5 +1,7 @@
 import type { Battle, Member } from '../battle/battle'
 import type { UnitId } from '../engine/events'
+import type { InjectedBuff } from '../kernel/types'
+import { levelBuff, levelsOf } from '../levels/levels'
 import type { Kit, KitInstance, TeammateState } from './kit'
 
 /**
@@ -162,12 +164,20 @@ export const Hyacine: Kit = {
   maxEnergy: MAX_ENERGY,
   // Fribbels has no buffed version of her: only the original kit (K13).
   abilityVersions: [0],
+  // Ability levels (K15, K15a): Basic ATK (multiple) and Talent (Ica's DMG per stack). Her heals, After Rain's Max HP and the
+  // Memosprite abilities are priced by Fribbels at the maximum level, so a lower Skill, Ultimate or memosprite level warns.
+  levelsModelled: { abilities: ['basic', 'talent'], majorTraces: [] },
 
   create(battle: Battle, self: Member): KitInstance {
     const { timeline, party } = battle
     const me = self.key
     const e = self.eidolon
-    const s = hyacineScalings(e)
+    // Ability levels (K15, K15a): Basic ATK's multiple scales by the table's ratio; the Talent's DMG per stack (Fribbels applies the
+    // maximum level's to Ica) is corrected by injecting the difference per stack.
+    const lv = levelsOf(self)
+    const base = hyacineScalings(e)
+    const s = { ...base, basic: base.basic * lv.ratio('basic', '140901', 0) }
+    const stackDelta = lv.delta('talent', '140904', 2)
     const ica = icaId(me)
     const modifiers = timeline.modifiers
 
@@ -463,7 +473,7 @@ export const Hyacine: Kit = {
     })
 
     /** The Technique's Max HP for the kernel, for the character that holds it: an injected HP% buff, off while the difference is being read. */
-    const techniqueBuffs = (unit: UnitId, target: 'self' | 'team') =>
+    const techniqueBuffs = (unit: UnitId, target: 'self' | 'team'): { injectedBuffs?: InjectedBuff[] } =>
       techniqueUp(unit) && !suppressTechnique
         ? { injectedBuffs: [{ stat: 'HP_PERCENT' as const, value: TECHNIQUE_HP_PCT, target, label: 'Hyacine Technique' }] }
         : {}
@@ -528,7 +538,11 @@ export const Hyacine: Kit = {
           // The tally is the sim's own (the part's scaling carries it), so the kernel's multiple is 1.
           healTallyMultiplier: 1,
         },
-        ...techniqueBuffs(me, 'self'),
+        injectedBuffs: [
+          ...(techniqueBuffs(me, 'self').injectedBuffs ?? []),
+          // Talent level: Ica's DMG +80% per stack at the maximum level is what Fribbels applies (to Ica's Memosprite Skill).
+          ...levelBuff('DMG_PERCENT', stacks() * stackDelta, 'selfAndMemosprite', 'Hyacine talent DMG per stack', { abilityKind: 'MEMO_SKILL' }),
+        ],
       }),
 
       teammateState: (attacker: Member): TeammateState => ({

@@ -2,6 +2,7 @@ import type { Battle, HitPart, Member } from '../battle/battle'
 import type { UnitId } from '../engine/events'
 import { EXTRA_ABILITY } from '../kernel/types'
 import type { ExtraHit } from '../kernel/types'
+import { levelsOf } from '../levels/levels'
 import type { Kit, KitInstance, TeammateState } from './kit'
 
 /**
@@ -152,12 +153,30 @@ export const DanHengPT: Kit = {
   maxEnergy: MAX_ENERGY,
   // Fribbels has no buffed version of him: only the original kit (K13).
   abilityVersions: [0],
+  // Ability levels (K15, K15a): every ability. No major trace is modelled: a locked one warns.
+  levelsModelled: { abilities: ['basic', 'skill', 'ult', 'talent'], majorTraces: [] },
 
   create(battle: Battle, self: Member): KitInstance {
     const { timeline, party } = battle
     const me = self.key
     const e = self.eidolon
-    const s = danHengPTScalings(e)
+    // Ability levels (K15, K15a): every multiple and shield formula below is the maximum level's, scaled by the table's ratio. Fribbels
+    // has no level-dependent buff for him (its Bondmate switches are traces and eidolons), so nothing is injected.
+    const lv = levelsOf(self)
+    const base = danHengPTScalings(e)
+    const shield = (f: ShieldFormula, kind: 'skill' | 'ult' | 'talent', skillId: string, share: number, flat: number): ShieldFormula => ({
+      atkShare: f.atkShare * lv.ratio(kind, skillId, share),
+      flat: f.flat * lv.ratio(kind, skillId, flat),
+    })
+    const s = {
+      ...base,
+      basic: base.basic * lv.ratio('basic', '141401', 0),
+      ult: base.ult * lv.ratio('ult', '141403', 0),
+      followUp: base.followUp * lv.ratio('ult', '141403', 1),
+      skillShield: shield(base.skillShield, 'skill', '141402', 0, 1),
+      ultShield: shield(base.ultShield, 'ult', '141403', 3, 4),
+      talentShield: shield(base.talentShield, 'talent', '141404', 0, 1),
+    }
     const dragon: UnitId = `${me}.souldragon`
     /** The Bondmate's extra Additional hit (K23): 1.0 x ATK, so the kernel's price is per 100% and the parts carry the text's multiples. */
     const additionalHit: ExtraHit = { id: `${me}.bondmate_additional`, damageType: 'ADDITIONAL', scalingStat: 'ATK', multiple: 1 }

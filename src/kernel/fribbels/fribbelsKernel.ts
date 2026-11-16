@@ -22,6 +22,7 @@ import { simulateBuild } from '../../../vendor/hsr-optimizer/src/lib/simulations
 import { runStatSimulations } from '../../../vendor/hsr-optimizer/src/lib/simulations/statSimulation'
 import { type Simulation, StatSimTypes } from '../../../vendor/hsr-optimizer/src/lib/simulations/statSimulationTypes'
 import { generateFullDefaultForm } from '../../../vendor/hsr-optimizer/src/lib/simulations/utils/benchmarkForm'
+import { useScoringStore } from '../../../vendor/hsr-optimizer/src/lib/stores/scoring/scoringStore'
 import { getGameMetadata } from '../../../vendor/hsr-optimizer/src/lib/state/gameMetadata'
 import { Metadata } from '../../../vendor/hsr-optimizer/src/lib/state/metadataInitializer'
 import type { CharacterId } from '../../../vendor/hsr-optimizer/src/types/character'
@@ -94,7 +95,7 @@ export class FribbelsKernel implements ScenarioKernel {
    */
   basicStats(unit: KernelUnit, build: KernelBuild): BasicStats {
     const form = unitForm(unit, false)
-    const { x, context } = simulate(form, build)
+    const { x, context } = simulate(form, build, undefined, undefined, undefined, [unit])
     // x.c is a buffer Fribbels reuses on the next run, so copy the numbers out now.
     const c = x.c.a
     return {
@@ -142,7 +143,9 @@ export class FribbelsKernel implements ScenarioKernel {
     if (enemy.elementalWeak !== undefined) form.enemyElementalWeak = enemy.elementalWeak
     if (enemy.weaknessBroken !== undefined) form.enemyWeaknessBroken = enemy.weaknessBroken
 
-    const { x, actionDamage, context, extra } = simulate(form, request.build, request.injectedBuffs, request.extraHits, request.attacker.characterId)
+    const { x, actionDamage, context, extra } = simulate(
+      form, request.build, request.injectedBuffs, request.extraHits, request.attacker.characterId, [request.attacker, ...request.teammates],
+    )
 
     // x is a buffer Fribbels reuses on the next run, so copy the numbers out now.
     const stats: CombatStats = {
@@ -245,11 +248,12 @@ function simulate(
   injectedBuffs?: readonly InjectedBuff[],
   extraHits?: readonly ExtraHit[],
   characterId?: string,
+  units: readonly KernelUnit[] = [],
 ) {
   const extra: ExtraHitSlot = { hits: [] }
-  const context = extraHits !== undefined && extraHits.length > 0
+  const context = withTraceOverrides(units, () => extraHits !== undefined && extraHits.length > 0
     ? withExtraHits(characterId!, extraHits, extra, () => generateContext(form))
-    : generateContext(form)
+    : generateContext(form))
   injectBuffs(context, injectedBuffs ?? [])
   if (isScannedBuild(build)) {
     for (const action of context.allActions) resetConditionalState(action)
@@ -257,6 +261,29 @@ function simulate(
     return { x, actionDamage, context, extra }
   }
   return { ...simulateBenchmark(form, build, context), context, extra }
+}
+
+/**
+ * Switches the units' locked minor traces off for the duration of `run` (K15). Fribbels reads them in `generateContext`
+ * (`calculateCustomTraces`, calculateContext.ts:127) from the scoring store's per-character override
+ * `traces.deactivated`, which is process-global rather than part of the form, so the previous overrides are put back in `finally`
+ * (NouSR is single-threaded and `generateContext` is synchronous). Units with no locked trace leave the store alone.
+ */
+function withTraceOverrides<T>(units: readonly KernelUnit[], run: () => T): T {
+  const wanted = units.filter((u) => u.deactivatedTraces !== undefined && u.deactivatedTraces.length > 0)
+  if (wanted.length === 0) return run()
+  const store = useScoringStore.getState()
+  const previous = store.scoringMetadataOverrides
+  const next = { ...previous } as Record<string, (typeof previous)[keyof typeof previous]>
+  for (const unit of wanted) {
+    next[unit.characterId] = { ...next[unit.characterId], traces: { deactivated: [...unit.deactivatedTraces!] } }
+  }
+  store.setScoringMetadataOverrides(next as typeof previous)
+  try {
+    return run()
+  } finally {
+    useScoringStore.getState().setScoringMetadataOverrides(previous)
+  }
 }
 
 /** The extra hits as Fribbels hit objects, in the request's order, once `generateContext` has built them. */
@@ -414,8 +441,8 @@ function injectBuffs(context: ReturnType<typeof generateContext>, buffs: readonl
     if (typeof buff.value !== 'number' || !Number.isFinite(buff.value)) {
       throw new Error(`Injected buff ${name}: value must be a finite number, got ${String(buff.value)}`)
     }
-    if (buff.target !== 'self' && buff.target !== 'team') {
-      throw new Error(`Injected buff ${name}: target must be 'self' or 'team', got ${String(buff.target)}`)
+    if (buff.target !== 'self' && buff.target !== 'team' && buff.target !== 'selfAndMemosprite') {
+      throw new Error(`Injected buff ${name}: target must be 'self', 'team' or 'selfAndMemosprite', got ${String(buff.target)}`)
     }
     if (buff.abilityKind !== undefined && !abilityKinds.has(buff.abilityKind)) {
       throw new Error(`Injected buff ${name}: unknown ability kind "${buff.abilityKind}". Known: ${[...abilityKinds].join(', ')}`)
@@ -438,7 +465,7 @@ function injectBuffs(context: ReturnType<typeof generateContext>, buffs: readonl
 
   for (const { buff, key, damageTag } of resolved) {
     if (buff.value === 0) continue
-    const target = buff.target === 'team' ? TargetTag.FullTeam : TargetTag.SelfAndPet
+    const target = buff.target === 'team' ? TargetTag.FullTeam : buff.target === 'selfAndMemosprite' ? TargetTag.SelfAndMemosprite : TargetTag.SelfAndPet
     for (const action of context.allActions) {
       const x = action.precomputedStats
       // The builder is one shared object that `x.targets` resets, so each filter is chained fresh.

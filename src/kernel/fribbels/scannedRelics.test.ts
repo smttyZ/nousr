@@ -252,7 +252,8 @@ describe('real Fribbels: a member on equipped relics', () => {
       'solo',
       1,
       { kernel, scanSource: scan.source },
-    ).warnings
+    // This fixture's characters carry no ability or trace levels, which is its own info (K15); this test is about SPD.
+    ).warnings.filter((w) => w.code !== 'levels-scan-missing')
     expect(plan(archiver)).toEqual([])
     expect(plan(hsrScanner)).toEqual([
       {

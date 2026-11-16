@@ -1,5 +1,6 @@
 import type { Battle, Member } from '../battle/battle'
 import type { UnitId } from '../engine/events'
+import { levelBuff, levelsOf } from '../levels/levels'
 import type { Kit, KitInstance, TeammateState } from './kit'
 
 /**
@@ -95,6 +96,13 @@ export function sundayScalings(eidolon: number) {
   }
 }
 
+/**
+ * The roster characters Fribbels declares a summon entity for (`entityDeclaration` with `summon: true`: Jing Yuan, Dan Heng PT,
+ * Castorice, Cyrene, Hyacine, Robin Summeretto, and the Fribbels-only Topaz, Lingsha, Aglaea, Evernight). Its Sunday reads
+ * `action.config.hasSummons` from that, for the Skill's extra DMG, whether or not the summon is on the field.
+ */
+const FRIBBELS_HAS_SUMMONS: ReadonlySet<string> = new Set(['1204', '1414', '1407', '1415', '1409', '1512', '1112', '1222', '1402', '1413'])
+
 export const Sunday: Kit = {
   characterId: '1313',
   path: 'Harmony',
@@ -102,11 +110,22 @@ export const Sunday: Kit = {
   maxEnergy: MAX_ENERGY,
   // Fribbels has no buffed version of him: only the original kit (K13).
   abilityVersions: [0],
+  // Ability levels (K15, K15a): every ability. No major trace is modelled: a locked one warns.
+  levelsModelled: { abilities: ['basic', 'skill', 'ult', 'talent'], majorTraces: [] },
 
   create(battle: Battle, self: Member): KitInstance {
     const { timeline, party } = battle
     const me = self.key
     const e = self.eidolon
+    // Ability levels (K15, K15a): Basic ATK's multiple scales by the table's ratio; everything he gives an ally is a Fribbels buff at
+    // the maximum level, so `teammateState` injects the difference (the Skill's DMG, the Talent's CRIT Rate per stack, The Beatified's
+    // CRIT DMG).
+    const lv = levelsOf(self)
+    const skillDmgDelta = lv.delta('skill', '131302', 1)
+    const skillSummonDelta = lv.delta('skill', '131302', 3)
+    const talentCrDelta = lv.delta('talent', '131304', 0)
+    const beatifiedShareDelta = lv.delta('ult', '131303', 1)
+    const beatifiedFlatDelta = lv.delta('ult', '131303', 3)
 
     /** The one ally holding The Beatified, or undefined. */
     let beatifiedAlly: string | undefined
@@ -180,7 +199,7 @@ export const Sunday: Kit = {
               battle.attack({
                 attacker: me,
                 ability: 'BASIC',
-                parts: [{ shape: 'single', scaling: sundayScalings(e).basic, hit: 0, toughness: TOUGHNESS_BASIC }],
+                parts: [{ shape: 'single', scaling: sundayScalings(e).basic * lv.ratio('basic', '131301', 0), hit: 0, toughness: TOUGHNESS_BASIC }],
               })
             }),
         },
@@ -256,7 +275,14 @@ export const Sunday: Kit = {
         const beatified = beatifiedOn(who)
         const stacks = talentStacks(who)
         const skill = modifiers.has(who, SKILL_MODIFIER)
+        const summons = FRIBBELS_HAS_SUMMONS.has(attacker.kernel.unit.characterId.replace(/b\d+$/, ''))
+        const injected = [
+          ...levelBuff('CRIT_RATE', stacks * talentCrDelta, 'team', 'Sunday talent CRIT Rate'),
+          ...(skill ? levelBuff('DMG_PERCENT', skillDmgDelta + (summons ? skillSummonDelta : 0), 'team', 'Sunday Skill DMG') : []),
+          ...(beatified ? levelBuff('CRIT_DMG', beatifiedShareDelta * beatifiedCd + beatifiedFlatDelta, 'team', 'Sunday Beatified CRIT DMG') : []),
+        ]
         return {
+          ...(injected.length > 0 && { injectedBuffs: injected }),
           characterConditionals: {
             skillDmgBuff: skill,
             talentCrBuffStacks: stacks,

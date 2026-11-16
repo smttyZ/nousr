@@ -1,5 +1,6 @@
 import type { Battle, Member } from '../battle/battle'
 import type { EngineEvents, UnitId } from '../engine/events'
+import { levelBuff, levelsOf } from '../levels/levels'
 import type { Kit, KitInstance } from './kit'
 
 /**
@@ -126,18 +127,37 @@ export const Tribbie: Kit = {
   maxEnergy: MAX_ENERGY,
   // Fribbels has no buffed version of her: only the original kit (K13).
   abilityVersions: [0],
+  // Ability levels (K15, K15a): all four abilities. Her three major traces are not modelled: a locked one warns.
+  levelsModelled: { abilities: ['basic', 'skill', 'ult', 'talent'], majorTraces: [] },
 
   create(battle: Battle, self: Member): KitInstance {
     const { timeline } = battle
     const me = self.key
     const e = self.eidolon
-    const s = tribbieScalings(e)
+    // Ability levels (K15, K15a): multiples scale by the table's ratio; the buffs Fribbels applies at the maximum level (Numinosity's
+    // RES PEN, the Zone's Vulnerability) are corrected by injecting the difference.
+    const lv = levelsOf(self)
+    const base = tribbieScalings(e)
+    const s = {
+      ...base,
+      basic: base.basic * lv.ratio('basic', '140301', 0),
+      basicAdjacent: (base.basic / 2) * lv.ratio('basic', '140301', 1),
+      ult: base.ult * lv.ratio('ult', '140303', 0),
+      talent: base.talent * lv.ratio('talent', '140304', 0),
+    }
+    const zoneAdditional = tribbieZoneAdditional(e) * lv.ratio('ult', '140303', 2)
+    const resPenDelta = lv.delta('skill', '140302', 0)
+    const vulnDelta = lv.delta('ult', '140303', 1)
 
     /** Allies whose Ultimate has already triggered her talent since her last Ultimate. */
     const talentUsedBy = new Set<UnitId>()
 
     const numinosity = () => timeline.modifiers.has(me, NUMINOSITY)
     const zoneUp = () => timeline.modifiers.has(me, ZONE)
+    const levelBuffs = () => [
+      ...(numinosity() ? levelBuff('RES_PEN', resPenDelta, 'team', 'Tribbie Numinosity RES PEN') : []),
+      ...(zoneUp() ? levelBuff('VULNERABILITY', vulnDelta, 'team', 'Tribbie Zone Vulnerability') : []),
+    ]
     const lambStacks = () => timeline.modifiers.get(me, LAMB)?.stacks ?? 0
     // IN-GAME CHECK: the Max HP trace adds 9% of the sum of all ally characters' Max HP. Read as the other
     // allies only: counting Tribbie herself would make her Max HP depend on itself. Fribbels takes the sum
@@ -161,7 +181,7 @@ export const Tribbie: Kit = {
         parts: [{
           shape: 'single',
           target: battle.highestHpAmong(hit, { attacker: me, ability, hit: ZONE_ADDITIONAL_HIT }),
-          scaling: hit.length * tribbieZoneAdditional(e) * instances(ability),
+          scaling: hit.length * zoneAdditional * instances(ability),
           hit: ZONE_ADDITIONAL_HIT,
           additional: true,
         }],
@@ -184,7 +204,7 @@ export const Tribbie: Kit = {
         parts: [{
           shape: 'single',
           target: battle.highestHpAmong(action.enemiesHit, { attacker: me, ability: ALLY_ADDITIONAL_ABILITY, hit: 0 }),
-          scaling: action.expectedEnemiesHit * tribbieZoneAdditional(e) * instances(ALLY_ADDITIONAL_ABILITY),
+          scaling: action.expectedEnemiesHit * zoneAdditional * instances(ALLY_ADDITIONAL_ABILITY),
           hit: 0,
           additional: true,
         }],
@@ -246,7 +266,7 @@ export const Tribbie: Kit = {
                 parts: [{
                   shape: 'blast',
                   scaling: s.basic,
-                  adjacent: s.basic / 2,
+                  adjacent: s.basicAdjacent,
                   hit: 0,
                   toughness: TOUGHNESS_BASIC,
                   adjacentToughness: TOUGHNESS_BASIC_ADJACENT,
@@ -300,6 +320,7 @@ export const Tribbie: Kit = {
       },
 
       attackerState: () => ({
+        injectedBuffs: levelBuffs(),
         characterConditionals: {
           numinosity: numinosity(),
           ultZone: zoneUp(),
@@ -321,6 +342,7 @@ export const Tribbie: Kit = {
       }),
 
       teammateState: () => ({
+        injectedBuffs: levelBuffs(),
         characterConditionals: {
           numinosity: numinosity(),
           ultZone: zoneUp(),

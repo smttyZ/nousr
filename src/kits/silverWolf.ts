@@ -1,6 +1,7 @@
 import { certain, expectedCapped } from '../battle/battle'
 import type { Battle, Member } from '../battle/battle'
 import type { UnitId } from '../engine/events'
+import { levelBuff, levelsOf } from '../levels/levels'
 import type { Kit, KitInstance } from './kit'
 
 /**
@@ -140,12 +141,29 @@ export const SilverWolf: Kit = {
   maxEnergy: MAX_ENERGY,
   // The buffed version (Nova Flare, Fribbels' 1006b1). The original kit is a different kit (K13).
   abilityVersions: [1],
+  // Ability levels and major traces (K15, K15a): every ability and all three major traces.
+  levelsModelled: { abilities: ['basic', 'skill', 'ult', 'talent'], majorTraces: [1, 2, 3] },
 
   create(battle: Battle, self: Member): KitInstance {
     const { timeline } = battle
     const me = self.key
     const e = self.eidolon
-    const s = silverWolfScalings(e)
+    // Ability levels and major traces (K15, K15a): multiples scale by the table's ratio; the debuff values Fribbels applies at the
+    // maximum level are corrected by injecting the difference whenever the debuff is on the enemy being priced. Her major traces:
+    // Generate (a Bug lasts 1 turn longer, a Weakness Break implants one), Inject (the energy), Side Note (EHR to ATK).
+    const lv = levelsOf(self)
+    const base = silverWolfScalings(e)
+    const s = {
+      ...base,
+      basic: base.basic * lv.ratio('basic', '1100601', 0),
+      skill: base.skill * lv.ratio('skill', '1100602', 0),
+      ult: base.ult * lv.ratio('ult', '1100603', 0),
+      bugSpd: base.bugSpd * lv.ratio('talent', '1100604', 2),
+    }
+    const skillResDelta = lv.delta('skill', '1100602', 5)
+    const ultDefDelta = lv.delta('ult', '1100603', 2)
+    const bugDefDelta = lv.delta('talent', '1100604', 1)
+    const bugTurns = BUG_TURNS - (lv.major(1) ? 0 : 1)
 
     // The Skill's Weakness implant cannot be modelled (see NOT MODELLED). It changes nothing when every element on the
     // team is already a weakness; otherwise refuse on the first use of the Skill, so that a result is never quietly missing it.
@@ -182,7 +200,7 @@ export const SilverWolf: Kit = {
           target: enemy,
           source: me,
           ...(type === 'spd' && { spdPct: -s.bugSpd }),
-          duration: { turns: BUG_TURNS, tick: 'turnEnd' as const },
+          duration: { turns: bugTurns, tick: 'turnEnd' as const },
         })),
         landing,
         typeChance,
@@ -191,12 +209,12 @@ export const SilverWolf: Kit = {
 
     // Inject: +5 energy when her turn starts.
     timeline.bus.on('turnStart', (turn) => {
-      if (turn.unit === me) battle.party.gainEnergy(me, TURN_START_ENERGY)
+      if (turn.unit === me && lv.major(2)) battle.party.gainEnergy(me, TURN_START_ENERGY)
     })
 
     // Generate: a Bug on every enemy whose Weakness gets broken, by anyone.
     timeline.bus.on('weaknessBroken', ({ enemy }) => {
-      if (alive()) implantBug(enemy)
+      if (alive() && lv.major(1)) implantBug(enemy)
     })
 
     // E2: a Bug on the enemies another ally's attack hit, each at the chance the attack hit it (K22). Collected per attack
@@ -234,6 +252,13 @@ export const SilverWolf: Kit = {
         }
       })
     }
+
+    /** The level corrections for the debuffs on `enemy` (K15a): Fribbels' value at the maximum level is on whenever its switch is. */
+    const levelBuffs = (enemy: UnitId) => [
+      ...(has(enemy, id.skillRes) ? levelBuff('RES_PEN', skillResDelta, 'team', 'Silver Wolf Skill RES') : []),
+      ...(has(enemy, id.ultDef) ? levelBuff('DEF_PEN', ultDefDelta, 'team', 'Silver Wolf Ultimate DEF') : []),
+      ...(has(enemy, id.bug('def')) ? levelBuff('DEF_PEN', bugDefDelta, 'team', 'Silver Wolf DEF Bug') : []),
+    ]
 
     /** The debuff switches Fribbels reads about an enemy, for her damage and her teammates' alike. */
     const debuffState = (enemy: UnitId) => ({
@@ -323,14 +348,16 @@ export const SilverWolf: Kit = {
       },
 
       attackerState: (enemy) => ({
-        characterConditionals: { ehrToAtkConversion: true, ...debuffState(enemy) },
+        // Side Note (major trace 3) is the EHR to ATK conversion.
+        characterConditionals: { ehrToAtkConversion: lv.major(3), ...debuffState(enemy) },
+        injectedBuffs: levelBuffs(enemy),
       }),
 
       // The debuffs are on the enemy, so a teammate's damage to this enemy is priced with exactly the ones it has (K1).
-      teammateState: (_attacker, enemy) => ({ characterConditionals: debuffState(enemy) }),
+      teammateState: (_attacker, enemy) => ({ characterConditionals: debuffState(enemy), injectedBuffs: levelBuffs(enemy) }),
 
       onBattleStart: () => {
-        battle.party.gainEnergy(me, BATTLE_START_ENERGY)
+        if (lv.major(2)) battle.party.gainEnergy(me, BATTLE_START_ENERGY)
         // E2: enemies entering combat take 20% more DMG. A debuff on every enemy, from the start; not an action, so no
         // talent of anyone's fires for it. Fribbels adds the 20% itself, from the eidolon and its `e2Vulnerability` switch.
         if (e >= 2) {

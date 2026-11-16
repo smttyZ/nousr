@@ -1,6 +1,6 @@
 # Proposal: ability levels and traces per member (K15)
 
-Status: DRAFT for Smitty's review. Nothing is applied. Labels: **Searched** (file:line or URL), **Computed** (command), **Recalled** (unverified).
+Status: APPROVED by Smitty (K18, 2026-11-13) and BUILT (2026-11-16): option A (K15a) for the buffs of the kits in his comparisons, D (a `levels-not-modelled` warning) elsewhere; levels are in-game totals; a scan without levels falls back to max with an info warning (`levels-scan-missing`). Original draft follows. Labels: **Searched** (file:line or URL), **Computed** (command), **Recalled** (unverified).
 
 ## What exists today
 

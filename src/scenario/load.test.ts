@@ -96,7 +96,7 @@ describe('the example scenario', () => {
     expect(s.battle).toEqual({
       mode: 'moc',
       cycles: 5,
-      period: null,
+      period: 'moc-2026-11-survival-of-the-fittest',
       start: { energy: 0.5, skillPoints: 3, techniques: true },
     })
     expect(s.enemies).toEqual({ profile: 'generic-moc', counts: [1, 3, 5], weaknesses: 'all' })
@@ -114,6 +114,8 @@ describe('the example scenario', () => {
       affinitiveEidolon: true,
       lightCone: { id: '23024', superimposition: 1 },
       relics: 'standard',
+      // No account: everything at maximum (K15).
+      levels: expect.objectContaining({ source: 'max', abilityVersion: 0 }),
       technique: true,
       techniqueGiven: false,
     })

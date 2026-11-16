@@ -2,6 +2,7 @@ import type { Battle, Member } from '../battle/battle'
 import type { Path } from '../battle/party'
 import type { UnitId } from '../engine/events'
 import type { ConditionalValues, ExtraHit, InjectedBuff } from '../kernel/types'
+import type { AbilityKey } from '../levels/levels'
 import type { Element } from '../scenario/types'
 
 /**
@@ -22,6 +23,13 @@ export interface Kit {
    * run refuses a kit that does not declare it.
    */
   abilityVersions?: readonly number[]
+  /**
+   * What of a member's ability levels and trace flags this kit follows (K15, K15a). A run warns (`levels-not-modelled`) for every
+   * ability below its maximum level and every major trace locked that the kit does not list here, instead of silently
+   * simulating the full build. Minor traces need no entry: the kernel leaves a locked one out of the stats. Left out: the
+   * kit models none of it.
+   */
+  levelsModelled?: { abilities: readonly AbilityKey[], majorTraces: readonly (1 | 2 | 3)[] }
   /** 0 for a character with no energy bar. */
   maxEnergy: number
   /** Called once per battle, after every unit is on the field. Subscribe to events here. */

@@ -2,6 +2,7 @@ import { certain } from '../battle/battle'
 import type { Battle, HitPart, Member } from '../battle/battle'
 import type { UnitId } from '../engine/events'
 import type { InjectedBuff } from '../kernel/types'
+import { levelBuff, levelsOf } from '../levels/levels'
 import type { Kit, KitInstance } from './kit'
 import { MAX_WEAKNESS_TYPES, registerWeaknessCounter, scenarioWeaknessTypes } from './weaknessTypes'
 
@@ -180,12 +181,25 @@ export const Anaxa: Kit = {
   maxEnergy: MAX_ENERGY,
   // Fribbels has no buffed version of him: only the original kit (K13).
   abilityVersions: [0],
+  // Ability levels (K15, K15a): every ability. No major trace is modelled: a locked one warns.
+  levelsModelled: { abilities: ['basic', 'skill', 'ult', 'talent'], majorTraces: [] },
 
   create(battle: Battle, self: Member): KitInstance {
     const { timeline } = battle
     const me = self.key
     const e = self.eidolon
-    const s = anaxaScalings(e)
+    // Ability levels (K15, K15a): multiples and Qualitative Disclosure's DMG bonus scale by the table's ratio. Fribbels applies the
+    // bonus at the maximum level when the Disclosure is certain (`exposedNature`), so that case injects the difference.
+    const lv = levelsOf(self)
+    const base = anaxaScalings(e)
+    const s = {
+      ...base,
+      basic: base.basic * lv.ratio('basic', '140501', 0),
+      skill: base.skill * lv.ratio('skill', '140502', 0),
+      ult: base.ult * lv.ratio('ult', '140503', 0),
+      disclosure: base.disclosure * lv.ratio('talent', '140504', 0),
+    }
+    const disclosureDelta = lv.delta('talent', '140504', 0)
 
     /** The scenario's count of Weakness Types, the same for every enemy. */
     const baseTypes = scenarioWeaknessTypes(battle)
@@ -465,7 +479,7 @@ export const Anaxa: Kit = {
 
       attackerState: (enemy: UnitId) => {
         const chance = disclosure(enemy)
-        const injected: InjectedBuff[] = []
+        const injected: InjectedBuff[] = chance >= 1 ? levelBuff('DMG_PERCENT', disclosureDelta, 'self', 'Anaxa Qualitative Disclosure') : []
         // A partial Disclosure is its DMG bonus times the chance (DMG% is additive in the kernel, so this is its expected value).
         if (chance > 0 && chance < 1) injected.push({ stat: 'DMG_PERCENT', value: chance * s.disclosure, target: 'self', label: 'Qualitative Disclosure' })
         // Sublimation gives the enemy every Type, Wind too, so a scenario list without Wind no longer costs his Wind hits the enemy's RES.

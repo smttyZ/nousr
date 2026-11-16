@@ -1,6 +1,7 @@
 import { certain } from '../battle/battle'
 import type { Battle, HitPart, Member } from '../battle/battle'
 import type { TurnInfo, UnitId } from '../engine/events'
+import { levelsOf } from '../levels/levels'
 import type { Kit, KitInstance } from './kit'
 
 /**
@@ -197,12 +198,26 @@ export const Welt: Kit = {
   maxEnergy: MAX_ENERGY,
   // Written for the buffed kit (K13): the original Welt has a different kit and no Weightless.
   abilityVersions: [1],
+  // Ability levels and major traces (K15, K15a): every ability and all three major traces.
+  levelsModelled: { abilities: ['basic', 'skill', 'ult', 'talent'], majorTraces: [1, 2, 3] },
 
   create(battle: Battle, self: Member): KitInstance {
     const { timeline } = battle
     const me = self.key
     const e = self.eidolon
-    const s = weltScalings(e)
+    // Ability levels and major traces (K15, K15a): multiples scale by the table's ratio. Retribution (B1: the DMG stacks and 30 start
+    // energy), Judgment (B2: the Additional DMG on Basic ATK and Skill) and Punishment (B3: EHR to ATK, 5 energy on the Ultimate)
+    // are switched off in the kit when locked. The Judgment hit stays in the kernel's list (the positions are fixed) and is not dealt.
+    const lv = levelsOf(self)
+    const base = weltScalings(e)
+    const s = {
+      ...base,
+      basic: base.basic * lv.ratio('basic', '1100401', 0),
+      skill: base.skill * lv.ratio('skill', '1100402', 0),
+      ult: base.ult * lv.ratio('ult', '1100403', 0),
+      talent: base.talent * lv.ratio('talent', '1100404', 0),
+      imprisonDelay: base.imprisonDelay * lv.ratio('ult', '1100403', 1),
+    }
 
     /** How many times each enemy has been delayed by Weightless since its last turn started. */
     const delaysThisTurn = new Map<UnitId, number>()
@@ -213,7 +228,7 @@ export const Welt: Kit = {
     const weightless = (enemy: UnitId) => battle.presence(enemy, WEIGHTLESS)
     /** The chance the enemy is Slowed: any SPD reduction on it, whoever put it there. In a priced world exactly 0 or 1. */
     const slowed = (enemy: UnitId) => battle.anyPresent(enemy, (m) => m.spdPct < 0)
-    const retribution = (ally: UnitId) => timeline.modifiers.get(ally, RETRIBUTION)?.stacks ?? 0
+    const retribution = (ally: UnitId) => (lv.major(1) ? timeline.modifiers.get(ally, RETRIBUTION)?.stacks ?? 0 : 0)
 
     /** The Talent's Additional DMG on `enemy`: `scaling` where the enemy is Slowed, nothing where it is not (see the header). */
     const talentPart = (enemy: UnitId, scaling: number, hit: number, random?: HitPart['random']): HitPart => ({
@@ -269,7 +284,7 @@ export const Welt: Kit = {
     timeline.bus.on('actionUsed', (action) => {
       const misses = retributionMiss.get(action.serial)
       retributionMiss.delete(action.serial)
-      if (misses === undefined || !battle.isAlly(action.actor)) return
+      if (misses === undefined || !battle.isAlly(action.actor) || !lv.major(1)) return
       const chance = 1 - Math.min(...misses.values())
       if (!(chance > 0)) return
       // A memosprite's attack is priced as its owner's, so the stack goes to the owner, whose state the kernel reads
@@ -305,7 +320,7 @@ export const Welt: Kit = {
                 ability: 'BASIC',
                 parts: [
                   { shape: 'single', target, scaling: s.basic, hit: WELT_HITS.BASIC.main, toughness: TOUGHNESS_BASIC },
-                  { shape: 'single', target, scaling: JUDGMENT_BASIC * s.basic, hit: WELT_HITS.BASIC.judgment, additional: true },
+                  ...(lv.major(2) ? [{ shape: 'single' as const, target, scaling: JUDGMENT_BASIC * s.basic, hit: WELT_HITS.BASIC.judgment, additional: true }] : []),
                   ...(triggers > 0 ? [talentPart(target, s.talent, WELT_HITS.BASIC.talent)] : []),
                 ],
               })
@@ -333,7 +348,7 @@ export const Welt: Kit = {
                 const parts: HitPart[] = designated
                   ? [
                       { shape: 'single', target: primary, scaling: s.skill, hit: WELT_HITS.SKILL.main, toughness: TOUGHNESS_SKILL_HIT },
-                      { shape: 'single', target: primary, scaling: JUDGMENT_SKILL * s.skill, hit: WELT_HITS.SKILL.judgment, additional: true },
+                      ...(lv.major(2) ? [{ shape: 'single' as const, target: primary, scaling: JUDGMENT_SKILL * s.skill, hit: WELT_HITS.SKILL.judgment, additional: true }] : []),
                     ]
                   : ids.map((target): HitPart => ({
                       shape: 'single',
@@ -432,7 +447,7 @@ export const Welt: Kit = {
               if (extras.length > 0) battle.attack({ attacker: me, ability: 'ULT', parts: extras })
               talentTriggered(triggers)
 
-              battle.party.gainEnergy(me, ULT_ENERGY + ULT_TRACE_ENERGY)
+              battle.party.gainEnergy(me, ULT_ENERGY + (lv.major(3) ? ULT_TRACE_ENERGY : 0))
 
               // After the damage: Imprison every enemy hit, then Weightless on all of them.
               for (const id of ids) {
@@ -461,7 +476,7 @@ export const Welt: Kit = {
           enemySlowed: true,
           enemyWeightless: certain(weightless(enemy)),
           retributionDmgStacks: retribution(me),
-          ehrToAtkBoost: true,
+          ehrToAtkBoost: lv.major(3),
           traceAdditionalDmg: true,
           skillExtraHits: SKILL_EXTRA_HITS,
           e1WeightlessAdditionalDmg: true,
@@ -482,7 +497,7 @@ export const Welt: Kit = {
       }),
 
       onBattleStart: ({ techniques }) => {
-        battle.party.gainEnergy(me, START_ENERGY)
+        if (lv.major(1)) battle.party.gainEnergy(me, START_ENERGY)
         // Technique: every enemy in the Special Dimension is Imprisoned on entering combat (delay 20%).
         if (techniques) for (const id of battle.enemies.ids) imprison(id, TECHNIQUE_DELAY)
       },

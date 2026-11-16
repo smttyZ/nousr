@@ -6,6 +6,9 @@
  *   eidolon, light cone and relics resolved against the account scan.
  */
 
+import type { LevelsFile } from '../levels/resolve'
+import type { MemberLevels } from '../levels/levels'
+
 export type Element = 'Physical' | 'Fire' | 'Ice' | 'Lightning' | 'Wind' | 'Quantum' | 'Imaginary'
 
 // ---------------------------------------------------------------- HSR-Scanner v4 (the parts NouSR reads)
@@ -32,6 +35,12 @@ export interface ScanCharacter {
   id: string
   eidolon?: number
   ability_version?: number
+  /** Ability levels as the game shows them (eidolon bonus included). Reliquary Archiver and HSR-Scanner v4 write it; older fixtures do not. */
+  skills?: Partial<Record<string, number>>
+  /** Memosprite ability levels (Remembrance characters only). */
+  memosprite?: Partial<Record<string, number>>
+  /** `ability_1..3` (major traces B1..B3) and `stat_1..10` (minor traces S1..S10): true = unlocked. */
+  traces?: Partial<Record<string, boolean>>
 }
 
 export interface ScanLightCone {
@@ -88,6 +97,8 @@ export interface RuleFile {
 }
 
 export interface MemberFile {
+  /** Ability levels and traces (K15, K18). Left out: "scan" with an account, else "max". */
+  levels?: LevelsFile
   key: string
   character: string
   ability_version?: number
@@ -172,6 +183,11 @@ export interface Member {
   kitOptions?: Record<string, unknown>
   /** The option names the scenario itself gave (the rest came from defaults). */
   kitOptionsGiven?: string[]
+  /**
+   * Ability levels and trace flags (K15). Absent for a character with no level table (nothing is modelled for it) and in hand-built
+   * members; a kit then reads everything as maximum.
+   */
+  levels?: MemberLevels
   /** Whether this member uses their technique before the battle: the member's own `technique`, else `battle.start.techniques` (K31). */
   technique: boolean
   /** True when the scenario gave this member's `technique` itself; false when `battle.start.techniques` decided. */

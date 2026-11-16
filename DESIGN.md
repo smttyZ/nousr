@@ -124,11 +124,22 @@ Consequence of S6 to keep in mind: effects that trigger on a kill, overkill, and
   be scaled by a chance). Exact whenever her stacks are whole, which is every case in the repo today.
 - **Allies are never crowd-controlled,** so "Lightning-Lord cannot act while Jing Yuan is under Crowd Control" is
   not modelled. The generic enemy applies no crowd control.
-- **Every character is simulated fully built: all traces unlocked, abilities at the kit text's levels.**
-  The scan's ability and trace levels are not read (nothing in `src/scenario` or `src/run` uses them), and
-  kits follow Fribbels in assuming everything unlocked. Found 2026-11-13: Smitty's Cyrene has three abilities
-  at level 1 and what look like four minor traces (CRIT DMG x3, HP x1) not unlocked, so a run with his scan
-  overstates her. To fix: read the levels from the scan and pass them to the kernel, if Fribbels accepts them.
+- **Ability and trace levels (K15, K15a, K18): read from the scan and followed by 12 of the 14 kits; the rest warn.**
+  Built 2026-11-16. A member's `levels` (scan by default with an account, else max) reaches `Member.levels`
+  and the kits (`LevelView`, `src/levels`); locked minor traces go to Fribbels through its trace override;
+  the result echoes the levels. Level-aware kits (their `levelsModelled` lists what they follow): Cyrene,
+  Hyacine, Tribbie, Silver Wolf, Welt, Dan Heng PT, Robin Summeretto, The Herta (Basic ATK only), Anaxa,
+  Sunday, Fu Xuan (Basic, Ultimate, Talent only). Multiples scale by the table's ratio; buffs Fribbels applies
+  at the maximum level get the difference injected. Silver Wolf and Welt also switch locked major traces off.
+  **Still full strength, with a `levels-not-modelled` warning naming what is below:** Acheron, Castorice and
+  Jing Yuan at any level below maximum, every ability a kit does not list (Hyacine's Skill, Ultimate and
+  memosprite; Robin's Memosprite Talent; Cyrene's Memosprite Skill, whose Chrysos Heir Odes are priced in
+  the heirs' kits; Fu Xuan's Skill; The Herta's Skill, Ultimate, Talent), and every locked major trace the
+  kit does not list (all kits but Silver Wolf and Welt). Minor traces never warn: the kernel follows them.
+  Unverified: the scan's `stat_N` / `ability_N` order is read as S N / B N (consistent with every
+  prerequisite chain in Smitty's scan, and with the game's tree order for Silver Wolf and Welt). A teammate's
+  locked minor traces are given to the kernel for its own form, but Fribbels may not read them for the buffs
+  a teammate's stats feed.
 - **"Highest HP" ties go to the first enemy in standing order** when the primary target is not among the tied
   enemies (K10). The game text does not say how such a tie is broken. Implemented once for every kit in
   `Battle.highestHpAmong` (`src/battle/battle.ts`); first used by Tribbie's Zone Additional DMG. It happens right after an attack that hits the primary harder than its

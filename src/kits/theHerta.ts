@@ -2,6 +2,7 @@ import type { Battle, HitPart, Member } from '../battle/battle'
 import { reachedSetDistribution } from '../battle/hitProbability'
 import type { EngineEvents, UnitId } from '../engine/events'
 import type { InjectedBuff } from '../kernel/types'
+import { levelsOf } from '../levels/levels'
 import type { Kit, KitInstance } from './kit'
 
 /**
@@ -209,12 +210,17 @@ export const TheHerta: Kit = {
   maxEnergy: MAX_ENERGY,
   // Fribbels has no buffed version of her: only the original kit (K13).
   abilityVersions: [0],
+  levelsModelled: { abilities: ['basic'], majorTraces: [] },
 
   create(battle: Battle, self: Member): KitInstance {
     const { timeline, party } = battle
     const me = self.key
     const e = self.eidolon
-    const s = theHertaScalings(e)
+    // Ability levels (K15, K15a): Basic ATK's multiple scales by the table's ratio. The Skill, Ultimate and Talent are not level-aware
+    // (their Fribbels-side parts are priced at the maximum level), so a lower level of those warns.
+    const lv = levelsOf(self)
+    const base = theHertaScalings(e)
+    const s = { ...base, basic: base.basic * lv.ratio('basic', '140101', 0) }
     const ids = battle.enemies.ids
     const modifiers = timeline.modifiers
 

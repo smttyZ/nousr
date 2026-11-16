@@ -36,6 +36,18 @@ export interface ResultTeam {
   members: ResultMember[]
   standard_builds?: ResultStandardBuild[]
   kit_options?: { member: string, options: Record<string, unknown>, defaulted: string[] }[]
+  /** One per member with a level table (K15): the ability levels and traces the battle ran with. */
+  levels?: ResultLevels[]
+}
+
+export interface ResultLevels {
+  member: string
+  source: 'scan' | 'max' | 'scenario'
+  /** Per ability the character has: the level used and the maximum at the member's eidolon. */
+  abilities: Record<string, { level: number, max: number }>
+  /** B1..B3 and S1..S10: true = unlocked. */
+  major_traces: boolean[]
+  minor_traces: boolean[]
 }
 
 export type ActionKind = 'basic' | 'skill' | 'ultimate' | 'follow_up'

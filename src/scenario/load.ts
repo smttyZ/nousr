@@ -3,6 +3,8 @@ import { dirname, resolve } from 'node:path'
 import { Ajv2020 } from 'ajv/dist/2020.js'
 import type { ErrorObject } from 'ajv'
 import schema from '../../schema/scenario.schema.json' with { type: 'json' }
+import { loadLevelTable } from '../levels/levels'
+import { resolveLevels } from '../levels/resolve'
 import { defaultKitOptions, resolveKitOptions } from './kitOptions'
 import type {
   AccountScan,
@@ -230,15 +232,21 @@ function resolveMember(
     ? resolveKitOptions(member.character, member.kit_options, teamKeys, member.key, at, problems)
     : defaultKitOptions(member.character)
 
+  const abilityVersion = member.ability_version ?? scanned?.ability_version
+  const levels = eidolon === undefined
+    ? undefined
+    : resolveLevels(member.levels, loadLevelTable(member.character, abilityVersion), scanned, eidolon, account !== undefined, at, problems)
+
   if (problems.length > before) return undefined
   return {
     key: member.key,
     character: member.character,
-    abilityVersion: member.ability_version ?? scanned?.ability_version,
+    abilityVersion,
     eidolon: eidolon!,
     affinitiveEidolon: member.affinitive_eidolon ?? false,
     lightCone: lightCone!,
     relics: relics!,
+    ...(levels !== undefined && { levels }),
     technique: member.technique ?? defaultTechnique,
     techniqueGiven: member.technique !== undefined,
     ...(member.standard_build !== undefined && { standardBuild: resolveOverride(member.standard_build) }),

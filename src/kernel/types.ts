@@ -23,6 +23,11 @@ export interface KernelUnit {
   characterConditionals?: ConditionalValues
   /** Laid over Fribbels' defaults for this light cone. An unknown key is an error. */
   lightConeConditionals?: ConditionalValues
+  /**
+   * Minor traces that are not unlocked (K15): the game's PointIDs as strings, the ids of the character's trace tree
+   * (data/levels `minor_traces[].point`). The kernel leaves their stat bonuses out of the unit's stats, both out of combat and in it.
+   */
+  deactivatedTraces?: string[]
 }
 
 export interface KernelTeammate extends KernelUnit {
@@ -169,7 +174,7 @@ export interface InjectedBuff {
   stat: InjectedStat
   value: number
   /** `'self'` is the attacker; `'team'` is everyone, so the attacker too. */
-  target: 'self' | 'team'
+  target: 'self' | 'team' | 'selfAndMemosprite'
   /**
    * Only for the kernel's ability of this kind ('BASIC', 'SKILL', 'ULT', 'FUA', 'BREAK', ...); the
    * same strings as `DamageResult.damage`. Valid on every stat.

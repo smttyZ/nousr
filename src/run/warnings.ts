@@ -13,6 +13,13 @@ export type WarningCode =
   | 'spd-target-missed'
   /** A kit option's placeholder default decided a choice (K26; e.g. Cyrene's Demiurge order when the scenario gives none). */
   | 'kit-option-default-used'
+  /**
+   * A member has an ability below its maximum level or a major trace locked (from the scan or the scenario's `levels`) that its
+   * kit does not follow yet (K15, K15a), so that part is simulated at full strength. Names the member and what is below.
+   */
+  | 'levels-not-modelled'
+  /** `levels` was "scan" (or the default with an account), but the scan has no level fields for this character: everything at maximum (K15). */
+  | 'levels-scan-missing'
   /** A battle reached a choice turn past the end of a kit option's list (K26; e.g. `demiurge_order`). */
   | 'kit-option-list-exhausted'
 

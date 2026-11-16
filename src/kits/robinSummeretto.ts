@@ -1,6 +1,7 @@
 import type { Battle, Member } from '../battle/battle'
 import type { UnitId } from '../engine/events'
 import { ACTION_GAUGE } from '../engine/timeline'
+import { levelBuff, levelsOf } from '../levels/levels'
 import type { Kit, KitInstance, TeammateState } from './kit'
 
 /**
@@ -196,12 +197,27 @@ export const RobinSummeretto: Kit = {
   maxEnergy: MAX_ENERGY,
   // Fribbels has no buffed version of her: only the original kit (K13).
   abilityVersions: [0],
+  // Ability levels (K15, K15a): Basic ATK, Skill (the Songbirds' heal), Ultimate (energy), Talent (Zone DEF PEN) and the Memosprite
+  // Skill (multiple). The Memosprite Talent's buffs are priced by Fribbels at the maximum level, so a lower level warns.
+  // No major trace is modelled: a locked one warns.
+  levelsModelled: { abilities: ['basic', 'skill', 'ult', 'talent', 'memo_skill'], majorTraces: [] },
 
   create(battle: Battle, self: Member): KitInstance {
     const { timeline, party } = battle
     const me = self.key
     const e = self.eidolon
-    const s = robinSummerettoScalings(e)
+    // Ability levels (K15, K15a): multiples scale by the table's ratio; the Zone's DEF PEN (Fribbels applies the maximum level's base
+    // value while Fever lasts) is corrected by injecting the difference.
+    const lv = levelsOf(self)
+    const base = robinSummerettoScalings(e)
+    const s = {
+      ...base,
+      basic: base.basic * lv.ratio('basic', '151201', 0),
+      memoSkill: base.memoSkill * lv.ratio('memo_skill', '1151201', 1),
+      ultEnergyShare: base.ultEnergyShare * lv.ratio('ult', '151203', 2),
+    }
+    const skillHeal = (e >= 3 ? 1.1 : 1) * lv.ratio('skill', '151202', 0)
+    const zoneDefPenDelta = lv.delta('talent', '151204', 7)
     const songbirds = songbirdsId(me)
     const countdown = countdownId(me)
     const modifiers = timeline.modifiers
@@ -486,7 +502,7 @@ export const RobinSummeretto: Kit = {
                 // "Restores their HP by an amount equal to 100% (Lv12, E3: 110%) of Summer Songbirds' Max HP." IN-GAME CHECK: the heal is a heal from her, so it
                 // gives a Vibe like any ally's heal (Wings Heed No Borders), even on full-HP Songbirds.
                 const birds = party.get(songbirds)
-                party.heal(songbirds, birds.maxHp * (e >= 3 ? 1.1 : 1), me)
+                party.heal(songbirds, birds.maxHp * skillHeal, me)
                 gainVibes(SKILL_VIBES)
               }
             }),
@@ -518,6 +534,7 @@ export const RobinSummeretto: Kit = {
 
       // Her own attacks, and the Songbirds' (priced as hers): the live Fribbels switches.
       attackerState: () => ({
+        injectedBuffs: fever ? levelBuff('DEF_PEN', zoneDefPenDelta, 'team', 'Robin Zone DEF PEN') : [],
         characterConditionals: {
           feverState: fever,
           vibes: Math.min(vibes, cap),
@@ -535,6 +552,7 @@ export const RobinSummeretto: Kit = {
         const up = chordUp(holder)
         const atkBranch = (branch.get(holder) ?? 'atk') === 'atk'
         return {
+          injectedBuffs: fever ? levelBuff('DEF_PEN', zoneDefPenDelta, 'team', 'Robin Zone DEF PEN') : [],
           characterConditionals: {
             feverState: fever,
             vibes: Math.min(vibes, cap),

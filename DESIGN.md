@@ -323,6 +323,7 @@ Earlier findings these build on:
 
 For step 7, the current period's rule text (Game8, read 2026-11-11): an ally gains 5 Punchlines on using
 their Ultimate; at the start of each cycle Aha takes an extra turn counted at a fixed 20 Punchlines, which
+**Settled by Smitty 2026-11-16** (in-game text: "When an ally target uses their Ultimate, they gain 5 Punchlines. At the start of each Cycle, Aha immediately gains 1 extra turn with a fixed 20 Punchlines taken into account. This turn does not consume Punchlines."): Punchlines and Aha's turn are the Elation path's mechanic (the period's banner is Aha with three Elation characters). For teams with no Elation character the period changes nothing, so the module is a documented no-op for them; a team with an Elation character stops with an error naming it until Elation is modelled.
 does not consume Punchlines. Runs 2026-11-02 to 2026-12-14.
 
 ## Step 6 notes (2026-11-12, in progress)

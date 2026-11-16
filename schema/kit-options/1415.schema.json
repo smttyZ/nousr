@@ -11,10 +11,10 @@
       "maxItems": 12,
       "items": {
         "type": "string",
-        "x-nousr-domain": { "member_keys": true, "values": ["attack"] },
-        "description": "A member key of the same team: \"This Ode, to All Lives\" on that member (Cyrene's own key: Ode to Ego). \"attack\": Minuet of Blooms and Plumes."
+        "x-nousr-domain": { "member_keys": true, "exclude_self": true, "values": ["attack"] },
+        "description": "A member key of the same team other than Cyrene's own: \"This Ode, to All Lives\" on that member (it cannot target Cyrene herself). \"attack\": Minuet of Blooms and Plumes."
       },
-      "x-nousr-computed-default": "Every other team member in party order, then Cyrene, then \"attack\". A placeholder: a run that uses it carries the warning kit-option-default-used.",
+      "x-nousr-computed-default": "Every other team member in party order, then \"attack\". A placeholder: a run that uses it carries the warning kit-option-default-used.",
       "description": "Demiurge's choice turns, in order."
     },
     "after_order": {

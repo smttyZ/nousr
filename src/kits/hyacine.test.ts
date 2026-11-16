@@ -23,6 +23,8 @@ interface Knobs {
 }
 function kernelFor(eidolon: number, requests: DamageRequest[] = [], knobs: Knobs = { spd: 150, rain: false }): DamageKernel {
   const s = hyacineScalings(eidolon)
+  /** The Technique's Max HP is injected as an HP% buff; the fake kernel adds it to the Max HP it reports. */
+  const injectedHp = (request: DamageRequest) => (request.injectedBuffs ?? []).filter((b) => b.stat === 'HP_PERCENT').reduce((n, b) => n + b.value * HP, 0)
   const rainBonus = (conditionals: Record<string, number | boolean> | undefined) =>
     knobs.rain && conditionals?.clearSkies === true ? (s.rainHp.pct + (conditionals.e1HpBuff === true ? 0.5 : 0)) * HP + s.rainHp.flat : 0
   return {
@@ -30,12 +32,13 @@ function kernelFor(eidolon: number, requests: DamageRequest[] = [], knobs: Knobs
       requests.push(request)
       if (request.attacker.characterId !== '1409') {
         const bonus = rainBonus(request.teammates.find((t) => t.characterId === '1409')?.characterConditionals)
-        return fakeResult({ BASIC: [{ damage: 1000, scaling: 1 }] }, { ...ZERO_STATS, HP: HP + bonus })
+        return fakeResult({ BASIC: [{ damage: 1000, scaling: 1 }] }, { ...ZERO_STATS, HP: HP + bonus + injectedHp(request) })
       }
       const low = request.attacker.characterConditionals?.healTargetHp50 === true
       const mult = HEAL_MULTIPLIER + (low ? 0.25 : 0)
-      const heal = (pct: number, flat: number): HitResult => ({ damage: (pct * HP + flat) * mult, output: 'HEAL' })
-      const stats: CombatStats = { ATK: 0, DEF: 0, HP: HP + rainBonus(request.attacker.characterConditionals), SPD: knobs.spd, CR: 0, CD: 0, EHR: 0, RES: 0, BE: 0, ERR: 0, OHB: OHB + (low ? 0.25 : 0) }
+      const hp = HP + rainBonus(request.attacker.characterConditionals) + injectedHp(request)
+      const heal = (pct: number, flat: number): HitResult => ({ damage: (pct * hp + flat) * mult, output: 'HEAL' })
+      const stats: CombatStats = { ATK: 0, DEF: 0, HP: hp, SPD: knobs.spd, CR: 0, CD: 0, EHR: 0, RES: 0, BE: 0, ERR: 0, OHB: OHB + (low ? 0.25 : 0) }
       return fakeResult(
         {
           BASIC: [{ damage: 1000 * s.basic, scaling: s.basic }],
@@ -71,8 +74,9 @@ const dummy: Kit = {
   }),
 }
 
-const member = (key: string, kit: Kit, characterId: string, eidolon: number, baseSpd: number): MemberSetup => ({
+const member = (key: string, kit: Kit, characterId: string, eidolon: number, baseSpd: number, technique?: boolean): MemberSetup => ({
   key,
+  ...(technique !== undefined && { technique }),
   kit,
   eidolon,
   affinitiveEidolon: false,
@@ -80,15 +84,15 @@ const member = (key: string, kit: Kit, characterId: string, eidolon: number, bas
   kernel: { unit: { characterId, lightConeId: 'none', eidolon, superimposition: 1 }, build: noBuild },
 })
 
-function setup(eidolon = 0, requests: DamageRequest[] = [], knobs: Knobs = { spd: 150, rain: false }) {
+function setup(eidolon = 0, requests: DamageRequest[] = [], knobs: Knobs = { spd: 150, rain: false }, technique?: { start?: boolean, hy?: boolean }) {
   const battle = new Battle({
-    members: [member('hy', Hyacine, '1409', eidolon, 100), member('a', dummy, 'dummy', 0, 90), member('b', dummy, 'dummy', 0, 80)],
+    members: [member('hy', Hyacine, '1409', eidolon, 100, technique?.hy), member('a', dummy, 'dummy', 0, 90), member('b', dummy, 'dummy', 0, 80)],
     policy: [{ unit: 'hy', use: 'basic', when: [] }, { unit: 'a', use: 'basic', when: [] }, { unit: 'b', use: 'basic', when: [] }],
     profile,
     enemyCount: 1,
     weaknesses: 'all',
     cycles: 3,
-    start: { energy: 0, skillPoints: 5, techniques: false },
+    start: { energy: 0, skillPoints: 5, techniques: technique?.start ?? false },
     kernel: kernelFor(eidolon, requests, knobs),
   })
   const healed: EngineEvents['healed'][] = []
@@ -143,12 +147,12 @@ describe('Hyacine: Basic ATK and Skill', () => {
     expect(battle.party.get('hy').energy).toBeCloseTo(energy + 30, 9)
   })
 
-  it('Ica starts with 50% of her in-combat Max HP, 0 SPD (not on the timeline), and is untargetable', () => {
+  it('Ica starts with 50% of her in-combat Max HP, 0 SPD (not on the timeline), and enemies can target it (seen in game, 2026-11-15)', () => {
     const { battle, act, ica } = setup()
     act.skill!.use()
     expect(battle.party.get(ica).maxHp).toBeCloseTo(0.5 * HP, 6)
     expect(battle.timeline.has(ica)).toBe(false)
-    expect(battle.party.get(ica).targetable).toBe(false)
+    expect(battle.party.get(ica).targetable).toBe(true)
   })
 
   it('the tally is every heal of hers and Ica, restored and overheal, and a Talent stack is gained once per source per action', () => {
@@ -177,6 +181,19 @@ describe('Hyacine: Ultimate and After Rain', () => {
     expect(icaHeal.amount + icaHeal.overheal).toBeCloseTo(1.2 * base * HEAL_MULTIPLIER, 6)
     expect(q('after_rain')).toBe(true)
     expect(battle.timeline.modifiers.get('hy', 'hyacine.after_rain')!.turnsLeft).toBe(3)
+  })
+
+  it("the Ultimate's heal is priced on her Max HP from before After Rain's buff: heal first, then After Rain (settled in game, 2026-11-15)", () => {
+    const requests: DamageRequest[] = []
+    const { battle, healed, act, q } = setup(0, requests, { spd: 150, rain: true })
+    battle.party.setEnergy('hy', 140)
+    act.ultimate!.use()
+    expect(q('after_rain')).toBe(true)
+    // After Rain adds 30% + 600 Max HP in this kernel: the heal is the base 10% + 200 of the unbuffed HP, for allies and (1.2 times) Ica.
+    const base = (0.1 * HP + 200) * HEAL_MULTIPLIER
+    expect(healed.find((h) => h.unit === 'a')!.amount + healed.find((h) => h.unit === 'a')!.overheal).toBeCloseTo(base, 6)
+    const ica = healed.find((h) => h.unit === icaId('hy'))!
+    expect(ica.amount + ica.overheal).toBeCloseTo(1.2 * base, 6)
   })
 
   it("Ica takes an extra turn after each of her abilities in After Rain, never outside it", () => {
@@ -515,5 +532,92 @@ describe('Hyacine: mutation-pinning checks', () => {
     act.skill!.use()
     expect(battle.isMemosprite(ica)).toBe(true)
     expect(battle.party.get('hy').energy).toBeCloseTo(energy + 30 + 15, 9)
+  })
+})
+
+describe('Hyacine: Technique, Day So Right, Life So Fine! (K31)', () => {
+  const TECH = 'hyacine.technique_max_hp'
+  const techHeal = (0.3 * HP + 600) * HEAL_MULTIPLIER
+
+  /** Runs the battle and records, for 'a', its Max HP at each of its turn starts, plus everything Hyacine healed at the start. */
+  function run(technique: { start?: boolean, hy?: boolean }, eidolon = 0, requests: DamageRequest[] = []) {
+    const t = setup(eidolon, requests, { spd: 150, rain: false }, technique)
+    const maxHpAtTurn: Record<string, number[]> = { hy: [], a: [], b: [] }
+    const startHeals: EngineEvents['healed'][] = []
+    let started = false
+    t.battle.timeline.bus.on('healed', (h) => { if (!started) startHeals.push(h) })
+    t.battle.timeline.bus.on('turnStart', (turn) => {
+      started = true
+      maxHpAtTurn[turn.unit]?.push(t.battle.party.get(turn.unit).maxHp)
+    })
+    t.battle.run()
+    return { ...t, maxHpAtTurn, startHeals }
+  }
+
+  it('with the technique on, every character is healed for 30% of her Max HP + 600, as a heal from her (Outgoing Healing in it), overheal included', () => {
+    const { startHeals } = run({ hy: true })
+    expect(startHeals.map((h) => h.unit).sort()).toEqual(['a', 'b', 'hy'])
+    for (const h of startHeals) {
+      expect(h.source).toBe('hy')
+      expect(h.amount).toBe(0) // everyone starts at full HP, so it is all overheal
+      expect(h.overheal).toBeCloseTo(techHeal, 6)
+    }
+  })
+
+  it('the heal feeds the tally of Rainclouds like any heal of hers', () => {
+    const { battle, q } = setup(0, [], { spd: 150, rain: false }, { hy: true })
+    expect(q('tally')).toBe(0)
+    battle.member('hy').instance.onBattleStart!({ techniques: true })
+    expect(q('tally')).toBeCloseTo(3 * techHeal, 6)
+  })
+
+  it('every character gets Max HP +20% for 2 turns, counted down by its own turns', () => {
+    const { maxHpAtTurn } = run({ hy: true })
+    for (const unit of ['hy', 'a', 'b']) {
+      // Up for the first two turns of each.
+      expect(maxHpAtTurn[unit]!.slice(0, 2), unit).toEqual([HP * 1.2, HP * 1.2].map((v) => expect.closeTo(v, 6)))
+    }
+    // And gone for the third (Hyacine and 'a' have a third turn in 3 cycles).
+    expect(maxHpAtTurn.hy![2]).toBeCloseTo(HP, 6)
+    expect(maxHpAtTurn.a![2]).toBeCloseTo(HP, 6)
+  })
+
+  it('the Max HP buff is a modifier of 2 turns on each character, and the kernel gets it as an injected HP% buff only while it is held', () => {
+    const requests: DamageRequest[] = []
+    const { battle } = setup(0, requests, { spd: 150, rain: false }, { hy: true })
+    battle.member('hy').instance.onBattleStart!({ techniques: true })
+    for (const unit of ['hy', 'a', 'b']) expect(battle.timeline.modifiers.get(unit, TECH)!.turnsLeft, unit).toBe(2)
+    expect(battle.party.get('a').maxHp).toBeCloseTo(HP * 1.2, 6)
+    const injected = () => requests.filter((r) => r.attacker.characterId === 'dummy').map((r) => r.injectedBuffs)
+    expect(injected()).toContainEqual([expect.objectContaining({ stat: 'HP_PERCENT', value: 0.2, target: 'team' })])
+    battle.timeline.modifiers.remove('a', TECH)
+    expect(battle.party.get('a').maxHp).toBeCloseTo(HP, 6)
+    expect(battle.party.get('b').maxHp).toBeCloseTo(HP * 1.2, 6) // the others keep theirs
+  })
+
+  it('the heal is priced on her Max HP from before the buff (heal first, then Max HP)', () => {
+    const { startHeals } = run({ hy: true })
+    expect(startHeals[0]!.overheal).toBeCloseTo((0.3 * HP + 600) * HEAL_MULTIPLIER, 6)
+    expect(startHeals[0]!.overheal).not.toBeCloseTo((0.3 * HP * 1.2 + 600) * HEAL_MULTIPLIER, 0)
+  })
+
+  it('off: with the technique off nobody is healed or buffed, and the heal of nobody reaches the tally', () => {
+    for (const technique of [{}, { start: false }, { start: true, hy: false }]) {
+      const { startHeals, maxHpAtTurn, battle } = run(technique)
+      expect(startHeals, JSON.stringify(technique)).toEqual([])
+      expect(maxHpAtTurn.a![0]).toBeCloseTo(HP, 6)
+      expect(battle.timeline.modifiers.has('a', TECH)).toBe(false)
+    }
+  })
+
+  it('the own switch of a member overrides the battle default, both ways', () => {
+    expect(run({ start: false, hy: true }).startHeals).toHaveLength(3)
+    expect(run({ start: true }).startHeals).toHaveLength(3) // no member setting: the battle default
+    expect(run({ start: true, hy: false }).startHeals).toHaveLength(0)
+  })
+
+  it('Little Ica is not healed or buffed: the technique reaches characters only', () => {
+    const { startHeals, ica } = run({ hy: true })
+    expect(startHeals.map((h) => h.unit)).not.toContain(ica)
   })
 })

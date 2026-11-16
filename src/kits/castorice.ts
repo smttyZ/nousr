@@ -20,7 +20,7 @@ import type { Kit, KitInstance, TeammateState } from './kit'
  * - Talent (Desolation Across Palms): Newbud. Every point of HP lost by an ally (a character or a memosprite) is a point of Newbud
  *   (`Party`'s `hpLost`), up to the maximum. When allies lose HP, her and Netherwing's DMG +20% (E5: 22%), 3 stacks, 3 turns. While
  *   Netherwing is on the field no Newbud is gained, and the HP any ally except Netherwing loses is given to Netherwing as HP.
- * - Contained Dark Tide (trace): after an ally (not Netherwing) is healed, 100% of the healed amount becomes Newbud (Netherwing's HP
+ * - Contained Dark Tide (trace): after an ally (not Netherwing) is healed, 100% of the healed amount (overheal included) becomes Newbud (Netherwing's HP
  *   while it is on the field), each ally at most 12% of max Newbud, the tally of every ally resetting after any unit takes action.
  * - Inverted Torch (trace): SPD +40% while her HP is at 50% of her Max HP or more (a timeline modifier, Fribbels' `spdBuff`).
  * - Where the West Wind Dwells (trace): each Breath Netherwing launches gives its DMG +30%, 6 stacks, until the end of the turn.
@@ -91,7 +91,8 @@ import type { Kit, KitInstance, TeammateState } from './kit'
  *   itself reaches allies' prices through `memospriteActive`.
  * - The Netherwing HP given from allies' HP loss and from healing is not a heal (`Party.gainHp`, no `healed` event), so effects that
  *   react to healing (Robin Summeretto's Vibes, Gentle Rain, Contained Dark Tide itself) do not see it.
- * - Contained Dark Tide converts the HP actually restored, not overheal (Hyacine's tally counts overheal).
+ * - Contained Dark Tide converts the whole heal, overheal included (`amount + overheal` of the `healed` event), at most 12% of max Newbud
+ *   per ally per action. Settled by Smitty in game, 2026-11-15 (Newbud 47% to 63% from Hyacine's Ultimate on 3 full-HP allies).
  * - Hold mode: Claw Splits the Veil is what Netherwing does on a held turn with no HP above 25%.
  *
  * NOT MODELLED:
@@ -265,10 +266,12 @@ export function makeCastorice(options: CastoriceOptions = {}): Kit {
         else gainNewbud(amount)
       })
 
-      timeline.bus.on('healed', ({ unit, amount }) => {
+      timeline.bus.on('healed', ({ unit, amount, overheal }) => {
         if (unit === me) syncSpd()
-        if (unit === nw || !battle.isAlly(unit) || !(amount > 0)) return
-        const take = Math.min(amount, CONVERSION_CAP * NEWBUD_MAX - (converted.get(unit) ?? 0))
+        // The whole heal counts, overheal included (settled by Smitty in game, 2026-11-15), up to the per-ally cap.
+        const healed = amount + overheal
+        if (unit === nw || !battle.isAlly(unit) || !(healed > 0)) return
+        const take = Math.min(healed, CONVERSION_CAP * NEWBUD_MAX - (converted.get(unit) ?? 0))
         if (!(take > 0)) return
         converted.set(unit, (converted.get(unit) ?? 0) + take)
         if (present) party.gainHp(nw, take)

@@ -244,10 +244,24 @@ describe('Newbud', () => {
     expect((t.q('newbud') as number) - before).toBeCloseTo(0.12 * NEWBUD_MAX + 500, 9)
   })
 
-  it('healing counts only the HP restored, and not for Netherwing', () => {
+  it('healing counts the overheal too (settled in game, 2026-11-15): a full-HP ally healed 500 gives 500 Newbud', () => {
     const t = setup()
+    expect(hp(t, 'a')).toBe(t.battle.party.get('a').maxHp)
     t.battle.party.heal('a', 500, 'b')
-    expect(t.q('newbud')).toBe(0)
+    expect(t.q('newbud')).toBe(500)
+  })
+
+  it('a heal that is part restored and part overheal gives the whole of it, and the 12% cap per ally holds for overheal', () => {
+    const t = setup()
+    t.battle.party.consumeHp('a', 100, 'a')
+    const before = t.q('newbud') as number
+    // 100 restored + 600 over.
+    t.battle.party.heal('a', 700, 'b')
+    expect((t.q('newbud') as number) - before).toBe(700)
+    // Full-HP allies healed enormously: each gives exactly 12% of the maximum.
+    const u = setup()
+    for (const id of ['a', 'b']) u.battle.party.heal(id, 1_000_000, 'cas')
+    expect(u.q('newbud')).toBeCloseTo(2 * 0.12 * NEWBUD_MAX, 9)
   })
 })
 

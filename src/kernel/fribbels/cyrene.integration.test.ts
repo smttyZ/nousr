@@ -154,15 +154,15 @@ describe('Cyrene: single actions equal Fribbels', () => {
     }
   })
 
-  it('the enhanced Basic ATK and Minuet (with the Ode on her) price at the kernel hit for the live switches', () => {
+  it('the enhanced Basic ATK and Minuet (Ode to Ego always on) price at the kernel hit for the live switches', () => {
     const eidolon = 2
-    const t = setup(eidolon, ['cyrene', 'attack'], 8)
+    const t = setup(eidolon, ['hya', 'attack'], 8)
     t.battle.run()
     const demiurgeIndex = t.log.findIndex((l) => l.actor === DEMI && l.action === 'minuet')
     expect(demiurgeIndex).toBeGreaterThan(0)
 
-    // Enhanced Basic ATK: the first one after the Ultimate. Switches: Demiurge on the field, the Zone with no limit, the Ode on her
-    // (Blank is gained by it), and the Ode's own target count for the Zone's E2 stacks (herself: 1).
+    // Enhanced Basic ATK: the first one after the Ultimate. Switches: Demiurge on the field, the Zone with no limit, and Ode to Ego on
+    // from the start (Blank comes from the Ode on hya).
     const enhancedRequests = t.requests.filter((r) => r.attacker.characterId === CYRENE_KERNEL_ID && r.attacker.characterConditionals?.memospriteActive === true)
     expect(enhancedRequests.length).toBeGreaterThan(0)
     const enhancedHit = kernel.actionDamage(enhancedRequests[0]!).hits.BASIC![0]!

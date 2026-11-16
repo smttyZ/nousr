@@ -651,3 +651,20 @@ describe('the additional flag on a part', () => {
     expect(run(true)).toBe(run(false))
   })
 })
+
+describe('technique per member (K31)', () => {
+  const told: Record<string, boolean> = {}
+  const Spy: Kit = {
+    ...Striker,
+    create: (battle, self) => ({ ...Striker.create(battle, self), onBattleStart: ({ techniques }) => { told[self.key] = techniques } }),
+  }
+  const spy = (key: string, technique?: boolean): MemberSetup => ({ ...striker(key), kit: Spy, ...(technique !== undefined && { technique }) })
+
+  it('a member without a setting gets the battle default; a member with one gets its own', () => {
+    const members = [spy('a'), spy('b', true), spy('c', false)]
+    for (const techniques of [true, false]) {
+      battle({ members, policy: members.map((m) => ({ unit: m.key, use: 'basic' as const, when: [] })), start: { energy: 0, skillPoints: 3, techniques } }).b.run()
+      expect(told).toEqual({ a: techniques, b: true, c: false })
+    }
+  })
+})

@@ -109,10 +109,12 @@ describe('Along the Passing Shore', () => {
     expect(battle.run().actions[0]!.debuffed).toEqual([])
   })
 
-  it('the first hit of an attack is priced without the bonus, a later part of the same action with it', () => {
+  it('the hit that applies Mirage Fizzle already gets the bonus: the first hit and a later part of the action are both priced with it (settled in game, 2026-11-15)', () => {
     const { kernel, requests } = recordingKernel()
     battleOf([member('a', prober(2), lc(AlongThePassingShore))], [rule('a', 'basic')], kernel, { cycles: 1 }).run()
-    expect(requests.map((r) => r.attacker.lightConeConditionals)).toEqual([{ emptyBubblesDebuff: false }, { emptyBubblesDebuff: true }])
+    // (Identical requests are asked once, so there may be one; the old reading asked for the first hit without the bonus first.)
+    expect(requests.length).toBeGreaterThan(0)
+    for (const r of requests) expect(r.attacker.lightConeConditionals).toEqual({ emptyBubblesDebuff: true })
   })
 
   it('is one Mirage Fizzle per enemy however many attacks the action has: refreshed, one debuff, chance 1', () => {
@@ -163,7 +165,7 @@ describe('Along the Passing Shore', () => {
       expect(battle.debuffChance('enemy1')).toBeCloseTo(chance, 12)
     })
 
-    it('the next hit is priced in both states, weighted by the chance: 24% DMG counts at that chance', () => {
+    it('every hit, the one that applies the Fizzle included, gets the full 24% DMG whatever the chance the bounce landed (settled in game, 2026-11-15)', () => {
       const requests: DamageRequest[] = []
       const kernel: DamageKernel = {
         actionDamage(request) {
@@ -180,10 +182,9 @@ describe('Along the Passing Shore', () => {
       const actions = battle.member('a').instance.actions
       actions.basic!.use()
       actions.basic!.use()
-      const p = 1 - (2 / 3) ** 3
-      // The first action met no Fizzle; the second one prices enemy1 with it at chance p (3 hits split over 3 enemies: 1000 per enemy).
-      expect(dealt[0]).toBeCloseTo(1000, 6)
-      expect(dealt[1]).toBeCloseTo(1000 * (1 + 0.24 * p), 6)
+      // 3 hits split over 3 enemies: 1000 per enemy, and 1.24 times that in both actions.
+      expect(dealt[0]).toBeCloseTo(1240, 6)
+      expect(dealt[1]).toBeCloseTo(1240, 6)
     })
   })
 
@@ -194,16 +195,23 @@ describe('Along the Passing Shore', () => {
   })
 
   it('lasts 1 turn of the enemy: the next action meets it gone once the enemy has acted, and still up if not', () => {
-    // The wearer is far faster than the enemy (generic enemy SPD 158.4), so it acts twice before the enemy does.
-    const { kernel, requests } = recordingKernel()
-    battleOf([member('a', prober(1), lc(AlongThePassingShore), 1000)], [rule('a', 'basic')], kernel, { cycles: 1 }).run()
-    const flags = requests.map((r) => r.attacker.lightConeConditionals!.emptyBubblesDebuff)
-    expect(flags[0]).toBe(false)
-    expect(flags[1]).toBe(true) // second action, the enemy has not had a turn
-    const slow = recordingKernel()
+    // The wearer is far faster than the enemy (generic enemy SPD 158.4), so it acts twice before the enemy does. The debuff is read
+    // at the start of each of the wearer's turns.
+    const upAtTurnStart = (baseSpd: number, cycles: number): boolean[] => {
+      const { kernel } = recordingKernel()
+      const battle = battleOf([member('a', prober(1), lc(AlongThePassingShore), baseSpd)], [rule('a', 'basic')], kernel, { cycles })
+      const seen: boolean[] = []
+      battle.timeline.bus.on('turnStart', (turn) => {
+        if (turn.unit === 'a') seen.push(battle.debuffCount('enemy1') > 0)
+      })
+      battle.run()
+      return seen
+    }
+    const fast = upAtTurnStart(1000, 1)
+    expect(fast[0]).toBe(false)
+    expect(fast[1]).toBe(true) // second action, the enemy has not had a turn
     // The enemy acts between every action of a slow wearer.
-    battleOf([member('a', prober(1), lc(AlongThePassingShore), 50)], [rule('a', 'basic')], slow.kernel, { cycles: 3 }).run()
-    expect(slow.requests.map((r) => r.attacker.lightConeConditionals!.emptyBubblesDebuff).every((f) => f === false)).toBe(true)
+    expect(upAtTurnStart(50, 3).every((up) => !up)).toBe(true)
   })
 
   it('feeds Acheron\'s talent: each action gives her a Slashed Dream and a Crimson Knot, which an unequipped Acheron does not get', () => {

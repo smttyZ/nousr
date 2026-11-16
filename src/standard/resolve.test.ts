@@ -223,25 +223,61 @@ describe('the SPD rule (K14e): SPD passes its cap only as far as the target need
   })
 })
 
-describe('swapping the SPD boots away (K14f): the rolls stay and the run says how far short', () => {
-  it('Acheron on ATK% boots: SPD rolls unchanged, SPD down by the boots, target missed by the difference', () => {
+describe('swapping the SPD boots away (K32 solves SPD; K14f when no count reaches the target)', () => {
+  it('Acheron on ATK% boots: SPD is re-solved to 13 rolls (the fewest that reach 133.34), taken from the lowest priority', () => {
     const { report, build } = resolve({ mainStats: { Feet: 'ATK%' } })
-    expect(report.path).toBe('file')
-    expect(report.distributed.SPD).toBe(2)
+    expect(report.distributed.SPD).toBe(13)
+    expect(report.distributed).toMatchObject({ 'CRIT DMG': 11, 'CRIT Rate': 0 })
+    expect(report.spdSolved).toEqual({
+      fileRolls: 2, usedRolls: 13, reachable: true,
+      moves: [{ from: 'CRIT Rate', to: 'SPD', rolls: 10 }, { from: 'CRIT DMG', to: 'SPD', rolls: 1 }],
+      moveText: ['10 CRIT Rate -> SPD', '1 CRIT DMG -> SPD'],
+    })
     expect(build.feet).toBe('ATK%')
-    expect(report.spd?.outOfCombat).toBeCloseTo(135.232 - 25.032, 9)
-    expect(report.spd?.missedBy).toBeCloseTo(133.34 - 110.2, 9)
+    expect(report.spd?.outOfCombat).toBeCloseTo(101 + 13 * 2.3 + 2 * 2.3, 9)
+    expect(report.spd?.missedBy).toBeUndefined()
     expect(report.swaps).toEqual([{ slot: 'Feet', from: 'SPD', to: 'ATK%' }])
   })
 
-  it('and SPD boots onto a build without them are not re-solved either', () => {
-    const noBoots = resolveStandardBuild(acheron(), { override: { mainStats: { Feet: 'ATK%' } }, spd: acheronSpd })
-    expect(noBoots.build.substatRolls.SPD).toBe(4)
-    // The comparison "what do SPD boots buy": same rolls, +25.032.
-    const boots = resolve()
-    expect(boots.report.spd!.outOfCombat - noBoots.report.spd!.outOfCombat).toBeCloseTo(25.032, 9)
+  it('a target no SPD rolls reach: SPD keeps the count in the file held to the plain cap, and the target is missed by the difference', () => {
+    const weak = () => 100 // nothing a roll buys reaches 133.34
+    const { report } = resolve({ mainStats: { Feet: 'ATK%' } }, weak)
+    expect(report.spdSolved).toMatchObject({ fileRolls: 2, usedRolls: 2, reachable: false, moves: [] })
+    expect(report.distributed.SPD).toBe(2)
+    expect(report.spd?.missedBy).toBeCloseTo(33.34, 9)
   })
 
+  it('SPD boots solve down: Cyrene-like freed rolls go to the top of the priority, up to the caps', () => {
+    // Acheron with a light cone worth +20 SPD: boots 25.032 + 20 leaves 101 + 45.032 = 146 already, so 0 rolls reach 133.34.
+    const { report } = resolve(undefined, (b) => acheronSpd(b) + 20)
+    expect(report.spdSolved).toMatchObject({ fileRolls: 2, usedRolls: 0, reachable: true, moveText: ['2 SPD -> ATK%'] })
+    // CRIT DMG (12 of cap 12) and CRIT Rate (10 of cap 10) are full, so the 2 freed rolls go to ATK%.
+    expect(report.distributed.SPD).toBe(0)
+  })
+
+  it('a split the scenario gives is not solved (K14c): SPD boots away with an explicit split still misses', () => {
+    const { report } = resolve({ mainStats: { Feet: 'ATK%' }, distributed: { SPD: 2, 'CRIT DMG': 12, 'CRIT Rate': 10 } })
+    expect(report.path).toBe('explicit')
+    expect(report.spdSolved).toBeUndefined()
+    expect(report.distributed.SPD).toBe(2)
+    expect(report.spd?.missedBy).toBeCloseTo(133.34 - 110.2, 9)
+  })
+
+  it('"none" keeps the SPD rolls of the file, and so does a missing probe', () => {
+    const tribbie = loadStandardBuild('1403', 0)
+    expect(resolveStandardBuild(tribbie, { spd: spdOf(96) }).report.spdSolved).toBeUndefined()
+    expect(resolveStandardBuild(acheron()).report.spdSolved).toBeUndefined()
+  })
+
+  it('the SPD count in the file is replaced by the solved one: 6 rolls in the file still run with the fewest', () => {
+    const file = parseStandardBuild(
+      { ...loadStandardBuildJson(), distributed: { rolls: { SPD: 6, 'CRIT DMG': 8, 'CRIT Rate': 10 }, priority: ['CRIT DMG', 'CRIT Rate', 'ATK%', 'ATK'] } },
+      'inline.json',
+    )
+    const { report } = resolveStandardBuild(file, { spd: acheronSpd })
+    expect(report.spdSolved).toMatchObject({ fileRolls: 6, usedRolls: 2, moveText: ['4 SPD -> CRIT DMG'] })
+    expect(report.distributed).toMatchObject({ SPD: 2, 'CRIT DMG': 12, 'CRIT Rate': 10 })
+  })
 })
 
 /** The Acheron file as JSON, for building variants. */

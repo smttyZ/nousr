@@ -4,9 +4,9 @@ import { parseScenario, ScenarioError } from './load'
 import type { ScenarioFile } from './types'
 
 const team = new Set(['castorice', 'cyrene', 'hyacine', 'robin'])
-const resolve = (character: string, given: Record<string, unknown>) => {
+const resolve = (character: string, given: Record<string, unknown>, self = character === '1415' ? 'cyrene' : 'castorice') => {
   const problems: string[] = []
-  const options = resolveKitOptions(character, given, team, 'here', problems)
+  const options = resolveKitOptions(character, given, team, self, 'here', problems)
   return { options, problems }
 }
 
@@ -51,9 +51,9 @@ describe('resolving a member\'s kit options', () => {
   })
 
   it('Cyrene: an order of member keys and "attack"; after_order defaults to attack; the order has no fixed default', () => {
-    const { options, problems } = resolve('1415', { demiurge_order: ['hyacine', 'castorice', 'robin', 'cyrene', 'attack'] })
+    const { options, problems } = resolve('1415', { demiurge_order: ['hyacine', 'castorice', 'robin', 'attack'] })
     expect(problems).toEqual([])
-    expect(options).toEqual({ demiurge_order: ['hyacine', 'castorice', 'robin', 'cyrene', 'attack'], after_order: 'attack' })
+    expect(options).toEqual({ demiurge_order: ['hyacine', 'castorice', 'robin', 'attack'], after_order: 'attack' })
     expect(defaultKitOptions('1415')).toEqual({ after_order: 'attack' })
   })
 
@@ -61,6 +61,19 @@ describe('resolving a member\'s kit options', () => {
     expect(resolve('1415', { demiurge_order: ['hyacine', 'evernight'] }).problems).toEqual([
       'here: kit_options.demiurge_order[1] is "evernight", which is not a member key of this team or "attack"',
     ])
+  })
+
+  it('Cyrene: her own key is refused in demiurge_order (the Ode cannot target her), with its position and a clear message', () => {
+    expect(resolve('1415', { demiurge_order: ['hyacine', 'cyrene', 'attack'] }).problems).toEqual([
+      "here: kit_options.demiurge_order[1] is \"cyrene\", this member's own key, which this option does not allow (it must name another member of the team)",
+    ])
+    expect(resolve('1415', { demiurge_order: ['hyacine', 'cyrene'] }).options).toBeUndefined()
+  })
+
+  it('exclude_self is about the member carrying the options: the same key is fine on another member, and the schema says so', () => {
+    expect(resolve('1415', { demiurge_order: ['cyrene', 'attack'] }, 'someone-else').problems).toEqual([])
+    const items = ((KIT_OPTION_SCHEMAS.get('1415')!.properties as Record<string, { items: Record<string, unknown> }>).demiurge_order!).items
+    expect(items['x-nousr-domain']).toMatchObject({ member_keys: true, exclude_self: true })
   })
 
   it('a character with no options schema takes none', () => {
@@ -92,11 +105,11 @@ describe('in a scenario', () => {
 
   it('resolves to the filled options and remembers which ones the scenario gave; checks keys against the whole team', () => {
     const scenario = parseScenario(file([
-      member('cyrene', '1415', { kit_options: { demiurge_order: ['castorice', 'cyrene'] } }),
+      member('cyrene', '1415', { kit_options: { demiurge_order: ['castorice', 'attack'] } }),
       member('castorice', '1407'),
     ]))
     const [cyrene, castorice] = scenario.teams[0]!.members
-    expect(cyrene!.kitOptions).toEqual({ demiurge_order: ['castorice', 'cyrene'], after_order: 'attack' })
+    expect(cyrene!.kitOptions).toEqual({ demiurge_order: ['castorice', 'attack'], after_order: 'attack' })
     expect(cyrene!.kitOptionsGiven).toEqual(['demiurge_order'])
     expect(castorice!.kitOptions).toEqual({ netherwing_finish_turn: 1 })
     expect(castorice!.kitOptionsGiven).toEqual([])
@@ -108,6 +121,13 @@ describe('in a scenario', () => {
     expect(() => parseScenario(file([member('acheron', '1308', { kit_options: { x: 1 } })]))).toThrow(
       /team "t", member "acheron": kit_options given, but character 1308 takes none/,
     )
+  })
+
+  it('a scenario whose Cyrene names herself in demiurge_order is refused, naming the team and member', () => {
+    expect(() => parseScenario(file([
+      member('cyrene', '1415', { kit_options: { demiurge_order: ['castorice', 'cyrene'] } }),
+      member('castorice', '1407'),
+    ]))).toThrow(/team "t", member "cyrene": kit_options\.demiurge_order\[1\] is "cyrene", this member's own key/)
   })
 
   it('kit_options must be an object', () => {

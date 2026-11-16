@@ -73,14 +73,22 @@ export interface StandardBuildReport {
   /** Fixed plus distributed rolls per type (all 12): what the kernel gets. */
   totals: Record<Substat, number>
   /**
-   * How the split came about: `file` (the file's, as is), `re-split` (a main-stat swap moved rolls
-   * by the published rule, K14c) or `explicit` (the scenario gave a whole split).
+   * How the split came about: `file` (the file's, apart from the SPD rolls solved at load, see `spdSolved`),
+   * `re-split` (a main-stat swap moved rolls by the published rule, K14c) or `explicit` (the scenario gave a
+   * whole split, taken as given).
    */
   path: 'file' | 're-split' | 'explicit'
   /** The re-split's moves, in the order made. Empty unless `path` is `re-split`. */
   moves: { from: Substat, to: Substat, rolls: number }[]
   /** The same moves as sentences, e.g. "2 CRIT DMG -> CRIT Rate". */
   moveText: string[]
+  /**
+   * K32: set when the loader solved the SPD rolls (a numeric `spd_target`, an SPD probe, no explicit split).
+   * `fileRolls` is the file's count, `usedRolls` what the build runs with: the fewest that reach the target, or,
+   * when `reachable` is false, the file's count held to the SPD cap (the run then carries `spd-target-missed`).
+   * `moves` are the rolls that went to or came from SPD along `distributed.priority`.
+   */
+  spdSolved?: { fileRolls: number, usedRolls: number, reachable: boolean, moves: { from: Substat, to: Substat, rolls: number }[], moveText: string[] }
   /** Main stats the scenario changed: slot, the file's value and the new one. */
   swaps: { slot: FreeSlot, from: string, to: string }[]
   /** Only when the resolver was given an SPD probe. `missedBy` is set only when the target is a number and was not reached. */

@@ -37,7 +37,8 @@ export interface ResolveOptions {
  * and a report of what was used. The order is the one in docs/proposals/scenario-standard-build-override.md:
  * the file's sets, main stats and split; the main-stat swaps; an explicit split, or else the published re-split;
  * then the checks (24 rolls, every cap, the SPD rule) with an error naming the file and the rule. Nothing is
- * fixed silently, and the SPD rolls are never moved (K14f).
+ * fixed silently. K32: with an SPD probe, a numeric target and no explicit split, the SPD rolls are solved here (the
+ * fewest that reach the target for this build), and the rolls that frees or needs move along `distributed.priority`.
  */
 export function resolveStandardBuild(build: StandardBuild, options: ResolveOptions = {}): ResolvedStandardBuild {
   const { override } = options
@@ -68,6 +69,8 @@ export function resolveStandardBuild(build: StandardBuild, options: ResolveOptio
   let rolls: Record<Substat, number>
   let path: StandardBuildReport['path'] = 'file'
   let moves: StandardBuildReport['moves'] = []
+  let spdSolved: StandardBuildReport['spdSolved']
+  const forKernelWith = (split: Record<Substat, number>) => (spdRolls: number): BenchmarkBuild => benchmarkBuild(build, mainStats, { ...split, SPD: spdRolls })
   if (override?.distributed !== undefined) {
     rolls = explicitSplit(override.distributed, build.source, problems)
     path = 'explicit'
@@ -76,6 +79,11 @@ export function resolveStandardBuild(build: StandardBuild, options: ResolveOptio
     if (swaps.length > 0) {
       moves = resplit(rolls, build, mainStats, problems)
       if (moves.length > 0) path = 're-split'
+    }
+    // K32: the SPD rolls are solved for the actual light cone and main stats, not read from the file.
+    const target = build.spdTarget.value
+    if (options.spd && target !== 'none') {
+      spdSolved = solveSpd(rolls, build, mainStats, target, options.spd, forKernelWith(rolls), problems)
     }
   }
   if (problems.length > 0) throw new StandardBuildError(problems)
@@ -93,7 +101,7 @@ export function resolveStandardBuild(build: StandardBuild, options: ResolveOptio
       fail('rule (b) per-stat cap', `${where} gives ${stat} ${rolls[stat]} rolls, over its cap of ${cap} with the main stats ${describeMains(mainStats)}`)
     }
   }
-  const forKernel = (spdRolls: number): BenchmarkBuild => benchmarkBuild(build, mainStats, { ...rolls, SPD: spdRolls })
+  const forKernel = forKernelWith(rolls)
   checkSpd(build, mainStats, rolls.SPD, where, options.spd, forKernel, fail)
   if (problems.length > 0) throw new StandardBuildError(problems)
 
@@ -112,6 +120,7 @@ export function resolveStandardBuild(build: StandardBuild, options: ResolveOptio
     moves,
     moveText: moves.map((m) => `${m.rolls} ${m.from} -> ${m.to}`),
     swaps,
+    ...(spdSolved && { spdSolved }),
   }
   if (options.spd) {
     const outOfCombat = options.spd(benchmark)
@@ -234,6 +243,64 @@ function checkSpd(
             : `reaching spd_target ${target}, which takes ${needed} with these main stats`),
     )
   }
+}
+
+/**
+ * K32. Sets `rolls.SPD` to the fewest distributed SPD rolls that reach `target` with the build's actual light cone (the
+ * probe) and main stats, and moves the difference along the file's priority: rolls SPD no longer needs go to the
+ * first stats in the list with room under their caps (K14c's order and cap), rolls it needs come from the last stats in
+ * the list that have any. A target that no count up to the 24 distributed rolls reaches is left unreached: SPD keeps the
+ * file's count held to the plain SPD cap (K14f's "run at the resulting SPD"), and the run says it was missed.
+ * Changes `rolls` in place.
+ */
+function solveSpd(
+  rolls: Record<Substat, number>,
+  build: StandardBuild,
+  mainStats: MainStats,
+  target: number,
+  probe: SpdProbe,
+  forKernel: (spdRolls: number) => BenchmarkBuild,
+  problems: string[],
+): NonNullable<StandardBuildReport['spdSolved']> {
+  const limit = Math.min(physicalLimit('SPD', mainStats) - FIXED_ROLLS_PER_STAT, DISTRIBUTED_ROLLS)
+  const fewest = fewestSpdRolls(target, probe, forKernel, limit)
+  const reachable = fewest !== undefined
+  const fileRolls = rolls.SPD
+  const usedRolls = reachable ? fewest : Math.min(fileRolls, capFor('SPD', mainStats))
+  const moves: StandardBuildReport['moves'] = []
+  let delta = usedRolls - fileRolls
+  if (delta < 0) {
+    let spare = -delta
+    for (const stat of build.priority) {
+      const moved = Math.min(spare, capFor(stat, mainStats) - rolls[stat])
+      if (moved <= 0) continue
+      rolls[stat] += moved
+      rolls.SPD -= moved
+      spare -= moved
+      moves.push({ from: 'SPD', to: stat, rolls: moved })
+      if (spare === 0) break
+    }
+    if (spare > 0) {
+      problems.push(
+        `${build.source}: SPD needs only ${usedRolls} distributed rolls, but ${spare} of the ${-delta} it frees fit no stat in distributed.priority ` +
+          `(${build.priority.join(', ')}) under its cap. Give the split yourself in standard_build.distributed`,
+      )
+    }
+  } else if (delta > 0) {
+    for (const stat of [...build.priority].reverse()) {
+      const moved = Math.min(delta, rolls[stat])
+      if (moved <= 0) continue
+      rolls[stat] -= moved
+      rolls.SPD += moved
+      delta -= moved
+      moves.push({ from: stat, to: 'SPD', rolls: moved })
+      if (delta === 0) break
+    }
+    if (delta > 0) {
+      problems.push(`${build.source}: SPD needs ${usedRolls} distributed rolls, but ${delta} of them cannot come from the stats in distributed.priority (${build.priority.join(', ')})`)
+    }
+  }
+  return { fileRolls, usedRolls, reachable, moves, moveText: moves.map((m) => `${m.rolls} ${m.from} -> ${m.to}`) }
 }
 
 /** The fewest distributed SPD rolls that bring the build's out-of-combat SPD to `target`, or undefined if even `limit` falls short. */

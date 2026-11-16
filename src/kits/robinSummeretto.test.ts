@@ -144,7 +144,7 @@ function toFever(t: Setup, eidolon = 0) {
 const robinMate = (r: DamageRequest) => r.teammates.find((m) => m.characterId === '1512')!.characterConditionals!
 
 describe('Skill and Summer Songbirds', () => {
-  it('Skill costs a Skill Point, gives 30 energy and summons Bessie, an untargetable memosprite with 70% of her HP and SPD 180%', () => {
+  it('Skill costs a Skill Point, gives 30 energy and summons Bessie, a memosprite enemies can target, with 70% of her HP and SPD 180%', () => {
     const t = setup()
     const sp = t.battle.skillPoints
     use(t.battle, 'robin', 'skill')
@@ -155,7 +155,7 @@ describe('Skill and Summer Songbirds', () => {
     expect(t.battle.ownerOf(id)).toBe('robin')
     const body = t.battle.party.get(id)
     expect(body.maxHp).toBeCloseTo(0.7 * ROBIN_HP, 9)
-    expect(body.targetable).toBe(false)
+    expect(body.targetable).toBe(true)
     expect(t.battle.timeline.spd(id)).toBeCloseTo(1.8 * 100, 9)
     // 30 (Skill) + 20 (summoned).
     expect(t.battle.party.get('robin').energy).toBeCloseTo(50, 9)
@@ -168,11 +168,27 @@ describe('Skill and Summer Songbirds', () => {
     expect(t.actions.some((a) => a.actor === songbirdsId('robin'))).toBe(false)
   })
 
-  it('another Skill with Songbirds out gives 6 Vibes and summons no new unit', () => {
+  it('another Skill with Songbirds out restores their HP by 100% of their Max HP (110% from E3)', () => {
+    for (const [e, share] of [[0, 1], [3, 1.1]] as const) {
+      const t = setup(e)
+      use(t.battle, 'robin', 'skill')
+      const id = songbirdsId('robin')
+      const max = t.battle.party.get(id).maxHp
+      t.battle.party.takeDamage(id, 0.9 * max, 'enemy')
+      const healed: number[] = []
+      t.battle.timeline.bus.on('healed', (h) => { if (h.unit === id) healed.push(h.amount + h.overheal) })
+      use(t.battle, 'robin', 'skill')
+      expect(t.battle.party.get(id).hp).toBeCloseTo(max, 6)
+      expect(healed[0]).toBeCloseTo(share * max, 6)
+    }
+  })
+
+  it('another Skill with Songbirds out gives 6 Vibes, plus 1 for its heal on them, and summons no new unit', () => {
     const t = setup()
     use(t.battle, 'robin', 'skill')
     use(t.battle, 'robin', 'skill')
-    expect(t.q('vibes')).toBe(6)
+    // 6 from the Skill, 1 from the Skill's heal on the Songbirds (an ally that heals gives a Vibe; IN-GAME CHECK).
+    expect(t.q('vibes')).toBe(7)
     expect(t.q('songbirds')).toBe(2)
     expect(t.battle.memospritesOf('robin')).toHaveLength(1)
   })

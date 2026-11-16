@@ -93,6 +93,16 @@ export interface TeamPlan {
   standardBuilds: MemberStandardBuild[]
   /** One per member whose kit takes options (K25, K26). */
   kitOptions: MemberKitOptions[]
+  /** One per member: whether the technique was used before the battle (K31). */
+  techniques: MemberTechnique[]
+}
+
+/** Whether a member used their technique, and whether the scenario said so for this member or the battle default decided. */
+export interface MemberTechnique {
+  member: string
+  used: boolean
+  /** True when the member's own `technique` decided; false when `battle.start.techniques` did. */
+  given: boolean
 }
 
 /** The kit options a member ran with (defaults filled in), and which of them came from defaults. */
@@ -116,6 +126,8 @@ export interface TeamRun {
   standardBuilds: MemberStandardBuild[]
   /** The kit options each member ran with (K25, K26). */
   kitOptions: MemberKitOptions[]
+  /** Which members used their technique before the battle (K31). */
+  techniques: MemberTechnique[]
 }
 
 /** Everything that stops a team from being run, reported together. */
@@ -154,6 +166,7 @@ export function runScenario(scenario: Scenario, options: RunOptions): TeamRun[] 
       warnings: [...plan.warnings, ...result.warnings.map((w): RunWarning => ({ ...w, team, enemyCount }))],
       standardBuilds: plan.standardBuilds,
       kitOptions: plan.kitOptions,
+      techniques: plan.techniques,
     }
   })
 }
@@ -233,6 +246,7 @@ function buildSetup(
     },
     warnings,
     standardBuilds,
+    techniques: team.members.map((m): MemberTechnique => ({ member: m.key, used: m.technique, given: m.techniqueGiven })),
     kitOptions: team.members.flatMap((m): MemberKitOptions[] => (m.kitOptions === undefined ? [] : [kitOptionsEcho(m)])),
   }
 }
@@ -303,6 +317,7 @@ function memberSetup(
     kit: kit!,
     eidolon: member.eidolon,
     affinitiveEidolon: member.affinitiveEidolon,
+    technique: member.technique,
     stats: {
       maxHp: basic.HP,
       def: basic.DEF,
@@ -351,14 +366,15 @@ function standardBuildFor(
     const spd = report.spd
     if (spd?.missedBy !== undefined) {
       const swapped = report.swaps.map((s) => `${s.slot} ${s.from} -> ${s.to}`)
-      const rolls = report.path === 'explicit' ? 'the scenario gave the split' : "the file's SPD rolls stay as they are"
+      const after = swapped.length > 0 ? ` after the main-stat change (${swapped.join(', ')})` : ''
+      const head = `The standard build's SPD target ${spd.target} is missed by ${spd.missedBy.toFixed(2)}: the build has ${spd.outOfCombat.toFixed(2)} out of combat${after}. `
+      const tail = report.spdSolved
+        ? `No number of distributed SPD rolls reaches it, so the build runs with ${report.spdSolved.usedRolls} (K32, K14f).`
+        : `The distributed rolls were not re-solved for it (${report.path === 'explicit' ? 'the scenario gave the split' : "the file's SPD rolls stay as they are"}, K14f).`
       warnings.push({
         severity: 'warning',
         code: 'spd-target-missed',
-        message:
-          `The standard build's SPD target ${spd.target} is missed by ${spd.missedBy.toFixed(2)}: the build has ${spd.outOfCombat.toFixed(2)} out of combat` +
-          `${swapped.length > 0 ? ` after the main-stat change (${swapped.join(', ')})` : ''}. The distributed rolls were not re-solved for it ` +
-          `(${rolls}, K14f).`,
+        message: head + tail,
         team: team.id,
         member: member.key,
       })

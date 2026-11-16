@@ -14,11 +14,15 @@ import type { Kit, KitInstance, TeammateState } from './kit'
  *   start of her turns (the application turn does not count: it is up for her next two turn starts). While the Zone is up every
  *   instance of DMG an ally target deals is followed by True DMG of 24% (E5: 26.4%) of it; Fribbels prices that as a TRUE_DMG_MODIFIER
  *   on every ally's hits (`zoneActive`), memosprite hits included (they are priced as their owner's).
- * - Ultimate (Verse Vow Infinity): once per battle, needs 24 Recollection. Summons Demiurge, which takes 1 extra turn at once, fills
+ * - Ultimate (Verse Vow Infinity): once per battle, needs 24 Recollection and spends 12 of it (the rest stays). Summons Demiurge, which takes 1 extra turn at once, fills
  *   every teammate's energy (decided by Smitty 2026-11-15: "activates all teammates' Ultimate"; the team policy casts them), starts
  *   "Ripples of Past Reverie" (below), CRIT Rate +50% (E3: 55%) for her and Demiurge, and deploys the Zone with no duration limit.
- *   Reunion at First Sight (the Ultimate inside Ripples): costs 12 Recollection, Demiurge takes 1 extra turn. Both are Ultimates, used
- *   by the policy's ultimate rule.
+ *   Reunion at First Sight (the Ultimate inside Ripples): needs 12 Recollection and spends 12, Demiurge takes 1 extra turn. Both are
+ *   Ultimates, used by the policy's ultimate rule. The teammates' Ultimates the energy fill activates come BEFORE Demiurge's extra
+ *   turn (settled by Smitty in game, 2026-11-15): they are cast in the same Ultimate window, which the battle runs to the end before
+ *   the timeline gives the extra turn, and again before Demiurge's turn starts (`Battle.takeTurn`'s memosprite branch).
+ * - Ode to Ego is always on (settled by Smitty in game, 2026-11-15): every Minuet gets the bounces, 1 per different teammate she has gained
+ *   Recollection from, and Story and what E1, E4 and E6 hang on work from the start.
  * - Ripples of Past Reverie: lasts for the rest of the battle (Demiurge never leaves except when she is downed). Her Basic ATK
  *   becomes To Love and Tomorrow (the only Basic ATK, and the Skill cannot be used): +3 Recollection, no Skill Point, 30% (E5: 33%)
  *   of her Max HP to one enemy and then 30% (33%) to all enemies, toughness 30 on the target and 15 on every enemy. Fribbels' BASIC hit
@@ -32,7 +36,7 @@ import type { Kit, KitInstance, TeammateState } from './kit'
  *   - Minuet of Blooms and Plumes: 60% (E3: 66%) of Demiurge's Max HP Ice to all enemies, toughness 30 each, plus Ode to Ego's
  *     bounces (below). Fribbels prices both in one MEMO_SKILL hit (hpScaling = main + bounces x per-bounce multiple); the kit splits
  *     it into an AoE part and a bounce part at their own multiples.
- *   - This Ode, to All Lives: on one ally character. A Chrysos Heir gets their own special effect (`Battle.setCyreneEffect`, which
+ *   - This Ode, to All Lives: on one ally character, never on Cyrene herself (settled by Smitty in game, 2026-11-15). A Chrysos Heir gets their own special effect (`Battle.setCyreneEffect`, which
  *     each heir's kit reads); anyone else gets DMG +40% (E3: 44%) for 2 turns, also on their memosprites.
  * - Traces: Child of Remembrance (a teammate's memosprite holds Future and never spends it), Ripples Across Time (2 / 3 / 6
  *   Recollection at the start of combat with 1 / 2 / 3 other Chrysos Heirs or Remembrance characters), Causality in Trichotomy (SPD of
@@ -46,14 +50,16 @@ import type { Kit, KitInstance, TeammateState } from './kit'
  *   (Fribbels' `e6DefPen`, a DEF PEN), the second and later advance all allies 24%.
  *
  * Recollection, kept by the kit (not in `Party`'s energy: it ignores the scenario's starting energy and Energy Regeneration Rate, and
- * it overflows past its maximum, which `Party` cannot hold). It starts at the trace's value plus 12 at E2, nothing else. Cap 24 + 27 =
- * 51. The Ultimate pays its cost (24 for the first, 12 in Ripples) and keeps the rest. The policy reads it as `cyrene.recollection`.
+ * it overflows past its maximum, which `Party` cannot hold). It starts at the trace's value plus 12 at E2, nothing else (0 + trace, with
+ * the 50% start energy adding nothing: settled by Smitty in game, 2026-11-15). Cap 24 + 27 = 51. The first Ultimate needs 24 and spends
+ * 12, Reunion at First Sight needs 12 and spends 12; the rest stays (settled by Smitty in game, 2026-11-15). The policy reads it as
+ * `cyrene.recollection`; `recollection_cost` is what the next Ultimate needs.
  *
  * Choice turns (Smitty, K26 / K27). Demiurge's extra turns from her Ultimates (the summoning one and each Reunion) are choices;
  * the "Story" extra turns are automatic Minuets. `makeCyrene({ demiurgeOrder, afterOrder })` reads the choices from the list: a member
- * key is This Ode on that member (her own key is the Ode on herself, Ode to Ego), `'attack'` is Minuet. Without a list the placeholder
- * order is every other member in party order, then Cyrene, then `'attack'`, and `kit-option-default-used` is raised the first time it
- * decides. Past the end of the list `afterOrder` applies (`'attack'`, `'repeat'` the last entry, `'cycle'` from the top) and
+ * key is This Ode on that member (never her own key: the Ode cannot target her, so the kit refuses it and the loader rejects it with
+ * `x-nousr-domain.exclude_self`), `'attack'` is Minuet. Without a list the placeholder order is every other member in party order,
+ * then `'attack'`, and `kit-option-default-used` is raised the first time it decides. Past the end of the list `afterOrder` applies (`'attack'`, `'repeat'` the last entry, `'cycle'` from the top) and
  * `kit-option-list-exhausted` is raised, with the count of such turns in the message.
  *
  * IN-GAME CHECK notes mark the readings Smitty will check in game:
@@ -61,18 +67,15 @@ import type { Kit, KitInstance, TeammateState } from './kit'
  *   never consumed, so each Basic/Skill-kind action of a teammate's memosprite is 1 Recollection (Little Ica's and Netherwing's turns,
  *   not Wings Sweep); summons such as Lightning-Lord are not memosprites and hold none. Characters hold one Future at a time: given at
  *   the start of combat and again after each Basic ATK or Skill of hers (her Ultimates are not "taking action").
- * - Recollection: the Ultimate pays its threshold and keeps the overflow (24 first, then 12 each). Recollection is not the party's
- *   energy bar: the scenario's 50% starting energy does not apply to it.
- * - Ode to Ego (the Ode on Cyrene herself) is read as the text has it: an Ode, used on her like any other, and its effects (extra
- *   bounces, Story, and what E1 and E6 hang on) begin only after Demiurge has used it on her, even though she is a Chrysos Heir.
- *   Fribbels assumes the bounces always. The same reading makes "when Demiurge is summoned: 1 Story" unreachable (the Ode cannot be
- *   used before the summoning); it is coded as written for a re-summoning, and "after Cyrene uses Ultimate" gives Story at every
- *   Reunion after the Ode. Story reaching 3 spends all of it for an automatic Minuet extra turn. The bounces are one per different
- *   teammate (characters and their memosprites, never Demiurge, never herself) from whom she has gained Recollection through Future.
+ * - Settled by Smitty in game, 2026-11-15 (no longer checks): Recollection is not the party's energy bar (the 50% start energy adds
+ *   nothing; the Memory of Chaos start is 0 + trace); the first Ultimate needs 24 and spends 12; Reunion needs and spends 12; Ode to Ego is
+ *   always on, with the bounces on every Minuet (1 per different teammate, characters and memosprites, never Demiurge, never herself);
+ *   "This Ode, to All Lives" cannot target her; the first Ultimate gives 2 Story (1 for using the Ultimate, 1 for summoning Demiurge), and
+ *   a Reunion gives 1; at 3 Story all of it is spent for an automatic Minuet extra turn; teammates' Ultimates come before Demiurge's turn.
  * - E1's 6 Recollection and E6's effects come after the Minuet that triggers them (not in the hit that triggers them); Ode to Ego
- *   triggers on every Minuet once it is active, including a Minuet with no bounces (0 teammates counted).
- * - E2's count of "different ally characters" given a Memosprite Skill buff includes Cyrene herself (max 4 is a team of 4), and counts
- *   every Ode target, Chrysos Heir or not.
+ *   triggers on every Minuet, including a Minuet with no bounces (0 teammates counted).
+ * - E2's count of "different ally characters" given a Memosprite Skill buff counts every Ode target, Chrysos Heir or not; Cyrene herself
+ *   can never be one (the Ode cannot target her).
  * - E4: +6 percentage points on the bounce's multiple per earlier Minuet of the battle (Fribbels' form), the stack built after each use.
  * - E6: "all allies" includes Cyrene herself and every memosprite on the timeline. The DEF reduction is Fribbels' DEF PEN and is not
  *   recorded as a debuff on the enemies (nothing that counts debuffs sees it).
@@ -114,7 +117,10 @@ export const isChrysosHeir = (characterId: string): boolean => CHRYSOS_HEIR_IDS.
 const RECOLLECTION_MAX = 24
 const RECOLLECTION_OVERFLOW = 27
 const RECOLLECTION_CAP = RECOLLECTION_MAX + RECOLLECTION_OVERFLOW
-const RIPPLES_COST = 12
+/** What every Ultimate spends (the rest stays). */
+const ULTIMATE_SPEND = 12
+/** What Reunion at First Sight needs. */
+const REUNION_NEED = 12
 const ZONE_TURNS = 2
 const ODE_TURNS = 2
 const STORY_NEEDED = 3
@@ -198,6 +204,9 @@ export function makeCyrene(options: CyreneOptions = {}): Kit {
 
       const teamKeys = battle.members.map((m) => m.key)
       for (const entry of options.demiurgeOrder ?? []) {
+        if (entry === me) {
+          throw new Error(`Cyrene ${me}: demiurge_order names "${entry}", her own key, but "This Ode, to All Lives" cannot target Cyrene herself`)
+        }
         if (entry !== 'attack' && !teamKeys.includes(entry)) {
           throw new Error(`Cyrene ${me}: demiurge_order names "${entry}", which is neither a member of the team (${teamKeys.join(', ')}) nor "attack"`)
         }
@@ -211,7 +220,6 @@ export function makeCyrene(options: CyreneOptions = {}): Kit {
       /** Different ally characters Demiurge has given a Memosprite Skill buff (E2). */
       const odeTargets = new Set<string>()
       let ultsUsed = 0
-      let egoActive = false
       let egoTriggers = 0
       let story = 0
       let minuets = 0
@@ -245,7 +253,8 @@ export function makeCyrene(options: CyreneOptions = {}): Kit {
           .filter((id) => timeline.has(id))
 
       const ripples = (): boolean => demiurgeOn()
-      const egoBounces = (): number => (egoActive ? sources.size : 0)
+      /** Ode to Ego is always on: one bounce per different teammate she has gained Recollection from. */
+      const egoBounces = (): number => sources.size
 
       // ---------------------------------------------------------------- SPD (Causality in Trichotomy)
 
@@ -386,9 +395,8 @@ export function makeCyrene(options: CyreneOptions = {}): Kit {
         hpApplied = 0
       })
 
-      /** One Story (after her Ultimate, or Demiurge's summoning), only once Ode to Ego is on her. Three of them are an extra turn. */
+      /** One Story (after her Ultimate, or Demiurge's summoning). Three of them are an extra turn. */
       const addStory = (): void => {
-        if (!egoActive) return
         story += 1
         if (story >= STORY_NEEDED) {
           story = 0
@@ -396,7 +404,7 @@ export function makeCyrene(options: CyreneOptions = {}): Kit {
         }
       }
 
-      const defaultOrder = (): string[] => [...others().map((m) => m.key), me, 'attack']
+      const defaultOrder = (): string[] => [...others().map((m) => m.key), 'attack']
 
       /** What Demiurge does on its next choice turn. */
       const nextChoice = (): DemiurgeChoice => {
@@ -410,7 +418,7 @@ export function makeCyrene(options: CyreneOptions = {}): Kit {
             member: me,
             message:
               `Cyrene's demiurge_order was not given, so Demiurge's choice turns use the placeholder order (${list.join(', ')}): every other ` +
-              'member in party order, then Cyrene, then attack. Set kit_options.demiurge_order for a real rotation.',
+              'member in party order, then attack. Set kit_options.demiurge_order for a real rotation.',
           })
         }
         const index = choices
@@ -439,17 +447,16 @@ export function makeCyrene(options: CyreneOptions = {}): Kit {
         ode(choice)
       }
 
-      /** Minuet of Blooms and Plumes, with Ode to Ego's bounces once the Ode is on her. */
+      /** Minuet of Blooms and Plumes, with Ode to Ego's bounces (always on). */
       function minuet(): void {
         battle.performAction(demi, 'minuet', 'skill', () => {
           checkSpd()
-          const bounces = egoActive ? egoBounces() + (e >= 1 ? E1_BOUNCES : 0) : 0
+          const bounces = egoBounces() + (e >= 1 ? E1_BOUNCES : 0)
           const bounce = s.minuet + (e >= 4 ? minuets * E4_BOUNCE_PER_STACK : 0)
           const parts: HitPart[] = [{ shape: 'aoe', scaling: s.minuet, hit: 0, toughness: TOUGHNESS_MINUET }]
           if (bounces > 0) parts.push({ shape: 'bounce', scaling: bounce, hits: bounces, hit: 0, toughness: TOUGHNESS_BOUNCE })
           battle.attack({ attacker: me, ability: 'MEMO_SKILL', parts })
           minuets = Math.min(E4_MAX_STACKS, minuets + 1)
-          if (!egoActive) return
           egoTriggers += 1
           if (e >= 1) gain(E1_RECOLLECTION)
           if (e >= 6) {
@@ -465,10 +472,6 @@ export function makeCyrene(options: CyreneOptions = {}): Kit {
           const target = battle.member(key)
           if (party.get(key).downed) return
           odeTargets.add(key)
-          if (key === me) {
-            egoActive = true
-            return
-          }
           const id = target.kernel.unit.characterId
           if (isChrysosHeir(id)) {
             battle.setCyreneEffect(key, true, me)
@@ -503,8 +506,9 @@ export function makeCyrene(options: CyreneOptions = {}): Kit {
 
       // ---------------------------------------------------------------- the Ultimate
 
-      const ultimateCost = (): number => (ripples() ? RIPPLES_COST : RECOLLECTION_MAX)
-      const canUltimate = (): boolean => alive() && recollection + EPSILON >= ultimateCost() && (ripples() || ultsUsed === 0)
+      /** What the next Ultimate needs: 24 for the first, 12 for Reunion at First Sight. It spends 12 either way. */
+      const ultimateNeed = (): number => (ripples() ? REUNION_NEED : RECOLLECTION_MAX)
+      const canUltimate = (): boolean => alive() && recollection + EPSILON >= ultimateNeed() && (ripples() || ultsUsed === 0)
 
       const summonDemiurge = (): void => {
         const her = party.get(me)
@@ -524,7 +528,7 @@ export function makeCyrene(options: CyreneOptions = {}): Kit {
       const useUltimate = (): void =>
         battle.performAction(me, 'ultimate', 'ultimate', () => {
           const first = !ripples()
-          recollection -= ultimateCost()
+          recollection -= ULTIMATE_SPEND
           ultsUsed += 1
           if (first) {
             summonDemiurge()
@@ -532,6 +536,8 @@ export function makeCyrene(options: CyreneOptions = {}): Kit {
             // "Activates all teammates' Ultimate": every teammate's energy is filled (the team policy casts them).
             for (const m of others()) if (!party.get(m.key).downed) party.setEnergy(m.key, party.get(m.key).maxEnergy)
             deployZone(false)
+            // 2 Story: 1 for using the Ultimate and 1 for summoning Demiurge.
+            addStory()
             addStory()
             grantTurn('choice')
             if (e >= 6) for (const id of timelineAllies()) timeline.advance(id, E6_ADVANCE_FIRST)
@@ -549,7 +555,7 @@ export function makeCyrene(options: CyreneOptions = {}): Kit {
         talentDmgBuff: alive(),
         traceSpdBasedBuff: true,
         odeToEgoExtraBounces: Math.min(EGO_BOUNCES_MAX, egoBounces()),
-        e1ExtraBounces: egoActive && e >= 1 ? E1_BOUNCES : 0,
+        e1ExtraBounces: e >= 1 ? E1_BOUNCES : 0,
         e2TrueDmgStacks: e >= 2 ? Math.min(E2_MAX_ALLIES, odeTargets.size) : 0,
         e4BounceStacks: e >= 4 ? minuets : 0,
         e6DefPen: e >= 6 && egoTriggers >= 1 && demiurgeOn(),
@@ -604,12 +610,12 @@ export function makeCyrene(options: CyreneOptions = {}): Kit {
 
         quantities: {
           recollection: () => recollection,
-          recollection_cost: () => ultimateCost(),
+          recollection_cost: () => ultimateNeed(),
           ripples: () => ripples(),
           demiurge: () => demiurgeOn(),
           zone: () => zoneUp(),
           story: () => story,
-          ode_to_ego: () => egoActive,
+          ode_to_ego: () => true,
           ego_sources: () => sources.size,
           choice_turns: () => choices,
         },

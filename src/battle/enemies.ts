@@ -251,6 +251,8 @@ export class Enemies {
 
     for (const { ally, hits, damage } of plan) {
       if (hits <= 0) continue
+      // A memosprite that left earlier in this same attack (its owner downed by an earlier hit) is skipped.
+      if (!this.party.has(ally)) continue
       this.party.takeDamage(ally, damage, enemy)
       // A memosprite defeated by this very attack has left the party: it gains no energy.
       if (this.party.has(ally)) this.party.gainEnergy(ally, hits * attack.energy)

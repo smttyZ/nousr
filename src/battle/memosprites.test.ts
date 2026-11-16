@@ -202,9 +202,9 @@ describe('a memosprite with no SPD', () => {
 })
 
 describe('targetability and aggro shares', () => {
-  it('the default is untargetable for the four named memosprites and targetable for the rest', () => {
-    expect([...UNTARGETABLE_MEMOSPRITES].sort()).toEqual(['demiurge', 'little_ica', 'netherwing', 'summer_songbirds'])
-    for (const [name, targetable] of [['netherwing', false], ['summer_songbirds', false], ['little_ica', false], ['demiurge', false], ['garmentmaker', true]] as const) {
+  it('the default is untargetable for the two named memosprites and targetable for the rest, Little Ica included (seen in game)', () => {
+    expect([...UNTARGETABLE_MEMOSPRITES].sort()).toEqual(['demiurge', 'netherwing'])
+    for (const [name, targetable] of [['netherwing', false], ['summer_songbirds', true], ['little_ica', true], ['demiurge', false], ['garmentmaker', true]] as const) {
       const { battle } = setup({ members: [member('a', ownerKit({ memo: { name, maxHp: 1000, baseAggro: 4 } }), 100)] })
       battle.run()
       expect(battle.party.get('a.memo').targetable, name).toBe(targetable)

@@ -13,7 +13,9 @@ import type { ErrorObject, ValidateFunction } from 'ajv'
  * from its schema alone (`isFiniteOptionSchema`).
  *
  * Two annotation keywords:
- * - `x-nousr-domain: { member_keys: true, values: [...] }` on a string: a member key of the same team, or one of `values`.
+ * - `x-nousr-domain: { member_keys: true, values: [...], exclude_self: true }` on a string: a member key of the same team, or one of
+ *   `values`. `exclude_self` rules out the key of the member that carries the options (Cyrene's "This Ode, to All Lives" cannot
+ *   target her), with a message that says so.
  * - `x-nousr-computed-default: "..."` on an option without a fixed `default`: what the kit uses when the option is absent.
  */
 
@@ -23,6 +25,8 @@ type Schema = Record<string, unknown>
 interface Domain {
   member_keys?: boolean
   values?: string[]
+  /** The member carrying the options is not an allowed member key. */
+  exclude_self?: boolean
 }
 
 const DIR = fileURLToPath(new URL('../../schema/kit-options/', import.meta.url))
@@ -52,12 +56,14 @@ function validatorFor(character: string): ValidateFunction | undefined {
 
 /**
  * Checks one member's `kit_options` and returns them with the schema's defaults filled in, or undefined after pushing the
- * problems. `teamKeys` are the member keys of the member's team.
+ * problems. `teamKeys` are the member keys of the member's team, and `selfKey` is the key of the member that carries the options
+ * (what `x-nousr-domain.exclude_self` refuses).
  */
 export function resolveKitOptions(
   character: string,
   given: KitOptions,
   teamKeys: ReadonlySet<string>,
+  selfKey: string,
   at: string,
   problems: string[],
 ): KitOptions | undefined {
@@ -72,7 +78,7 @@ export function resolveKitOptions(
     return undefined
   }
   const before = problems.length
-  checkDomains(KIT_OPTION_SCHEMAS.get(character)!, options, '', teamKeys, at, problems)
+  checkDomains(KIT_OPTION_SCHEMAS.get(character)!, options, '', teamKeys, selfKey, at, problems)
   return problems.length > before ? undefined : options
 }
 
@@ -86,9 +92,19 @@ export function defaultKitOptions(character: string): KitOptions | undefined {
 }
 
 /** Walks schema and value together through properties and items, checking `x-nousr-domain` strings. */
-function checkDomains(schema: Schema, value: unknown, path: string, teamKeys: ReadonlySet<string>, at: string, problems: string[]): void {
+function checkDomains(
+  schema: Schema,
+  value: unknown,
+  path: string,
+  teamKeys: ReadonlySet<string>,
+  selfKey: string,
+  at: string,
+  problems: string[],
+): void {
   const domain = schema['x-nousr-domain'] as Domain | undefined
-  if (domain && typeof value === 'string') {
+  if (domain && typeof value === 'string' && domain.exclude_self === true && domain.member_keys === true && value === selfKey) {
+    problems.push(`${at}: kit_options${path} is "${value}", this member's own key, which this option does not allow (it must name another member of the team)`)
+  } else if (domain && typeof value === 'string') {
     const ok = (domain.values ?? []).includes(value) || (domain.member_keys === true && teamKeys.has(value))
     if (!ok) {
       const allowed = [...(domain.member_keys ? ['a member key of this team'] : []), ...(domain.values ?? []).map((v) => `"${v}"`)]
@@ -98,11 +114,11 @@ function checkDomains(schema: Schema, value: unknown, path: string, teamKeys: Re
   const properties = schema.properties as Record<string, Schema> | undefined
   if (properties && value !== null && typeof value === 'object' && !Array.isArray(value)) {
     for (const [key, sub] of Object.entries(properties)) {
-      if (key in value) checkDomains(sub, (value as Record<string, unknown>)[key], `${path}.${key}`, teamKeys, at, problems)
+      if (key in value) checkDomains(sub, (value as Record<string, unknown>)[key], `${path}.${key}`, teamKeys, selfKey, at, problems)
     }
   }
   const items = schema.items as Schema | undefined
-  if (items && Array.isArray(value)) value.forEach((v, i) => checkDomains(items, v, `${path}[${i}]`, teamKeys, at, problems))
+  if (items && Array.isArray(value)) value.forEach((v, i) => checkDomains(items, v, `${path}[${i}]`, teamKeys, selfKey, at, problems))
 }
 
 /**

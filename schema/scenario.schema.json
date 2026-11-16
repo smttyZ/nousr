@@ -132,7 +132,7 @@
             "techniques": {
               "type": "boolean",
               "default": true,
-              "description": "Whether every member's technique is used before the battle."
+              "description": "Whether members' techniques are used before the battle. The default for every member; a member's own technique field overrides it (DESIGN.md K31)."
             }
           }
         },
@@ -259,6 +259,10 @@
         "kit_options": {
           "type": "object",
           "description": "Choices about how this character's own mechanics are driven (DESIGN.md K25, K26; docs/proposals/scenario-kit-options.md). The shape belongs to the character's kit and is defined by schema/kit-options/<character id>.schema.json, which the loader checks it against; a character with no such file takes no kit_options. Every option has a finite domain and a default, so an optimizer can search them. The run result echoes the options used, defaults filled in."
+        },
+        "technique": {
+          "type": "boolean",
+          "description": "Whether this member uses their technique before the battle (DESIGN.md K31). Left out, battle.start.techniques decides, so that stays the default for everyone and this overrides it for one member (for example a team that skips a technique). A character with no modelled technique ignores it. The run result echoes, per member, whether the technique was used and whether this field or the default decided."
         },
         "notes": { "$ref": "#/$defs/notes" }
       }

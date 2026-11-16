@@ -9,6 +9,24 @@ This file covers how to work in this repo.
   models, approximations, schema shape, public interfaces, adding a dependency. Busywork is yours: the
   scheduler, transcribing kits from in-game text, tests, plumbing. When a design choice comes up, stop,
   lay out the options with what each one does to results, and ask. Don't pick silently.
+- **Show design questions as mini-demos.** Smitty understands fastest by seeing cause and effect. For each
+  question, use code blocks, short prose, and this order:
+  1. **Today:** a few lines of the current code or pseudo-code.
+  2. **Effect:** what goes wrong, with a worked number.
+  3. **Options:** each as its own small snippet, with one line on what it does to results.
+  4. **Recommendation.**
+
+  A longer proposal doc can follow for the record. Agents and side sessions asking him questions use this
+  format too.
+- **Label every question.** Design questions and permission requests look alike to him. Start each question
+  with one label:
+  - **[Design · big]**: real alternatives that change results (mini-demo format).
+  - **[Design · small]**: real alternatives, low stakes, with a clear recommendation.
+  - **[Go-ahead]**: nothing contested, just permission (commit, push, start a session).
+  - **[In-game]**: needs him to look at the game (also add it to `docs/in-game-checks.md`).
+  - **[FYI]**: no answer needed.
+
+  Agents and side sessions use the labels too.
 - **Narrate steps.** Before each step or command, post a one-line note ("now doing X"). Don't chain
   many actions silently.
 - **Label factual claims** as exactly one of: **Recalled** (from memory, nothing to point to),

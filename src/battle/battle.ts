@@ -76,6 +76,11 @@ export interface MemberSetup {
   kit: Kit
   eidolon: number
   affinitiveEidolon: boolean
+  /**
+   * Whether this member uses their technique before the battle (K31). Left out, `BattleSetup.start.techniques` decides, which is
+   * the default for every member; a scenario run always sets it from the member's resolved `technique`.
+   */
+  technique?: boolean
   /** Out-of-combat stats. In-combat changes come from kits and modifiers. */
   stats: {
     maxHp: number
@@ -131,13 +136,16 @@ export interface SummonSpec {
 
 /**
  * Memosprites whose default is untargetable (DESIGN.md K6, second kind). The key is `MemospriteSpec.name`.
- * - netherwing, summer_songbirds: settled by Smitty (2026-11-14): enemies cannot target them. Netherwing has real HP
- *   (it bears HP loss for allies); Summer Songbirds' HP (70% of Robin's Max HP) only scales their damage and is never lost.
- * - little_ica, demiurge: hsr-simulator marks them "backup", i.e. untargetable. IN-GAME CHECK: can enemies target Little
- *   Ica (Hyacine) and Cyrene's Demiurge? Delete the name from this set to make one targetable.
+ * - netherwing: settled by Smitty (2026-11-14): enemies cannot target it; its in-game status is "Backup" (tooltip, 2026-11-15).
+ *   It has real HP (it bears HP loss for allies).
+ * - summer_songbirds: NOT in the set. Settled by Smitty (2026-11-15): no Backup / Out-of-Bounds tag, and a boss's "Target
+ *   Locked On" and two enemy DoTs were on them in Memory of Chaos. The 2026-11-14 note ("cannot be targeted") was wrong.
+ * - little_ica: NOT in the set. Settled by Smitty (2026-11-15, seen in Memory of Chaos): enemies target Little Ica and hit
+ *   it (hsr-simulator marks it "backup", untargetable; that is wrong).
+ * - demiurge: its own text says it "is considered as Out-of-Bounds" while on the field, and it has no SPD; untargetable.
  * A kit overrides it per memosprite with `MemospriteSpec.targetable`, and `Battle.setMemospriteTargetable` switches it later.
  */
-export const UNTARGETABLE_MEMOSPRITES: Set<string> = new Set(['netherwing', 'summer_songbirds', 'little_ica', 'demiurge'])
+export const UNTARGETABLE_MEMOSPRITES: Set<string> = new Set(['netherwing', 'demiurge'])
 
 /**
  * A memosprite (DESIGN.md, K6, second kind): a party member with its own HP and aggro, and, when it has SPD, a unit on the
@@ -1161,7 +1169,7 @@ export class Battle {
   // ---------------------------------------------------------------- running
 
   run(): BattleResult {
-    for (const member of this.members) member.instance.onBattleStart?.({ techniques: this.setup.start.techniques })
+    for (const member of this.members) member.instance.onBattleStart?.({ techniques: member.technique ?? this.setup.start.techniques })
     this.ultimateWindow()
     this.timeline.run({ cycles: this.setup.cycles, takeTurn: (turn) => this.takeTurn(turn) })
     return {

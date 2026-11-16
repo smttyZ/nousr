@@ -15,7 +15,7 @@ Some choices a player makes are not "which ability on this turn" (the team polic
   first turn; holding above 25% HP and finishing later lets refilled HP pay for more Breaths and keeps the Territory up longer.
   Smitty (2026-11-15): model both, selectable by the user, to measure whether burning is really a mistake.
 - **Cyrene:** which ally each of Demiurge's "This Ode, to All Lives" goes to, in order, as part of the rotation (for example
-  Hyacine, then Castorice, then Robin, then Cyrene herself / attack). Smitty (2026-11-15): customizable by the user and ready for the
+  Hyacine, then Castorice, then Robin / attack; the Ode cannot target Cyrene herself, settled by Smitty in game 2026-11-15). Smitty (2026-11-15): customizable by the user and ready for the
   optimizer, to get a definitive answer on the best order.
 
 Both are choices with a small, finite set of legal values, so they are exactly what a later optimizer should search over.
@@ -36,7 +36,7 @@ A scenario member may carry `kit_options`, an object whose shape belongs to that
   "character": "1415",
   "eidolon": 0,
   "kit_options": {
-    "demiurge_order": ["hyacine", "castorice", "robin", "cyrene"],
+    "demiurge_order": ["hyacine", "castorice", "robin", "attack"],
     "after_order": "attack"
   }
 }
@@ -51,7 +51,9 @@ A scenario member may carry `kit_options`, an object whose shape belongs to that
 3. **Every option has a default** stated in its schema, so a scenario that leaves `kit_options` out keeps running, and the run result
    echoes the options actually used (like the standard build's echo, K14c step 7).
 4. **Member keys** in an option are checked by the loader against the team (`demiurge_order` naming a member not in the team is an
-   error, never ignored).
+   error, never ignored). An option can also rule out the key of the member that carries it, with `"exclude_self": true` in its
+   `x-nousr-domain` (settled 2026-11-15: "This Ode, to All Lives" cannot target Cyrene herself, so her own key in `demiurge_order` is
+   refused with a clear message).
 
 ### Castorice (1407)
 
@@ -69,7 +71,7 @@ turn and the Trailblazer (Remembrance) one always use "Minuet of Blooms and Plum
 
 | Option | Values | Default | Meaning |
 |---|---|---|---|
-| `demiurge_order` | list of: a member key of the team, or `"attack"` | placeholder, with a warning (review item 3) | Demiurge's choice turns, in order. A member key means "This Ode, to All Lives" on that member: a Chrysos Heir gets their special Ode, anyone else +40% DMG for 2 turns. Cyrene's own key is the Ode on her (Ode to Ego). `"attack"` means Minuet of Blooms and Plumes |
+| `demiurge_order` | list of: a member key of the team other than Cyrene's own, or `"attack"` | placeholder, with a warning (review item 3) | Demiurge's choice turns, in order. A member key means "This Ode, to All Lives" on that member: a Chrysos Heir gets their special Ode, anyone else +40% DMG for 2 turns. Cyrene's own key is not allowed: the Ode cannot target her (settled by Smitty in game, 2026-11-15), and Ode to Ego is always on, so it needs no Ode. `"attack"` means Minuet of Blooms and Plumes |
 | `after_order` | `"attack"`, `"repeat"`, `"cycle"` | `"attack"` (review item 2) | What Demiurge does once the list is used up: attack, repeat the last entry, or start the list again |
 
 Search size: with a team of 4 and lists up to the number of choice turns in the window (about 3 to 6 over 5 cycles), at most 5^6 =
@@ -100,7 +102,7 @@ for the MVP optimizer.
 2. **After the list runs out.** Rare in practice, to be measured. Default `"attack"`, and the run result carries a warning
    (K19, code `kit-option-list-exhausted`) whenever a battle used a turn past the end of the list, so testing shows how often it
    happens.
-3. **Default order** when a scenario gives none: a placeholder (every other team member in party order, then Cyrene, then attack),
+3. **Default order** when a scenario gives none: a placeholder (every other team member in party order, then attack),
    with a run warning (code `kit-option-default-used`) whenever a default decided a choice. Before anyone outside the private beta
    relies on it, it is replaced by a priority derived from runs, as the game's auto mode has its own.
 4. **Option names.** Approved: `netherwing_finish_turn`, `demiurge_order`, `after_order`.

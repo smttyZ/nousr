@@ -34,7 +34,7 @@ import { FribbelsKernel } from './fribbelsKernel'
  *   (a Slashed Dream and a Crimson Knot per action) and she reaches her Ultimate sooner. That moves damage
  *   between cycles far more than the 24% bonus moves it within one (E0 alone against 1 enemy: the 73905 Ultimate
  *   in cycle 5 becomes a 72511 Ultimate in cycle 2, and the quiet cycles lose the Fizzle-free first hit's 24%).
- *   The hit that applies the debuff is priced without the bonus (IN-GAME CHECK in the module).
+ *   The hit that applies the debuff gets the bonus too (settled by Smitty in game, 2026-11-15; the cases are re-pinned for it below).
  * - Dance! Dance! Dance!, on the cases with Tribbie: her Ultimate advances every ally by 16%, which changes
  *   the turn order, and with it when Acheron's Ultimate and Tribbie's Zone line up.
  *
@@ -139,7 +139,9 @@ describe('Acheron per cycle is unchanged by per-hit pricing', () => {
       enemyCount: 1,
       // Old: [10623.375144859256, 10623.375144859256, 10623.375144859256, 6639.609465537035, 73905.02233897817]
       // Pioneer alone: [9000.885, 9000.885, 9000.885, 5625.553, 63908.243]; Along alone: [9229.231, 72510.879, 14457.270, 9035.794, 14457.270].
-      expected: [7736.715825864165, 65118.68542569704, 12477.35049630593, 7798.344060191204, 12477.35049630593],
+      // Re-pinned 2026-11-15: the hit that applies Along the Passing Shore's Mirage Fizzle already gets its DMG bonus (settled by Smitty in game),
+      // so every hit is priced with it; was [7736.715825864165, 65118.68542569704, 12477.35049630593, 7798.344060191204, 12477.35049630593].
+      expected: [9000.8850713153, 66382.85467114818, 13741.519741757063, 8588.449838598164, 13741.519741757063],
     },
     {
       name: 'E6 with the Affinitive Eidolon alone against 3 enemies',
@@ -149,7 +151,9 @@ describe('Acheron per cycle is unchanged by per-hit pricing', () => {
       // Old: [36457.04003921268, 262606.65092128265, 52317.12119916089, 18684.68614255746, 52317.12119916089]
       // Pioneer alone: [33072.320, 238225.899, 47459.930, 16949.975, 47459.930]; Along alone: [27998.330, 273412.598, 43858.411, 252606.011, 43858.411].
       // Weakness break (K7): cycle 5 was 39786.53780486456, now with one Break DMG hit (see the header).
-      expected: [25398.92774981611, 266791.2389769713, 39786.53780486456, 245039.99289891825, 47672.11447928316],
+      // Re-pinned 2026-11-15: the hit that applies Along the Passing Shore's Mirage Fizzle already gets its DMG bonus (settled by Smitty in game),
+      // so every hit is priced with it; was [25398.92774981611, 266791.2389769713, 39786.53780486456, 245039.99289891825, 47672.11447928316].
+      expected: [33072.31977917528, 271376.14054173435, 47459.92983422372, 251601.24135623002, 55345.50650864233],
     },
     {
       name: 'E2 with the Affinitive Eidolon beside Tribbie E1 against 5 enemies',
@@ -171,7 +175,9 @@ describe('Acheron per cycle is unchanged by per-hit pricing', () => {
       // Re-pinned 2026-11-15: a break's effect now counts as a debuff inflicted by the breaking action (checked in game
       // by Smitty: a Quantum break gave Acheron a Slashed Dream). Tribbie's Quantum break feeds Acheron's talent, so her
       // Ultimate comes sooner. Only cycle 5 moved; it was 308839.2669066245.
-      expected: [1149081.9975542831, 356614.9391330746, 990961.6572651827, 894334.9762539868, 1276192.8525157706],
+      // Re-pinned 2026-11-15: the hit that applies Along the Passing Shore's Mirage Fizzle already gets its DMG bonus (settled by Smitty in game),
+      // so every hit is priced with it; was [1149081.9975542831, 356614.9391330746, 990961.6572651827, 894334.9762539868, 1276192.8525157706].
+      expected: [1211623.3324326305, 408227.33367409447, 1002224.8034975916, 965674.1287234235, 1305768.1931466397],
     },
     {
       name: 'E6 with the Affinitive Eidolon beside Tribbie E0 against 3 enemies',
@@ -187,7 +193,9 @@ describe('Acheron per cycle is unchanged by per-hit pricing', () => {
       // Re-pinned 2026-11-15: a break's effect now counts as a debuff inflicted by the breaking action (checked in game
       // by Smitty: a Quantum break gave Acheron a Slashed Dream). Tribbie's Quantum break feeds Acheron's talent, so her
       // Ultimate comes sooner. Only cycle 5 moved; it was 275505.7258835326.
-      expected: [913328.7246385348, 295126.54774301045, 761531.7946724296, 762665.9727559718, 932103.6220911326],
+      // Re-pinned 2026-11-15: the hit that applies Along the Passing Shore's Mirage Fizzle already gets its DMG bonus (settled by Smitty in game),
+      // so every hit is priced with it; was [913328.7246385348, 295126.54774301045, 761531.7946724296, 762665.9727559718, 932103.6220911326].
+      expected: [966045.9244246517, 352045.84316425264, 768380.4465402955, 813299.0700102698, 973360.5610541806],
     },
   ]
 

@@ -525,3 +525,41 @@ describe('what cannot be run yet is refused clearly', () => {
     expect(calls.damage).toEqual([])
   })
 })
+
+describe('technique per member (K31)', () => {
+  const seen: Record<string, boolean> = {}
+  const Spy: Kit = {
+    ...Striker,
+    create: (battle, self) => ({ ...Striker.create(battle, self), onBattleStart: ({ techniques }) => { seen[self.key] = techniques } }),
+  }
+  const spyKits: ReadonlyMap<string, RegisteredKit> = new Map([['9001', { name: 'Spy', kit: Spy }]])
+
+  it('each kit is told its own resolved technique through onBattleStart, and the plan and the run echo who used it', () => {
+    const file = scenarioFile()
+    file.battle.start = { techniques: false }
+    const first = file.teams[0]!
+    const team = (id: string, key: string, technique?: boolean) => ({
+      ...first,
+      id,
+      members: [{ ...first.members[0]!, key, ...(technique !== undefined && { technique }) }],
+      policy: [{ unit: key, use: 'basic' as const }],
+    })
+    file.teams = [team('t_on', 'on', true), team('t_default', 'default'), team('t_off', 'off', false)]
+    const { scenario, options } = setup(file)
+    const plans = ['t_on', 't_default', 't_off'].map((id) => planTeam(scenario, id, 1, { ...options, kits: spyKits }))
+    expect(plans.map((p) => p.setup.members.map((m) => m.technique))).toEqual([[true], [false], [false]])
+    expect(plans.map((p) => p.techniques)).toEqual([
+      [{ member: 'on', used: true, given: true }],
+      [{ member: 'default', used: false, given: false }],
+      [{ member: 'off', used: false, given: true }],
+    ])
+    const runs = runScenario(scenario, { ...options, kits: spyKits })
+    expect(runs.filter((r) => r.team === 't_on').every((r) => r.techniques[0]!.used)).toBe(true)
+    expect(seen).toEqual({ on: true, default: false, off: false })
+  })
+
+  it('with no member setting, battle.start.techniques applies to everyone, and the echo says it was not given', () => {
+    const { scenario, options } = setup()
+    expect(planTeam(scenario, 'solo', 1, options).techniques).toEqual([{ member: 'striker', used: true, given: false }])
+  })
+})

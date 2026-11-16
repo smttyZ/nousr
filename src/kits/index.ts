@@ -52,7 +52,7 @@ export const KITS: ReadonlyMap<string, RegisteredKit> = new Map(
       configure: (o: KitOptions) => makeCastorice({ finishOnTurn: (o.netherwing_finish_turn ?? 1) as 1 | 2 | 3 }),
     },
     { name: 'Hyacine', kit: Hyacine },
-    // Reviewed 2026-11-15. Readings awaiting an in-game check are marked IN-GAME CHECK; Ode to Ego's activation is the big one.
+    // Reviewed 2026-11-15. Readings awaiting an in-game check are marked IN-GAME CHECK; Ode to Ego, Recollection costs, Story and the Ultimate order were settled by Smitty in game, 2026-11-15.
     {
       name: 'Cyrene',
       kit: Cyrene,

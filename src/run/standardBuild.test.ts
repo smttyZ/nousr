@@ -56,7 +56,7 @@ function standardBuildDir(): string {
 }
 
 /** SPD follows the file's own arithmetic: base 101, SPD boots 25.032, 2.3 per SPD roll at K14d's roll value. */
-function fakeKernel() {
+function fakeKernel(rollSpd?: number) {
   const builds: KernelBuild[] = []
   const kernel: ScenarioKernel = {
     characterId: (gameId) => {
@@ -66,7 +66,7 @@ function fakeKernel() {
     basicStats(_unit: KernelUnit, build: KernelBuild): BasicStats {
       builds.push(build)
       const b = build as BenchmarkBuild
-      const SPD = 101 + (b.feet === 'SPD' ? 25.032 : 0) + b.substatRolls.SPD! * (b.speedRollValue ?? 2.6)
+      const SPD = 101 + (b.feet === 'SPD' ? 25.032 : 0) + b.substatRolls.SPD! * (rollSpd ?? b.speedRollValue ?? 2.6)
       return { ATK: 3000, DEF: 1200, HP: 1_000_000, SPD, CR: 0.5, CD: 1, EHR: 0, RES: 0, BE: 0, ERR: 0, OHB: 0, baseSPD: 101 }
     },
     scanSource: () => ({ speedVerified: true }),
@@ -75,7 +75,7 @@ function fakeKernel() {
   return { kernel, builds }
 }
 
-function setup(member: Partial<MemberFile> = {}) {
+function setup(member: Partial<MemberFile> = {}, rollSpd?: number) {
   const file: ScenarioFile = {
     format: 'nousr-scenario',
     version: 1,
@@ -88,7 +88,7 @@ function setup(member: Partial<MemberFile> = {}) {
       policy: [{ unit: 'striker', use: 'basic' }],
     }],
   }
-  const { kernel, builds } = fakeKernel()
+  const { kernel, builds } = fakeKernel(rollSpd)
   return { scenario: parseScenario(file), builds, options: { kernel, kits, equipment, standardBuildDir: standardBuildDir() } }
 }
 
@@ -189,18 +189,30 @@ describe('the scenario override (K14c)', () => {
     expect(() => planTeam(scenario, 'solo', 1, options)).toThrow(/the re-split cannot place 2 of CRIT DMG's 12 distributed rolls.*Give the split yourself in standard_build\.distributed/)
   })
 
-  it('a Feet swap keeps the rolls, runs at the resulting SPD, and warns how far the target was missed (K14f)', () => {
+  it('a Feet swap re-solves SPD at load (K32): 13 rolls reach the target without boots, taken from the lowest priority, no warning', () => {
     const { scenario, options, builds } = setup({ standard_build: { main_stats: { Feet: 'ATK%' } } })
     const plan = planTeam(scenario, 'solo', 1, options)
     const build = builds.at(-1) as BenchmarkBuild
     expect(build.feet).toBe('ATK%')
-    expect(build.substatRolls.SPD).toBe(4)
-    expect(plan.setup.members[0]!.stats.baseSpd + plan.setup.members[0]!.stats.spdFlat!).toBeCloseTo(110.2, 9)
+    expect(build.substatRolls.SPD).toBe(15) // 13 distributed + 2 fixed
+    expect(plan.setup.members[0]!.stats.baseSpd + plan.setup.members[0]!.stats.spdFlat!).toBeCloseTo(135.5, 9)
+    expect(plan.warnings).toEqual([])
+    expect(plan.standardBuilds[0]!.report.spdSolved).toEqual({
+      fileRolls: 2, usedRolls: 13, reachable: true,
+      moves: [{ from: 'CRIT Rate', to: 'SPD', rolls: 10 }, { from: 'CRIT DMG', to: 'SPD', rolls: 1 }],
+      moveText: ['10 CRIT Rate -> SPD', '1 CRIT DMG -> SPD'],
+    })
+  })
+
+  it('a target no SPD rolls reach runs with the count of the file held to the cap and warns how far it was missed (K14f, K32)', () => {
+    const { scenario, options, builds } = setup({ standard_build: { main_stats: { Feet: 'ATK%' } } }, 0.1)
+    const plan = planTeam(scenario, 'solo', 1, options)
+    expect((builds.at(-1) as BenchmarkBuild).substatRolls.SPD).toBe(4)
     expect(plan.warnings).toEqual([
       {
         severity: 'warning',
         code: 'spd-target-missed',
-        message: expect.stringMatching(/^The standard build's SPD target 133\.34 is missed by 23\.14: the build has 110\.20 out of combat after the main-stat change \(Feet SPD -> ATK%\)\. The distributed rolls were not re-solved for it \(the file's SPD rolls stay as they are, K14f\)\.$/),
+        message: expect.stringMatching(/^The standard build's SPD target 133\.34 is missed by 31\.94: the build has 101\.40 out of combat after the main-stat change \(Feet SPD -> ATK%\)\. No number of distributed SPD rolls reaches it, so the build runs with 2 \(K32, K14f\)\.$/),
         team: 'solo',
         member: 'striker',
       },
@@ -209,6 +221,13 @@ describe('the scenario override (K14c)', () => {
     for (const run of runScenario(scenario, options)) {
       expect(run.warnings.filter((w) => w.code === 'spd-target-missed')).toHaveLength(1)
     }
+  })
+
+  it('an explicit split with SPD boots swapped away is taken as given and still warns (K14c)', () => {
+    const { scenario, options } = setup({ standard_build: { main_stats: { Feet: 'ATK%' }, distributed: { rolls: { SPD: 2, 'CRIT DMG': 12, 'CRIT Rate': 10 } } } })
+    const plan = planTeam(scenario, 'solo', 1, options)
+    expect(plan.standardBuilds[0]!.report.spdSolved).toBeUndefined()
+    expect(plan.warnings[0]!.message).toMatch(/the scenario gave the split, K14f/)
   })
 
   it('SPD boots that reach the target warn about nothing', () => {

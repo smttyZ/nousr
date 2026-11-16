@@ -81,7 +81,8 @@ describe('Along the Passing Shore', () => {
   })
 
   it('through the battle: an action prices as Fribbels does with the switch the module says', () => {
-    // Skill at 1 enemy, first action, no debuff on the enemy yet: the module says off, and no set debuffs (value -1).
+    // Skill at 1 enemy, first action, no debuff on the enemy yet: the hit that applies Mirage Fizzle already gets the bonus (the
+    // module says on, settled in game 2026-11-15), and no set debuffs (value -1).
     const battle = new Battle({
       members: [{
         key: 'acheron', kit: Acheron, eidolon: 0, affinitiveEidolon: false,
@@ -101,7 +102,7 @@ describe('Along the Passing Shore', () => {
     battle.timeline.bus.on('damageDealt', (d) => dealt.push(d.damage))
     battle.run()
     const direct = kernel.actionDamage({
-      attacker: { ...acheron, lightConeConditionals: { emptyBubblesDebuff: false }, characterConditionals: {
+      attacker: { ...acheron, lightConeConditionals: { emptyBubblesDebuff: true }, characterConditionals: {
         crimsonKnotStacks: 0, stygianResurgeHitsOnTarget: 0, thunderCoreStacks: 0, nihilityTeammatesBuff: true,
         e1EnemyDebuffed: false, e4UltVulnerability: true, e6UltBuffs: true,
       } },

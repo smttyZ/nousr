@@ -13,7 +13,7 @@ import type { LightConeModule } from './equipment'
  *
  * IN-GAME CHECK: the text gives neither effect a duration, so each lasts until the memosprite leaves the field (for Cyrene's Demiurge:
  * the rest of the battle). Fribbels has them always on.
- * IN-GAME CHECK: "uses Memosprite Skill on one ally" counts an Ode on the wearer herself (Ode to Ego) as on an ally.
+ * Settled by Smitty in game, 2026-11-15: "This Ode, to All Lives" cannot target Cyrene herself, so no Ode on the wearer herself exists to count.
  * IN-GAME CHECK: "has both" is read across the wearer's memosprites together (one memosprite for every kit here that wears it).
  *
  * "The wearer's memosprite uses Memosprite Skill" is read as a `'skill'` action of a memosprite the wearer owns (`actionUsed.owner`).

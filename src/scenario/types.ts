@@ -98,6 +98,8 @@ export interface MemberFile {
   standard_build?: StandardBuildOverrideFile
   /** Checked against schema/kit-options/<character>.schema.json (src/scenario/kitOptions.ts). */
   kit_options?: Record<string, unknown>
+  /** Whether this member uses their technique before the battle (K31). Left out: `battle.start.techniques`. */
+  technique?: boolean
   notes?: string
 }
 
@@ -170,6 +172,10 @@ export interface Member {
   kitOptions?: Record<string, unknown>
   /** The option names the scenario itself gave (the rest came from defaults). */
   kitOptionsGiven?: string[]
+  /** Whether this member uses their technique before the battle: the member's own `technique`, else `battle.start.techniques` (K31). */
+  technique: boolean
+  /** True when the scenario gave this member's `technique` itself; false when `battle.start.techniques` decided. */
+  techniqueGiven: boolean
 }
 
 export interface Team {

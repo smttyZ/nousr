@@ -186,7 +186,8 @@ describe('her Basic ATK and heals, priced as Fribbels prices them', () => {
       const { battle, hy, healed, act } = setup(eidolon)
       battle.party.setEnergy('hy', 140)
       act.ultimate!.use()
-      const request2 = request(hy, own(eidolon, { clearSkies: true }))
+      // The heal is priced before After Rain's buff (settled in game, 2026-11-15): clearSkies is off in its request.
+      const request2 = request(hy, own(eidolon, { clearSkies: false }))
       const k = kernel.actionDamage(request2)
       const ult = k.hits.ULT_HEAL![0]!
       expect(amounts(healed, 'tribbie')).toEqual([expect.closeTo(ult.damage, 6)])
@@ -319,5 +320,34 @@ describe('her standard build: Warrior Goddess and Giant Tree through a whole bat
     const toTribbie = healed.find((h) => h.unit === 'tribbie' && h.source === 'hy')!
     expect(toTribbie.amount + toTribbie.overheal).toBeGreaterThan(0)
     expect(hy.stats.baseSpd).toBeGreaterThan(0)
+  })
+})
+
+describe('her Technique with the real kernel (K31)', () => {
+  it('heals every character for 30% of her Max HP + 600 times her Outgoing Healing, and raises each Max HP by the HP% difference the kernel gives', () => {
+    const { battle, hy, tribbie, healed } = setup(0)
+    const before = { hy: battle.party.get('hy').maxHp, tribbie: battle.party.get('tribbie').maxHp, acheron: battle.party.get('acheron').maxHp }
+    battle.member('hy').instance.onBattleStart!({ techniques: true })
+
+    const k = kernel.actionDamage(request(hy, own(0)))
+    const expected = (0.3 * k.stats.HP + 600) * (1 + k.stats.OHB)
+    for (const unit of ['hy', 'tribbie', 'acheron']) expect(amounts(healed, unit), unit).toEqual([expect.closeTo(expected, 4)])
+    expect(amounts(healed, icaId('hy'))).toEqual([])
+
+    const tribbieRequest = (injected: boolean): DamageRequest => ({
+      attacker: { ...tribbie.kernel.unit },
+      teammates: [{ ...hy.kernel.unit, characterConditionals: { e1HpBuff: false, e2SpdBuff: false, e6ResPen: false } }, { ...acheronUnit }],
+      build: tribbie.kernel.build,
+      enemy,
+      ...(injected && { injectedBuffs: [{ stat: 'HP_PERCENT' as const, value: 0.2, target: 'team' as const }] }),
+    })
+    const delta = kernel.actionDamage(tribbieRequest(true)).stats.HP - kernel.actionDamage(tribbieRequest(false)).stats.HP
+    expect(delta).toBeGreaterThan(0)
+    expect(battle.party.get('tribbie').maxHp - before.tribbie).toBeCloseTo(delta, 6)
+    expect(battle.party.get('hy').maxHp).toBeGreaterThan(before.hy)
+    expect(battle.party.get('acheron').maxHp).toBeGreaterThan(before.acheron)
+
+    battle.timeline.modifiers.remove('tribbie', 'hyacine.technique_max_hp')
+    expect(battle.party.get('tribbie').maxHp).toBeCloseTo(before.tribbie, 6)
   })
 })

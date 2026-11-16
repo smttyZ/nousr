@@ -21,107 +21,34 @@ Notes on the steps:
 
 ---
 
+## Done (Smitty, 2026-11-15)
+
+Results recorded here. Claude applies each to the code and moves it to DESIGN.md as "Settled by Smitty".
+
+| # | Check | Result |
+|---|---|---|
+| 1 | Cyrene: Ode to Ego | **Always on.** Every Minuet gets bounces. "This Ode, to All Lives" **cannot target Cyrene herself** |
+| 2 | Cyrene: Ultimate cost | First Ultimate **needs 24, spends 12** (leaves 12). Reunion at First Sight spends 12 |
+| 3 | Cyrene: Memory of Chaos start | 0 + trace only (6 of 24 with 3 Chrysos Heir / Remembrance teammates, E0/E1). The 50% start energy adds nothing. The sim already does this |
+| 4 | Castorice: overheal and Newbud | **Overheal counts.** Newbud 47% to 63% from Hyacine's Ultimate on 3 full-HP allies |
+| 5 | Hyacine: Ultimate heal | **Before After Rain's buff.** 4,946 Max HP, 34.5% Outgoing Healing, Lv10: +1,073 on allies, +1,288 on Little Ica. Computed by Claude: before-Rain plus a likely +20% (her Technique) gives 1,067, after-Rain gives about 1,214; Ica is exactly 1.2x |
+| 6 | Along the Passing Shore | **The applying hit already gets the bonus** (Fribbels' reading). Non-crit 2,028 then 2,842 with Sunday's +53%: 2,842 / 2,028 = 1.4014, matching 1.85 / 1.32 = 1.4015 |
+| 10 | Cyrene: first Ultimate's Story | **2 Story** (1 for the Ultimate, 1 for the summon) |
+| 11 | Cyrene: order | **Teammates' Ultimates come before Demiurge's extra turn** |
+
+Also from screenshots: Demiurge is Out-of-Bounds, Netherwing is Backup, Little Ica is a normal unit (DESIGN.md, Memosprites row).
+
 ## Tier 1: big effect on results
 
-### 1. Cyrene: is Ode to Ego always on, or only after an Ode on her?
+All six Tier 1 checks are settled (the "Done" table above). Each is applied in the code and recorded in DESIGN.md (Open questions
+table) as settled; their `IN-GAME CHECK` notes now read "Settled by Smitty in game, 2026-11-15".
 
-**Why it matters:** if it's always on, every Minuet of Blooms and Plumes gets extra bounces from the very first one (up to
-about 7x the Minuet's damage at E0). Today the sim gives no bounces until Demiurge has used "This Ode, to All Lives" on
-Cyrene herself. Fribbels assumes always on. Code: `src/kits/cyrene.ts` header, reading 3.
-
-**Setup:** Cyrene plus 2 or 3 teammates, against **one** enemy (easier to count hits).
-
-**Steps:**
-1. Let the teammates act at least once each before Cyrene's Ultimate. Each one that acts gives her Recollection, and the
-   bounce count is "1 per different teammate Cyrene has gained Recollection from".
-2. Use Cyrene's Ultimate once it's ready. Demiurge appears and gets an immediate extra turn.
-3. On that extra turn, pick **Minuet of Blooms and Plumes** (the attack), **not** the Ode.
-4. Count the hits on the enemy: one AoE hit, plus any extra bounce hits.
-
-**Read it as:**
-- Only the 1 AoE hit: Ode to Ego is **not** on yet. The sim is right.
-- 1 AoE hit plus about as many bounces as teammates who acted: Ode to Ego is **always on**.
-
-**Result:**
-
-### 2. Cyrene: how much Recollection does her Ultimate cost?
-
-**Why it matters:** the game data says both her Ultimates "cost 12 energy". The sim takes 24 for the first one. If it only
-takes 12, she keeps 12 and gets an extra Reunion at First Sight (an extra Demiurge turn) much sooner. Code:
-`src/kits/cyrene.ts`, reading 2.
-
-**Steps:**
-1. In any battle, just before her first Ultimate, write down her Recollection (the number on her Ultimate / energy display).
-2. Use the Ultimate, then write down her Recollection again.
-3. Later, in "Ripples of Past Reverie" (after that first Ultimate), do the same around a Reunion at First Sight Ultimate.
-
-**Result:**
-- Before / after first Ultimate:
-- Before / after a Reunion:
-
-### 3. Cyrene: Recollection at the start of a Memory of Chaos battle
-
-**Why it matters:** her data gives "max energy 24", the same number as her first Ultimate's threshold. If Recollection is
-her energy bar, Memory of Chaos's 50% starting energy gives her 12 at the start, and her first Ultimate comes much earlier.
-The sim starts her at 0 plus her Ripples Across Time trace (2 / 3 / 6 for 1 / 2 / 3 other Chrysos Heir or Remembrance
-characters in the team), plus 12 at E2.
-
-**Steps:**
-1. Enter any **Memory of Chaos** stage with Cyrene.
-2. Before anyone acts, read her Recollection.
-3. Write down which teammates she had and her eidolon (the trace bonus depends on both).
-
-**Result:**
-
-### 4. Castorice: does healing a full-HP ally give Newbud?
-
-**Why it matters:** Contained Dark Tide turns healing into Newbud. The sim counts only HP actually restored, so a heal on a
-full-HP ally gives nothing. If overheal counts too, Newbud fills faster with Hyacine, and so do Netherwing's HP refills in
-the "hold" mode (DESIGN.md K25, the burn vs hold experiment). Code: `src/kits/castorice.ts` header.
-
-**Steps:**
-1. Battle with Castorice and a healer (Hyacine), Netherwing **not** on the field.
-2. Make sure everyone is at full HP. Write down Castorice's Newbud (her Ultimate gauge).
-3. Use a heal (Hyacine's Skill) on the full-HP team. Check Newbud again.
-
-**Read it as:**
-- Newbud unchanged: only restored HP counts. The sim is right.
-- Newbud went up: overheal counts.
-
-**Result:**
-
-### 5. Hyacine: is her Ultimate's heal based on her Max HP before or after After Rain?
-
-**Why it matters:** the sim prices the Ultimate's heal on her After Rain-boosted Max HP. The text lists the heal before the
-state, so the heal may use her Max HP before the boost. Code: `src/kits/hyacine.ts` header.
-
-**Steps:**
-1. Out of battle, write down Hyacine's Max HP and Outgoing Healing Boost from her character screen.
-2. In battle, damage an ally a little so the heal is fully visible (no overheal). Use Hyacine's Ultimate and write down the
-   heal number shown on that ally.
-3. Write down Hyacine's eidolon.
-
-Claude computes both readings from these numbers and sees which one matches.
-
-**Result:**
-
-### 6. Along the Passing Shore: does the hit that applies Mirage Fizzle already get its DMG bonus?
-
-**Why it matters:** this moves Acheron's single-hit Basic ATK and Skill damage by about 24%. The sim says no, Fribbels
-says yes. Code: `src/equipment/alongThePassingShore.ts`.
-
-**Steps:**
-1. Acheron with Along the Passing Shore, one enemy without Mirage Fizzle on it.
-2. Use Basic ATK and write down the damage, noting whether it was a crit.
-3. Use Basic ATK again on the same enemy (it now has Mirage Fizzle). Write down the damage and whether it crit.
-4. Repeat until you have one non-crit number from a "first hit" and one from a "second hit". Other buffs must stay the same
-   between the two hits (same team, nothing new applied).
-
-**Read it as:**
-- The two non-crit numbers about equal: the first hit already had the bonus (Fribbels is right).
-- The second clearly bigger: the first hit had no bonus. The sim is right.
-
-**Result:**
+1. Cyrene: Ode to Ego is always on, and "This Ode, to All Lives" cannot target her. Settled by Smitty in game, 2026-11-15.
+2. Cyrene: the first Ultimate needs 24 and spends 12; Reunion at First Sight spends 12. Settled by Smitty in game, 2026-11-15.
+3. Cyrene: Recollection at the start of a Memory of Chaos battle is 0 + trace. Settled by Smitty in game, 2026-11-15.
+4. Castorice: overheal counts for Newbud. Settled by Smitty in game, 2026-11-15.
+5. Hyacine: the Ultimate's heal uses her Max HP before After Rain's buff. Settled by Smitty in game, 2026-11-15.
+6. Along the Passing Shore: the hit that applies Mirage Fizzle already gets the bonus. Settled by Smitty in game, 2026-11-15.
 
 ---
 
@@ -132,15 +59,16 @@ Short procedures. Same idea: write down what you see.
 7. **Hyacine's Technique** (code: hyacine.ts header). Start a battle with her Technique used, then look at Little Ica's first
    Rainclouds damage. Compare it with a battle where the Technique wasn't used, and note whether allies were at full HP when
    it healed them. Question: does the Technique's battle-start heal count toward Ica's healing tally? Also, does the team's
-   Max HP go up by 20% for 2 turns? **Result:**
+   Max HP go up by 20% for 2 turns? **Modelled 2026-11-15 (K31), five readings to check:** (a) the heal comes first and the
+   Max HP buff after (allies start at full HP, so the heal is all overheal); (b) the 2 turns count down by each ally's own
+   turns; (c) only characters get the heal and the buff, no memosprite; (d) the heal takes her Outgoing Healing; (e) the
+   Max HP buff does not raise current HP. **Result:**
 8. **Hyacine's After Rain duration after an out-of-turn Ultimate.** Use her Ultimate between two of her turns, then count
    how many of her own actions After Rain is still up for: 2 or 3? **Result:**
 9. **Take Sky in Hand during After Rain.** When it triggers, does the ally who lost HP also get the "all allies" heal (two
    heal numbers)? Does Little Ica heal herself? **Result:**
-10. **Cyrene's first Ultimate: 1 or 2 Story?** Her text gives Story "after Cyrene uses Ultimate **or** when Demiurge is
-    summoned", and the first Ultimate does both. Read Demiurge's Story count (its buff list) right after. **Result:**
-11. **Cyrene's Ultimate order.** When she ults, do the teammates' filled Ultimates come before or after Demiurge's extra turn?
-    **Result:**
+10. **Cyrene's first Ultimate: 1 or 2 Story?** Settled by Smitty in game, 2026-11-15: 2.
+11. **Cyrene's Ultimate order.** Settled by Smitty in game, 2026-11-15: the teammates' Ultimates come before Demiurge's extra turn.
 12. **Cyrene E6** (only if you have E6). Does the first Ode to Ego Minuet already have the enemies' DEF -20%? **Result:**
 13. **Future and Ultimates.** After a teammate uses their Ultimate (or a follow-up), does Cyrene gain Recollection from it?
     The sim says only Basic ATK and Skill consume Future. **Result:**
@@ -152,6 +80,10 @@ Short procedures. Same idea: write down what you see.
     sim's modes never let that happen). Skip unless convenient. **Result:**
 17. **Robin with a non-heir Ode.** When Demiurge uses This Ode on Robin Summeretto, does the +40% DMG show on both Robin and
     the Songbirds? **Result:**
+18. **Can enemies hit the Summer Songbirds?** They show no Backup or Out-of-Bounds tag (like Little Ica, a normal unit),
+    and a screenshot showed them with 2 debuffs and lost HP. During Fever, open their details and tap the debuff list: what
+    are the debuffs and who applied them? An enemy debuff means enemies can target them. Any enemy damage number on them
+    settles it too. **Result (2026-11-15):** a boss's "Target Locked On" and two enemy DoTs were on them; no tag. Switched to a normal unit. Final proof, if convenient: a damage number on them when that boss's "Desmios Evangelion" (damage split across all locked-on targets) lands.
 
 ---
 

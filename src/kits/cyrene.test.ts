@@ -201,6 +201,15 @@ function setup(options: Options = {}) {
 type Setup = ReturnType<typeof setup>
 const use = (t: Setup, who: string, action: string) => t.battle.member(who).instance.actions[action]!.use()
 const demiurgeActions = (t: Setup) => t.log.filter((l) => l.actor === DEMI).map((l) => l.action)
+/**
+ * Demiurge's actions without the automatic Story Minuet. With the default policy a Reunion is cast as soon as one is affordable (the first
+ * Ultimate leaves the 12 it needs), and the third Story (2 from the first Ultimate, 1 from the Reunion) is an automatic Minuet after the
+ * first two choice turns: it is not a choice.
+ */
+const choiceActions = (t: Setup) => {
+  const all = demiurgeActions(t)
+  return all[2] === 'minuet' ? all.filter((_, i) => i !== 2) : all
+}
 
 describe('the kit list agrees with Fribbels', () => {
   it('has the same Chrysos Heirs', async () => {
@@ -354,7 +363,7 @@ describe('the Ultimate', () => {
     expect(ult.canUse()).toBe(true)
   })
 
-  it('pays 24 and keeps the overflow', () => {
+  it('needs 24 and spends 12: the rest stays (settled in game, 2026-11-15)', () => {
     const t = setup({ mates: FULL, eidolon: 2, skillPoints: 5 })
     t.start()
     for (const m of FULL) use(t, m.key, 'basic')
@@ -362,14 +371,27 @@ describe('the Ultimate', () => {
     use(t, 'cyrene', 'skill')
     expect(t.q('recollection')).toBe(27)
     use(t, 'cyrene', 'ultimate')
-    expect(t.q('recollection')).toBe(3)
+    expect(t.q('recollection')).toBe(15)
+  })
+
+  it('exactly 24 leaves 12, and 23 is not enough', () => {
+    const t = setup({ mates: FULL, eidolon: 2 })
+    t.start()
+    const ult = t.battle.member('cyrene').instance.actions.ultimate!
+    for (const m of FULL) use(t, m.key, 'basic')
+    expect(t.q('recollection')).toBe(21)
+    expect(ult.canUse()).toBe(false)
+    use(t, 'cyrene', 'skill')
+    expect(t.q('recollection')).toBe(24)
+    use(t, 'cyrene', 'ultimate')
+    expect(t.q('recollection')).toBe(12)
   })
 
   it('summons Demiurge with an extra turn, fills the teammates, deploys the Zone with no limit and starts Ripples', () => {
     const t = ready()
     expect(t.q('demiurge')).toBe(false)
     use(t, 'cyrene', 'ultimate')
-    expect(t.q('recollection')).toBe(0)
+    expect(t.q('recollection')).toBe(12)
     expect(t.q('demiurge')).toBe(true)
     expect(t.q('ripples')).toBe(true)
     expect(t.battle.timeline.pendingExtraTurns()).toEqual([DEMI])
@@ -382,12 +404,22 @@ describe('the Ultimate', () => {
     expect(t.battle.party.get(DEMI).targetable).toBe(false)
   })
 
-  it('the teammates cast their Ultimates in the same window, before Demiurge acts', () => {
-    const t = setup({ mates: FULL, eidolon: 2, cycles: 1 })
-    t.battle.run()
-    const order = names(t)
-    const ult = order.indexOf('cyrene:ultimate')
-    expect(order.slice(ult, ult + 5)).toEqual(['cyrene:ultimate', 'hya:ultimate', 'cas:ultimate', 'tri:ultimate', 'cyrene.demiurge:ode:hya'])
+  it("the teammates' Ultimates (filled by hers) come before Demiurge's extra turn, whichever order the policy lists them in (settled in game, 2026-11-15)", () => {
+    const firstOnly = [{ what: 'cyrene.ripples', is: false }]
+    const mates = FULL.map((m) => rule(m.key, 'ultimate'))
+    const rest = [rule('cyrene', 'skill'), rule('cyrene', 'basic'), ...FULL.map((m) => rule(m.key, 'basic'))]
+    const policies: Array<[string, Rule[]]> = [
+      ['hers first', [rule('cyrene', 'ultimate', firstOnly), ...mates, ...rest]],
+      ['theirs first', [...mates, rule('cyrene', 'ultimate', firstOnly), ...rest]],
+    ]
+    for (const [name, policy] of policies) {
+      const t = setup({ mates: FULL, eidolon: 2, cycles: 1, policy })
+      t.battle.run()
+      const order = names(t)
+      const ult = order.indexOf('cyrene:ultimate')
+      expect(ult, name).toBeGreaterThanOrEqual(0)
+      expect(order.slice(ult, ult + 5), name).toEqual(['cyrene:ultimate', 'hya:ultimate', 'cas:ultimate', 'tri:ultimate', 'cyrene.demiurge:ode:hya'])
+    }
   })
 
   it('the Skill cannot be used in Ripples and the Basic ATK is To Love and Tomorrow', () => {
@@ -399,7 +431,8 @@ describe('the Ultimate', () => {
     t.dealt.length = 0
     use(t, 'cyrene', 'basic')
     expect(t.battle.skillPoints).toBe(sp)
-    expect(t.q('recollection')).toBe(3)
+    // The first Ultimate left 12 of the 24.
+    expect(t.q('recollection')).toBe(12 + 3)
     expect(t.resolved[0]!.parts).toEqual([
       { shape: 'single', scaling: 0.3, hit: 0, toughness: 30 },
       { shape: 'aoe', scaling: 0.3, hit: 0, toughness: 15 },
@@ -423,21 +456,46 @@ describe('the Ultimate', () => {
     expect(t.dealt[0]!.damage).toBeCloseTo(RATE.basic * 0.66, 6)
   })
 
-  it('Reunion at First Sight costs 12, gives Demiurge one more extra turn, and summons nothing', () => {
+  it('Reunion at First Sight needs 12 and spends 12 (settled in game, 2026-11-15), gives Demiurge one more extra turn, and summons nothing', () => {
     const t = ready()
     use(t, 'cyrene', 'ultimate')
     const ult = t.battle.member('cyrene').instance.actions.ultimate!
-    expect(ult.canUse()).toBe(false)
+    // The first Ultimate left exactly the 12 a Reunion needs.
+    expect(t.q('recollection')).toBe(12)
     expect(t.q('recollection_cost')).toBe(12)
+    expect(ult.canUse()).toBe(true)
+    use(t, 'cyrene', 'ultimate')
+    expect(t.q('recollection')).toBe(0)
+    // Two choice turns, and the third Story (2 from the first Ultimate, 1 from this one) is an automatic Minuet turn.
+    expect(t.battle.timeline.pendingExtraTurns()).toEqual([DEMI, DEMI, DEMI])
+    expect(t.battle.memospritesOf('cyrene')).toEqual([DEMI])
+    // The next one is 12 Basic ATK Recollection away: 3 each.
+    expect(ult.canUse()).toBe(false)
     for (let i = 0; i < 3; i++) use(t, 'cyrene', 'basic')
     expect(t.q('recollection')).toBe(9)
     expect(ult.canUse()).toBe(false)
     use(t, 'cyrene', 'basic')
     expect(ult.canUse()).toBe(true)
+  })
+
+  it('the first Ultimate gives 2 Story (1 for using it, 1 for summoning Demiurge), a Reunion 1, and the third spends them all for an automatic turn', () => {
+    const t = ready()
+    expect(t.q('story')).toBe(0)
     use(t, 'cyrene', 'ultimate')
-    expect(t.q('recollection')).toBe(0)
-    expect(t.battle.timeline.pendingExtraTurns()).toEqual([DEMI, DEMI])
-    expect(t.battle.memospritesOf('cyrene')).toEqual([DEMI])
+    expect(t.q('story')).toBe(2)
+    expect(t.battle.timeline.pendingExtraTurns()).toEqual([DEMI])
+    use(t, 'cyrene', 'ultimate')
+    expect(t.q('story')).toBe(0)
+    expect(t.battle.timeline.pendingExtraTurns()).toEqual([DEMI, DEMI, DEMI])
+  })
+
+  it('a Reunion needs 12 in Ripples and leaves what is above it', () => {
+    const t = ready()
+    use(t, 'cyrene', 'ultimate')
+    for (let i = 0; i < 2; i++) use(t, 'cyrene', 'basic')
+    expect(t.q('recollection')).toBe(18)
+    use(t, 'cyrene', 'ultimate')
+    expect(t.q('recollection')).toBe(6)
   })
 
   it('Max HP +24% for her and Demiurge; its HP percentage follows hers with no HP loss or heal events for it', () => {
@@ -559,7 +617,7 @@ describe("Demiurge's choice turns (K26 / K27)", () => {
     const kit = makeCyrene({ ...(order && { demiurgeOrder: order }), ...(afterOrder && { afterOrder }) })
     const t = setup({ mates: FULL, eidolon: 2, kit, cycles })
     const result = t.battle.run()
-    return { t, result, acts: demiurgeActions(t), codes: result.warnings.map((w) => w.code) }
+    return { t, result, acts: choiceActions(t), codes: result.warnings.map((w) => w.code) }
   }
 
   it('follows the given order and warns of nothing when the list is long enough', () => {
@@ -569,13 +627,14 @@ describe("Demiurge's choice turns (K26 / K27)", () => {
     if (acts.length === 4) expect(codes).toEqual([])
   })
 
-  it('without a list: every other member in party order, then Cyrene, then attack, with a warning for the member', () => {
+  it('without a list: every other member in party order, then attack, with a warning for the member (Cyrene is not in it)', () => {
     const { acts, result } = runOrder(undefined, undefined, 12)
-    expect(acts.slice(0, 5)).toEqual(['ode:hya', 'ode:cas', 'ode:tri', 'ode:cyrene', 'minuet'])
+    expect(acts.slice(0, 4)).toEqual(['ode:hya', 'ode:cas', 'ode:tri', 'minuet'])
+    expect(acts).not.toContain('ode:cyrene')
     const w = result.warnings.filter((x) => x.code === 'kit-option-default-used')
     expect(w).toHaveLength(1)
     expect(w[0]).toMatchObject({ severity: 'warning', member: 'cyrene' })
-    expect(w[0]!.message).toContain('hya, cas, tri, cyrene, attack')
+    expect(w[0]!.message).toContain('hya, cas, tri, attack')
   })
 
   it('a given list raises no default warning', () => {
@@ -583,11 +642,13 @@ describe("Demiurge's choice turns (K26 / K27)", () => {
   })
 
   it('past the end: attack', () => {
-    const { acts, result } = runOrder(['hya', 'cas'], 'attack')
+    const { t, acts, result } = runOrder(['hya', 'cas'], 'attack')
     expect(acts.slice(0, 4)).toEqual(['ode:hya', 'ode:cas', 'minuet', 'minuet'])
     const w = result.warnings.find((x) => x.code === 'kit-option-list-exhausted')!
     expect(w.member).toBe('cyrene')
-    expect(w.message).toContain(`${acts.length - 2} choice turns`)
+    // One choice turn per Ultimate.
+    const ults = t.log.filter((l) => l.actor === 'cyrene' && l.action === 'ultimate').length
+    expect(w.message).toContain(`${ults - 2} choice turns`)
   })
   it('past the end: repeat the last entry', () => {
     const { acts, codes } = runOrder(['hya', 'cas'], 'repeat')
@@ -607,6 +668,7 @@ describe("Demiurge's choice turns (K26 / K27)", () => {
   })
   it('rejects a member key that is not in the team, and a bad after_order', () => {
     expect(() => setup({ mates: FULL, kit: makeCyrene({ demiurgeOrder: ['nobody'] }) })).toThrow(/neither a member of the team/)
+    expect(() => setup({ mates: FULL, kit: makeCyrene({ demiurgeOrder: ['hya', 'cyrene'] }) })).toThrow(/cannot target Cyrene herself/)
     expect(() => makeCyrene({ afterOrder: 'sometimes' as AfterOrder })).toThrow(/afterOrder/)
   })
 })
@@ -679,29 +741,28 @@ describe('This Ode, to All Lives', () => {
     expect(targets).toEqual(['pela', 'pela.mem'])
     expect(turns).toEqual([2, 2])
   })
-  it('on herself: Ode to Ego starts, and is not a Chrysos Heir effect on a teammate', () => {
-    const t = setup({ mates: FOUR, eidolon: 2, kit: makeCyrene({ demiurgeOrder: ['cyrene'] }), cycles: 2 })
-    expect(t.q('ode_to_ego')).toBe(false)
-    t.battle.run()
+  it('Ode to Ego is on from the start and an Ode on a teammate is not a Chrysos Heir effect on the others', () => {
+    const t = setup({ mates: FOUR, eidolon: 2, kit: makeCyrene({ demiurgeOrder: ['pela'] }), cycles: 2 })
     expect(t.q('ode_to_ego')).toBe(true)
+    t.battle.run()
     for (const m of FOUR) expect(t.battle.cyreneEffect(m.key).active).toBe(false)
   })
-  it('E2: the Zone gets +6% a distinct ally given the buff, at most 4 (herself counts), the same ally twice once', () => {
-    const t = setup({ mates: FOUR, eidolon: 2, kit: makeCyrene({ demiurgeOrder: ['pela', 'pela', 'hya', 'cyrene', 'cas'] }), cycles: 12 })
+  it('E2: the Zone gets +6% a distinct ally given the buff, at most 4, the same ally twice once', () => {
+    const t = setup({ mates: FOUR, eidolon: 2, kit: makeCyrene({ demiurgeOrder: ['pela', 'pela', 'hya', 'cas'] }), cycles: 12 })
     t.battle.run()
     const seen = new Set(t.requests.map((r) => Number(r.teammates.find((x) => x.characterId === CYRENE_KERNEL_ID)?.characterConditionals?.e2TrueDmgStacks ?? 0)))
     expect([...seen].sort()).toEqual(expect.arrayContaining([0, 1, 2]))
     expect(Math.max(...t.requests.map((r) => Number(r.teammates.find((x) => x.characterId === CYRENE_KERNEL_ID)?.characterConditionals?.e2TrueDmgStacks ?? 0)))).toBeLessThanOrEqual(4)
     expect(Math.max(...t.requests.map((r) => Number(r.teammates.find((x) => x.characterId === CYRENE_KERNEL_ID)?.characterConditionals?.e2TrueDmgStacks ?? 0)))).toBeGreaterThanOrEqual(3)
   })
-  it('E2: five distinct allies (herself among them) reach the 4-ally cap of 24%, and no further', () => {
-    const order = ['pela', 'hya', 'cas', 'tri', 'cyrene', 'attack']
+  it('E2: four distinct allies (she cannot be one of them) reach the 4-ally cap of 24%, and no further', () => {
+    const order = ['pela', 'hya', 'cas', 'tri', 'attack']
     const t = setup({ mates: FOUR, eidolon: 2, kit: makeCyrene({ demiurgeOrder: order }), cycles: 12 })
     t.battle.run()
     const stacks = t.requests.map((r) => Number(r.teammates.find((x) => x.characterId === CYRENE_KERNEL_ID)?.characterConditionals?.e2TrueDmgStacks ?? 0))
     expect(Math.max(...stacks)).toBe(4)
     expect(stacks).toContain(4)
-    expect(demiurgeActions(t).slice(0, 5)).toEqual(['ode:pela', 'ode:hya', 'ode:cas', 'ode:tri', 'ode:cyrene'])
+    expect(choiceActions(t).slice(0, 5)).toEqual(['ode:pela', 'ode:hya', 'ode:cas', 'ode:tri', 'minuet'])
   })
   it('an Ode on a downed ally does nothing but uses the turn', () => {
     const t = setup({ mates: FOUR, eidolon: 2, kit: makeCyrene({ demiurgeOrder: ['cas', 'attack'] }), cycles: 2 })
@@ -719,18 +780,23 @@ describe('Ode to Ego, Minuet and the eidolons', () => {
     return t
   }
 
-  it('Minuet without the Ode: 60% to all enemies at toughness 30, no bounces (66% from E3)', () => {
+  it('Minuet: 60% to all enemies at toughness 30 (66% from E3), with the bounces from the very first one: no Ode on her is needed (settled in game, 2026-11-15)', () => {
     const t = egoRun(0, ['hya', 'attack'], 8)
     // E0 cannot reach the first Ultimate quickly; Demiurge may not exist. Skip the check when it never acted.
     const m = minuets(t)
-    if (m.length > 0) expect(m[0]!.parts).toEqual([{ shape: 'aoe', scaling: 0.6, hit: 0, toughness: 30 }])
+    if (m.length > 0) {
+      expect(m[0]!.parts[0]).toEqual({ shape: 'aoe', scaling: 0.6, hit: 0, toughness: 30 })
+      const n = t.log.find((l) => l.action === 'minuet')!.sources
+      if (n > 0) expect(m[0]!.parts[1]).toEqual({ shape: 'bounce', scaling: 0.6, hits: n, hit: 0, toughness: 5 })
+    }
     const t3 = egoRun(3, ['hya', 'attack'], 8)
-    expect(minuets(t3)[0]!.parts).toEqual([{ shape: 'aoe', scaling: 0.66, hit: 0, toughness: 30 }])
+    expect(minuets(t3)[0]!.parts[0]).toEqual({ shape: 'aoe', scaling: 0.66, hit: 0, toughness: 30 })
   })
 
-  it('with the Ode on her: one bounce per different teammate she gained Recollection from (E3 multiple), toughness 5 each', () => {
-    const t = egoRun(3, ['cyrene', 'attack'])
+  it('the first Minuet of the battle has one bounce per different teammate she gained Recollection from (E3 multiple), toughness 5 each', () => {
+    const t = egoRun(3, ['attack'])
     const first = minuets(t)[0]!
+    expect(demiurgeActions(t)[0]).toBe('minuet')
     const n = t.log.find((l) => l.action === 'minuet')!.sources
     expect(n).toBeGreaterThan(0)
     expect(first.parts).toEqual([
@@ -741,19 +807,19 @@ describe('Ode to Ego, Minuet and the eidolons', () => {
   })
 
   it('E1: +12 bounces and +6 Recollection when it triggers', () => {
-    const t = egoRun(2, ['cyrene', 'attack'])
+    const t = egoRun(2, ['hya', 'attack'])
     const i = t.log.findIndex((l) => l.action === 'minuet')
     const n = t.log[i]!.sources
     expect(minuets(t)[0]!.parts[1]).toMatchObject({ shape: 'bounce', hits: n + 12, scaling: 0.6 })
     expect(t.log[i]!.recollection - t.log[i - 1]!.recollection).toBe(6)
   })
   it('E0 gets neither', () => {
-    const t = egoRun(0, ['cyrene', 'attack'], 12)
+    const t = egoRun(0, ['hya', 'attack'], 12)
     for (const m of minuets(t)) expect(m.parts.every((p) => p.shape === 'aoe' || (p.shape === 'bounce' && p.hits <= 6))).toBe(true)
   })
 
   it('bounces are split over the enemies: the total is the kernel price per 100% times the hits', () => {
-    const t = egoRun(2, ['cyrene', 'attack'], 10, 3)
+    const t = egoRun(2, ['hya', 'attack'], 10, 3)
     const i = t.log.findIndex((l) => l.action === 'minuet')
     const n = t.log[i]!.sources
     const serial = t.dealt.filter((d) => d.ability === 'MEMO_SKILL')
@@ -763,13 +829,13 @@ describe('Ode to Ego, Minuet and the eidolons', () => {
   })
 
   it('E4: the bounce multiple rises 6% after every Minuet, up to 24 times', () => {
-    const t = egoRun(4, ['cyrene', 'attack', 'attack', 'attack'], 12)
+    const t = egoRun(4, ['hya', 'attack', 'attack', 'attack'], 12)
     const bounces = minuets(t).map((m) => (m.parts[1] as { scaling: number }).scaling)
     expect(bounces.slice(0, 3)).toEqual([0.66, 0.66 + 0.06, 0.66 + 0.12].map((x) => expect.closeTo(x, 9)))
   })
 
   it('E4: the 24th stack counts and the 25th does not: Minuets 25 and 26 both use base + 24 x 6%', () => {
-    const t = egoRun(4, ['cyrene'], 40)
+    const t = egoRun(4, ['hya'], 40)
     const bounces = minuets(t).map((m) => (m.parts[1] as { scaling: number }).scaling)
     expect(bounces.length).toBeGreaterThanOrEqual(26)
     // Minuet k is priced with the stacks from the k - 1 Minuets before it, which stop at 24.
@@ -779,7 +845,7 @@ describe('Ode to Ego, Minuet and the eidolons', () => {
   })
 
   it('E6: the first Ultimate advances every ally 100%', () => {
-    const t = setup({ mates: FULL, eidolon: 6, kit: makeCyrene({ demiurgeOrder: ['cyrene'] }), cycles: 1 })
+    const t = setup({ mates: FULL, eidolon: 6, kit: makeCyrene({ demiurgeOrder: ['hya'] }), cycles: 1 })
     const advanced: string[] = []
     let atUlt = false
     t.battle.timeline.bus.on('actionUsed', (a) => {
@@ -793,7 +859,7 @@ describe('Ode to Ego, Minuet and the eidolons', () => {
   })
 
   it('E6: the first trigger gives the DEF switch, the second and later advance everyone 24%', () => {
-    const t = setup({ mates: FULL, eidolon: 6, kit: makeCyrene({ demiurgeOrder: ['cyrene', 'attack', 'attack', 'attack'] }), cycles: 12 })
+    const t = setup({ mates: FULL, eidolon: 6, kit: makeCyrene({ demiurgeOrder: ['hya', 'attack', 'attack', 'attack'] }), cycles: 12 })
     const pct: number[] = []
     let acts = 0
     t.battle.timeline.bus.on('actionUsed', (a) => {
@@ -814,36 +880,35 @@ describe('Ode to Ego, Minuet and the eidolons', () => {
     expect(firstDef).toBeGreaterThan(firstMinuet)
   })
 
-  it('E6: the 24% advance starts on the 2nd Ode to Ego trigger (the 2nd Minuet after the Ode), not the 3rd', () => {
-    const t = setup({ mates: FULL, eidolon: 6, kit: makeCyrene({ demiurgeOrder: ['cyrene', 'attack', 'attack', 'attack'] }), cycles: 12 })
+  it('E6: the 24% advance starts on the 2nd Ode to Ego trigger (the 2nd Minuet of the battle), not the 3rd', () => {
+    const t = setup({ mates: FULL, eidolon: 6, kit: makeCyrene({ demiurgeOrder: ['hya', 'attack', 'attack', 'attack'] }), cycles: 12 })
     let minuet = 0
-    const advances: Array<{ minuet: number, amount: number }> = []
+    const advances: Array<{ minuet: number, fraction: number }> = []
     t.battle.timeline.bus.on('attackResolved', (r) => {
       if (r.ability === 'MEMO_SKILL') minuet += 1
     })
-    t.battle.timeline.bus.on('gaugeChanged', (g) => {
-      if (g.cause === 'advance') advances.push({ minuet, amount: g.before - g.after })
-    })
+    // Read the advance asked for, not the gauge change: right after the first Ultimate every ally is at 0 already.
+    const timeline = t.battle.timeline
+    const advance = timeline.advance.bind(timeline)
+    timeline.advance = (id, fraction) => {
+      advances.push({ minuet, fraction })
+      advance(id, fraction)
+    }
     t.battle.run()
-    const at24 = advances.filter((a) => Math.abs(a.amount - 2400) < 1e-6).map((a) => a.minuet)
+    const at24 = advances.filter((a) => Math.abs(a.fraction - 0.24) < 1e-9).map((a) => a.minuet)
     expect(at24.length).toBeGreaterThan(0)
     expect(Math.min(...at24)).toBe(2)
-    expect(advances.some((a) => a.minuet === 1 && Math.abs(a.amount - 2400) < 1e-6)).toBe(false)
+    expect(advances.some((a) => a.minuet === 1 && Math.abs(a.fraction - 0.24) < 1e-9)).toBe(false)
   })
 
-  it('Story: every third Reunion after the Ode gives Demiurge an automatic extra Minuet', () => {
-    const t = setup({ mates: FULL, eidolon: 2, kit: makeCyrene({ demiurgeOrder: ['cyrene'] }), cycles: 14 })
+  it('Story: 2 from the first Ultimate and 1 from each Reunion, so every third Ultimate gives Demiurge an automatic extra Minuet from the start', () => {
+    const t = setup({ mates: FULL, eidolon: 2, kit: makeCyrene({ demiurgeOrder: ['hya'] }), cycles: 14 })
     t.battle.run()
     const ults = t.log.filter((l) => l.actor === 'cyrene' && l.action === 'ultimate').length
     const demi = demiurgeActions(t).length
     expect(ults).toBeGreaterThanOrEqual(4)
-    expect(demi).toBe(ults + Math.floor((ults - 1) / 3))
-  })
-  it('without the Ode there is no Story', () => {
-    const t = setup({ mates: FULL, eidolon: 2, kit: makeCyrene({ demiurgeOrder: ['hya'] }), cycles: 14 })
-    t.battle.run()
-    const ults = t.log.filter((l) => l.actor === 'cyrene' && l.action === 'ultimate').length
-    expect(demiurgeActions(t).length).toBe(ults)
+    // One choice turn per Ultimate, one Story turn when the running count reaches 3: floor((ults + 1) / 3) of them.
+    expect(demi).toBe(ults + Math.floor((ults + 1) / 3))
   })
 })
 
@@ -879,14 +944,14 @@ describe('details of the Odes and Future', () => {
     use(t, 'hya', 'basic')
     expect(t.q('recollection')).toBe(25)
     use(t, 'cyrene', 'ultimate')
-    expect(t.q('recollection')).toBe(1)
+    expect(t.q('recollection')).toBe(13)
     use(t, 'hya', 'basic')
-    expect(t.q('recollection')).toBe(1)
+    expect(t.q('recollection')).toBe(13)
     // Her Basic ATK in Ripples gives 3 and refreshes Future, so Hyacine's next action gives 1 again.
     use(t, 'cyrene', 'basic')
-    expect(t.q('recollection')).toBe(4)
+    expect(t.q('recollection')).toBe(16)
     use(t, 'hya', 'basic')
-    expect(t.q('recollection')).toBe(5)
+    expect(t.q('recollection')).toBe(17)
   })
 
   it('a follow-up kind of memosprite action (Wings Sweep) gives nothing', () => {

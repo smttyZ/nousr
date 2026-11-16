@@ -76,7 +76,7 @@ export function parseScenario(input: unknown, options: ParseOptions = {}): Scena
   file.teams.forEach((team, i) => {
     if (teamIds.has(team.id)) problems.push(`teams[${i}]: team id "${team.id}" is used more than once`)
     teamIds.add(team.id)
-    teams.push(resolveTeam(team, account, problems))
+    teams.push(resolveTeam(team, account, file.battle.start?.techniques ?? DEFAULT_START.techniques, problems))
   })
 
   if (problems.length > 0) throw new ScenarioError(problems)
@@ -141,7 +141,7 @@ function resolveAccount(
   return scan as AccountScan
 }
 
-function resolveTeam(team: TeamFile, account: AccountScan | undefined, problems: string[]): Team {
+function resolveTeam(team: TeamFile, account: AccountScan | undefined, defaultTechnique: boolean, problems: string[]): Team {
   const at = `team "${team.id}"`
   const keys = new Set<string>()
   const characters = new Set<string>()
@@ -159,7 +159,7 @@ function resolveTeam(team: TeamFile, account: AccountScan | undefined, problems:
     }
     characters.add(member.character)
 
-    const resolved = resolveMember(member, account, teamKeys, `${at}, member "${member.key}"`, problems)
+    const resolved = resolveMember(member, account, teamKeys, defaultTechnique, `${at}, member "${member.key}"`, problems)
     if (resolved) members.push(resolved)
   }
 
@@ -197,6 +197,7 @@ function resolveMember(
   member: MemberFile,
   account: AccountScan | undefined,
   teamKeys: ReadonlySet<string>,
+  defaultTechnique: boolean,
   at: string,
   problems: string[],
 ): Member | undefined {
@@ -226,7 +227,7 @@ function resolveMember(
   }
 
   const kitOptions = member.kit_options !== undefined
-    ? resolveKitOptions(member.character, member.kit_options, teamKeys, at, problems)
+    ? resolveKitOptions(member.character, member.kit_options, teamKeys, member.key, at, problems)
     : defaultKitOptions(member.character)
 
   if (problems.length > before) return undefined
@@ -238,6 +239,8 @@ function resolveMember(
     affinitiveEidolon: member.affinitive_eidolon ?? false,
     lightCone: lightCone!,
     relics: relics!,
+    technique: member.technique ?? defaultTechnique,
+    techniqueGiven: member.technique !== undefined,
     ...(member.standard_build !== undefined && { standardBuild: resolveOverride(member.standard_build) }),
     ...(kitOptions !== undefined && { kitOptions, kitOptionsGiven: Object.keys(member.kit_options ?? {}).filter((k) => k !== 'notes') }),
   }

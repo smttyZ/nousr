@@ -30,12 +30,21 @@ import { AmphoreusTheEternalLand } from './amphoreusTheEternalLand'
 import { MakeFarewellsMoreBeautiful } from './makeFarewellsMoreBeautiful'
 import { TheStorysNextPage } from './theStorysNextPage'
 import { ThisLoveForever } from './thisLoveForever'
+// Relic and ornament sets for the equipped-relics run (release sprint).
+import { GuardOfWutheringSnow } from './guardOfWutheringSnow'
+import { EagleOfTwilightLine } from './eagleOfTwilightLine'
+import { LongevousDisciple } from './longevousDisciple'
+import { MessengerTraversingHackerspace } from './messengerTraversingHackerspace'
+import { WatchmakerMasterOfDreamMachinations } from './watchmakerMasterOfDreamMachinations'
+import { FleetOfTheAgeless } from './fleetOfTheAgeless'
+import { PanCosmicCommercialEnterprise } from './panCosmicCommercialEnterprise'
 
 export * from './equipment'
 export { AlongThePassingShore, DanceDanceDance, EternalCalculus, PioneerDiverOfDeadWaters, TodayIsAnotherPeacefulDay }
 export { GoodNightAndSleepWell, InTheNameOfTheWorld, TextureOfMemories }
 export { MemorysCurtainNeverFalls, PastAndFuture, TrendOfTheUniversalMarket }
 export { MakeFarewellsMoreBeautiful, TheStorysNextPage, ThisLoveForever }
+export { GuardOfWutheringSnow, EagleOfTwilightLine, LongevousDisciple, MessengerTraversingHackerspace, WatchmakerMasterOfDreamMachinations, FleetOfTheAgeless, PanCosmicCommercialEnterprise }
 export { TheAshblazingGrandDuke, RutilantArena, TheWondrousBananAmusementPark, ScholarLostInErudition, GeniusOfBrilliantStars, WarriorGoddessOfSunAndThunder, BrokenKeel, SacerdosRelivedOrdeal, SelfEnshroudedRecluse, LushakaTheSunkenSeas, BoneCollectionsSereneDemesne, PoetOfMourningCollapse, GiantTreeOfRaptBrooding, WorldRemakingDeliverer, AmphoreusTheEternalLand }
 
 /**
@@ -83,4 +92,5 @@ export const EQUIPMENT = createRegistry([AlongThePassingShore, DanceDanceDance, 
   MemorysCurtainNeverFalls, PastAndFuture, TrendOfTheUniversalMarket,
   MakeFarewellsMoreBeautiful, TheStorysNextPage, ThisLoveForever, TheGreatCosmicEnterprise,
   TheAshblazingGrandDuke, RutilantArena, TheWondrousBananAmusementPark, ScholarLostInErudition, GeniusOfBrilliantStars, WarriorGoddessOfSunAndThunder, BrokenKeel, SacerdosRelivedOrdeal, SelfEnshroudedRecluse, LushakaTheSunkenSeas, BoneCollectionsSereneDemesne, PoetOfMourningCollapse, GiantTreeOfRaptBrooding, WorldRemakingDeliverer, AmphoreusTheEternalLand,
+  GuardOfWutheringSnow, EagleOfTwilightLine, LongevousDisciple, MessengerTraversingHackerspace, WatchmakerMasterOfDreamMachinations, FleetOfTheAgeless, PanCosmicCommercialEnterprise,
 ])

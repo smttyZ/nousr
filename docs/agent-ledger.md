@@ -35,6 +35,7 @@ Columns:
 | 2026-11-16 | Sonnet | MoC period module (step 7) | 122k | 39 | 7.0 | Clean (lead merged, suite passes) | 2 run, all caught | Linked its worktree to main's node_modules/vendor by NTFS junctions (cleanup needs care) |
 | 2026-11-16 | Fable | Pre-release review: install test, 3-kit spot-check, publish safety, docs, scorecard | 219k | 66 | 9.5 | Reviewer: 1 kit discrepancy (Acheron own-Ultimate stack), personal data in git history, README order | — | Worked on main instead of the brief's commit, noticed and corrected it |
 | 2026-11-16 | Sonnet | Draft rotations + 5 comparison scenarios (private) | 245k | 65 | 10.9 | Pending Smitty's approval of rotations; found 7 missing relic sets in the scan | — | Sourced KQM + Prydwen (via Tavily; Prydwen blocks direct fetch) |
+| 2026-11-16 | Sonnet | Contributor docs: CONTRIBUTING, AGENTS, public CLAUDE.md, templates | 115k | 19 | 2.6 | Clean; its copy started from main, not the sprint branch (README conflict, resolved by lead) | — | Docs only |
 
 ## Side sessions
 

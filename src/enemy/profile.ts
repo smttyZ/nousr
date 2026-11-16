@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { Ajv2020 } from 'ajv/dist/2020.js'
 import schema from '../../schema/enemy-profile.schema.json' with { type: 'json' }
+import { repoPath } from '../paths'
 
 export type AttackTarget = 'single' | 'blast' | 'aoe' | 'bounce'
 
@@ -69,7 +70,7 @@ export class EnemyProfileError extends Error {
 }
 
 /** Where the profiles that ship with NouSR live. */
-export const ENEMY_PROFILE_DIR = resolve(import.meta.dirname, '../../data/enemies')
+export const ENEMY_PROFILE_DIR = repoPath('data/enemies')
 
 const validate = new Ajv2020({ allErrors: true }).compile(schema)
 

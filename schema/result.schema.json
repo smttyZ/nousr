@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:nousr:schema:result:1",
-  "title": "NouSR result (DRAFT)",
-  "description": "DRAFT for Smitty's review (docs/proposals/results-format.md). Nothing loads, writes or tests against this file yet. Follows the proposal's recommended options. One file per scenario run: every team at every enemy count, under the scenario's shared conditions (S1). Keys are snake_case like the scenario format. NouSR's own output matches this schema exactly; other readers should ignore keys they do not know, since optional fields may be added without a version change (decision 13).",
+  "title": "NouSR result",
+  "description": "The result of one scenario run (version 1; docs/proposals/results-format.md). NouSR validates what it writes against this file. One file per scenario run: every team at every enemy count, under the scenario's shared conditions (S1). Keys are snake_case like the scenario format. NouSR's own output matches this schema exactly; other readers should ignore keys they do not know, since optional fields may be added without a version change (decision 13).",
   "type": "object",
   "additionalProperties": false,
   "required": ["format", "version", "game_version", "generator", "scenario", "teams", "runs", "comparison", "warnings"],
@@ -94,7 +94,7 @@
     "member": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["key", "character", "ability_version", "eidolon", "affinitive_eidolon", "light_cone", "relics", "stats"],
+      "required": ["key", "character", "ability_version", "eidolon", "affinitive_eidolon", "light_cone", "relics", "technique", "stats"],
       "properties": {
         "key": { "$ref": "#/$defs/slug" },
         "character": { "type": "string", "description": "Game id, e.g. \"1308\"." },
@@ -111,6 +111,7 @@
           }
         },
         "relics": { "enum": ["equipped", "standard", "list"] },
+        "technique": { "type": "boolean", "description": "Whether the member used their technique before the battle (K31): their own setting, else the scenario's battle.start.techniques." },
         "stats": {
           "type": "object",
           "additionalProperties": false,
@@ -120,7 +121,7 @@
             "spd": { "type": "number" },
             "hp": { "type": "number" },
             "def": { "type": "number" },
-            "err": { "type": "number", "description": "Energy Regeneration Rate, 1 = 100%." },
+            "err": { "type": "number", "description": "Energy Regeneration Rate bonus as the kernel reports it: 0.194 is +19.4%." },
             "effect_res": { "type": "number" }
           }
         }
@@ -157,6 +158,26 @@
             "additionalProperties": false,
             "required": ["slot", "from", "to"],
             "properties": { "slot": { "type": "string" }, "from": { "type": "string" }, "to": { "type": "string" } }
+          }
+        },
+        "spd_solved": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["file_rolls", "used_rolls", "reachable", "moves"],
+          "description": "Optional (K32). Set when the loader solved the SPD rolls: the file's count, the count the build runs with, whether the target was reachable, and the rolls that moved to or from SPD.",
+          "properties": {
+            "file_rolls": { "type": "integer", "minimum": 0 },
+            "used_rolls": { "type": "integer", "minimum": 0 },
+            "reachable": { "type": "boolean" },
+            "moves": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["from", "to", "rolls"],
+                "properties": { "from": { "type": "string" }, "to": { "type": "string" }, "rolls": { "type": "integer" } }
+              }
+            }
           }
         },
         "spd": {
@@ -200,6 +221,10 @@
           }
         },
         "total": { "$ref": "#/$defs/damage" },
+        "unattributed": {
+          "$ref": "#/$defs/damage",
+          "description": "Optional. Damage that belongs to no logged action (a Technique at battle start, a reaction to an enemy's turn). Left out when zero. The actions' damage plus this is `total` (K35)."
+        },
         "per_cycle": {
           "type": "array",
           "items": { "$ref": "#/$defs/damage" },

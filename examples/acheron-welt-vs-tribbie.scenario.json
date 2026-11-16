@@ -4,13 +4,14 @@
   "version": 1,
   "game_version": "4.7",
   "name": "Acheron E1 + Affinitive Eidolon: Welt vs Tribbie in the third slot",
-  "notes": "The first comparison in CLAUDE.md's reference table. No account file, so every member runs on standard relics. Teammate eidolons that CLAUDE.md does not state are written as 0 and are placeholders. The policy quantities (slashed_dream and so on) are illustrative: the real names come from the kits in step 6.",
+  "notes": "The first comparison in CLAUDE.md's reference table. No account file, so every member runs on standard relics. Teammate eidolons that CLAUDE.md does not state are written as 0 and are placeholders. The policy quantities are the kits' own (acheron.slashed_dream, dan_heng.has_bondmate, tribbie.numinosity); the policies themselves are simple placeholders, not tuned play.",
 
   "battle": {
     "mode": "moc",
     "cycles": 5,
-    "period": "moc-2026-11-survival-of-the-fittest",
-    "start": { "energy": 0.5, "skill_points": 3, "techniques": true }
+    "period": null,
+    "start": { "energy": 0.5, "skill_points": 3, "techniques": true },
+    "notes": "period is null until the period module exists (build order step 7); it will name moc-2026-11-survival-of-the-fittest."
   },
 
   "enemies": {
@@ -83,7 +84,7 @@
         { "unit": "welt", "use": "skill", "when": [{ "what": "team.skill_points", "min": 2 }] },
         { "unit": "welt", "use": "basic" },
 
-        { "unit": "dan_heng", "use": "skill", "target": "acheron", "when": [{ "what": "dan_heng.bondmate_set", "is": false }] },
+        { "unit": "dan_heng", "use": "skill", "target": "acheron", "when": [{ "what": "dan_heng.has_bondmate", "is": false }] },
         { "unit": "dan_heng", "use": "basic" }
       ]
     },
@@ -135,10 +136,10 @@
         { "unit": "silver_wolf", "use": "skill", "when": [{ "what": "team.skill_points", "min": 2 }] },
         { "unit": "silver_wolf", "use": "basic" },
 
-        { "unit": "tribbie", "use": "skill", "when": [{ "what": "tribbie.numinosity_active", "is": false }] },
+        { "unit": "tribbie", "use": "skill", "when": [{ "what": "tribbie.numinosity", "is": false }] },
         { "unit": "tribbie", "use": "basic" },
 
-        { "unit": "dan_heng", "use": "skill", "target": "acheron", "when": [{ "what": "dan_heng.bondmate_set", "is": false }] },
+        { "unit": "dan_heng", "use": "skill", "target": "acheron", "when": [{ "what": "dan_heng.has_bondmate", "is": false }] },
         { "unit": "dan_heng", "use": "basic" }
       ]
     }

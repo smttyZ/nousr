@@ -113,6 +113,20 @@ export interface MemberKitOptions {
   defaulted: string[]
 }
 
+/** What a member actually ran with, that the scenario alone does not say (for the result file, results-format decision 10). */
+export interface MemberRunInfo {
+  member: string
+  /** The ability version the kernel resolved: 0 = the original kit, n = buffed version n. */
+  abilityVersion: number
+  /** Out-of-combat stats the timeline started from (`MemberSetup.stats`; SPD is base plus flat). */
+  spd: number
+  hp: number
+  def: number
+  /** Energy Regeneration Rate bonus as the kernel reports it (0.194 = +19.4%). */
+  err: number
+  effectRes: number
+}
+
 export interface TeamRun {
   team: string
   enemyCount: number
@@ -128,6 +142,8 @@ export interface TeamRun {
   kitOptions: MemberKitOptions[]
   /** Which members used their technique before the battle (K31). */
   techniques: MemberTechnique[]
+  /** One per member, in team order: the stats and ability version the battle started from. */
+  members: MemberRunInfo[]
 }
 
 /** Everything that stops a team from being run, reported together. */
@@ -167,6 +183,15 @@ export function runScenario(scenario: Scenario, options: RunOptions): TeamRun[] 
       standardBuilds: plan.standardBuilds,
       kitOptions: plan.kitOptions,
       techniques: plan.techniques,
+      members: plan.setup.members.map((m): MemberRunInfo => ({
+        member: m.key,
+        abilityVersion: abilityVersionOf(m.kernel.unit.characterId),
+        spd: m.stats.baseSpd + (m.stats.spdFlat ?? 0),
+        hp: m.stats.maxHp,
+        def: m.stats.def,
+        err: m.stats.energyRegen ?? 0,
+        effectRes: m.stats.effectRes ?? 0,
+      })),
     }
   })
 }

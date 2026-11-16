@@ -113,6 +113,21 @@ export interface EngineEvents {
     action: string
     kind: 'basic' | 'skill' | 'ultimate' | 'followUp'
     serial: number
+    /** Action value when the action started (`timeline.now`). */
+    at: number
+    /** Cycle the action started in (the timeline's own count, which keeps counting past the battle's last cycle). */
+    cycle: number
+    /**
+     * Damage booked while this action was the innermost one in progress: what resolved inside it, Break DMG included. Damage
+     * a unit deals in reaction to this action (Tribbie's Additional DMG, listened for on `actionUsed`) is booked after the action
+     * has ended and is added to it (K35), as is a reaction to that reaction; a follow-up the listener performs is its own action
+     * with its own line. The log's damage plus `BattleResult.unattributedDamage` is the run's total. So this number can grow after
+     * the event is emitted: read it from the log, not in a listener.
+     */
+    damage: number
+    /** Team Skill Points when the action started and when it finished. */
+    skillPointsBefore: number
+    skillPointsAfter: number
     enemiesHit: UnitId[]
     hitChance: Record<UnitId, number>
     expectedEnemiesHit: number

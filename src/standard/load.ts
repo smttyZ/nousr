@@ -13,15 +13,16 @@ import {
   SUBSTATS,
 } from './types'
 import { capFor } from './rules'
+import { repoPath } from '../paths'
 
 /** Where the standard builds that ship with NouSR live. */
-export const STANDARD_BUILD_DIR = resolve(import.meta.dirname, '../../data/standard-builds')
+export const STANDARD_BUILD_DIR = repoPath('data/standard-builds')
 
 /**
  * The game's set names by id, from the data file Fribbels ships (the same data its importer reads). Rule (d) of
  * the schema: a file's `set_id` and `name` must agree with it.
  */
-export const GAME_DATA_PATH = resolve(import.meta.dirname, '../../vendor/hsr-optimizer/src/data/game_data.json')
+export const GAME_DATA_PATH = repoPath('vendor/hsr-optimizer/src/data/game_data.json')
 
 let gameSetNames: ReadonlyMap<string, string> | undefined
 

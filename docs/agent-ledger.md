@@ -24,6 +24,8 @@ Columns:
 | 2026-11-15 | Haiku | 4 missing Cyrene tests | 120k | 12 | 1.7 | Clean (lead verified) | 4 run, 4 killed | Tight brief, pattern work |
 | 2026-11-15 | Sonnet | Apply in-game results (8 items) | 273k | 81 | 16.3 | Clean (lead verified suite) | 12 run, all killed | |
 | 2026-11-15 | Sonnet | K31 technique toggles + K32 SPD at load | 257k | 82 | 22.1 | Clean; flagged its own change to an earlier decision (K14f) | ~14 run, all killed | |
+| 2026-11-16 | Sonnet | Build `nousr run` CLI, results writer, packaging, CI | 266k | 86 | 21.0 | Clean so far (lead verified suite, build, real run); 1 schema field added and reported | 7 run, all caught | Fixed the stale example scenario; flagged 4 open choices |
+| 2026-11-16 | Sonnet | CLI follow-ups: reaction damage, downed targets, spd_solved | 136k | 36 | 7.2 | Clean (lead verified suite, build, log sums = totals) | 3 run, all caught | 2 optional schema fields, reported |
 
 ## Side sessions
 

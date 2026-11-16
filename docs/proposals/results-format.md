@@ -1,7 +1,12 @@
 # Proposal: the results report (`nousr-result`) and the command line
 
-Status: DRAFT for Smitty's review, 2026-11-15. Nothing here is built. `src/` and DESIGN.md are untouched; the only other file is
-`schema/result.schema.json`, marked DRAFT, which no loader or test reads.
+Status: APPROVED and BUILT, 2026-11-16. Smitty approved every recommended option (Q11 = option A, the Vite bundle); the report
+writer is `src/result/`, the command is `src/cli.ts` (K33, K34), and `schema/result.schema.json` is version 1. Where the build
+differs from what is written below: the schema gained `technique` per member (the technique echo had no field), `kit_stats`
+(decision 7) is in the schema but nothing writes it yet, the log's per-action damage includes damage dealt in reaction to the
+action (Tribbie's Additional DMG, K35; damage with no triggering action is the run's optional `unattributed`), and each
+`standard_builds[]` echo carries an optional `spd_solved` (`file_rolls`, `used_rolls`, `reachable`, `moves`: K32's solving, from
+`StandardBuildReport.spdSolved`). Both are optional additions, so the version stays 1. Written 2026-11-15 as a draft; the text below is left as proposed.
 Related: DESIGN.md K8 (this report), K19 (structured warnings), K27 (kit options and their echo), K14c/K14f (standard-build echo),
 S1 (teams in one file share conditions), S7/S8 (strictness, identity), decision 1 (enemy counts 1, 3, 5 reported separately),
 "Planned experiments", Roadmap (optimizer, stochastic mode, graphs and a readable action log).

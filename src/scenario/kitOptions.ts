@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { Ajv2020 } from 'ajv/dist/2020.js'
 import type { ErrorObject, ValidateFunction } from 'ajv'
+import { repoPath } from '../paths'
 
 /**
  * Per-member kit options (DESIGN.md K25, K26; docs/proposals/scenario-kit-options.md).
@@ -29,7 +30,7 @@ interface Domain {
   exclude_self?: boolean
 }
 
-const DIR = fileURLToPath(new URL('../../schema/kit-options/', import.meta.url))
+const DIR = repoPath('schema/kit-options') + '/'
 
 const ajv = new Ajv2020({ allErrors: true, useDefaults: true })
 ajv.addKeyword({ keyword: 'x-nousr-domain', schemaType: 'object' })

@@ -14,6 +14,21 @@ version 4.7. No support or update cadence is promised.
 
 See [DESIGN.md](DESIGN.md) for architecture, decisions and open questions.
 
+## Running a scenario
+
+```
+npm run build                                                    # bundles the command into dist/cli.js
+node dist/cli.js run examples/acheron-welt-vs-tribbie.scenario.json
+node dist/cli.js run examples/acheron-welt-vs-tribbie.scenario.json -o results/acheron.json   # also write the JSON
+npx nousr run <scenario.json>                                    # the same, through the package's bin
+```
+
+`nousr run` prints the totals per team and enemy count with ratios against a baseline team, then who did the damage
+(`--cycles` adds per-cycle tables, `--log <team>:<count>` an action log). `-o <file>` writes the `nousr-result` JSON
+(`schema/result.schema.json`; `--json` prints it, `--no-log` leaves the action log out). `nousr validate <scenario.json>`
+checks a scenario without running it. Warnings go to stderr; `--strict` makes them exit code 3. `nousr run --help` lists
+every option. Needs Node 24 or newer, and the repository folder: the data files are read from it.
+
 ## Development
 
 Needs Node 24 or newer and git. Fribbels' optimizer is a git submodule under `vendor/hsr-optimizer`,

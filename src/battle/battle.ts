@@ -299,10 +299,22 @@ export interface BattleResult {
   /** Index 0 is cycle 1. */
   damageByCycle: number[]
   damageByMember: Record<string, number>
+  /**
+   * Damage that belongs to no logged action: booked with no action in progress and no `actionUsed` being answered (a Technique at
+   * battle start, a reaction to an enemy's turn). `actions[].damage` summed plus this equals `totalDamage` (K35).
+   */
+  unattributedDamage: number
   /** Every ally action in order. */
   actions: EngineEvents['actionUsed'][]
   /** Allies that were downed. Non-empty fails the "no downed characters" objective. */
   downed: string[]
+  /** The same allies as `downed`, in the same order, with the action value and cycle they were downed at. */
+  downedAt: { member: string, at: number, cycle: number }[]
+  /**
+   * Damage per member and ability name, as `damageDealt.ability` names it (Break DMG and flat amounts included; a memosprite's
+   * damage is under its owner). Every member of the team has an entry, possibly empty. Sums to `damageByMember`.
+   */
+  damageByAbility: Record<string, Record<string, number>>
   kernelCalls: number
   /**
    * What the run says about its own numbers (K19). Today: an undecided "highest HP" tie that changed the
@@ -325,6 +337,11 @@ interface TieRecord {
 
 interface ActionInProgress {
   serial: number
+  at: number
+  cycle: number
+  skillPointsBefore: number
+  /** Damage booked while this was the innermost action in progress. */
+  damage: number
   enemiesHit: Set<UnitId>
   debuffed: Set<UnitId>
   /** Per enemy, the probability that NO part of the action so far hit it (K17). Absent: not hit. */
@@ -344,12 +361,21 @@ export class Battle {
   private skillPointCount: number
   private actionSerial = 0
   private current: ActionInProgress | undefined
+  /**
+   * The logged action whose `actionUsed` listeners are running: damage booked now, outside any action of its own, is a reaction
+   * to it and is added to its `damage` (K35). Cleared inside a nested action's body, which books its own damage.
+   */
+  private reactingTo: { damage: number } | undefined
+  /** Damage booked with no action in progress and no `actionUsed` being answered (battle start, enemy turns). */
+  private unattributed = 0
   private readonly kernelCache = new Map<string, DamageResult>()
   private kernelCalls = 0
   private readonly damageByCycle: number[]
   private readonly damageByMember: Record<string, number> = {}
   private readonly actionLog: EngineEvents['actionUsed'][] = []
   private readonly downed: string[] = []
+  private readonly downedAt: { member: string, at: number, cycle: number }[] = []
+  private readonly damageByAbility: Record<string, Record<string, number>> = {}
   private readonly tieRecords = new Map<string, TieRecord>()
   private readonly summonMap = new Map<UnitId, SummonSpec>()
   /** Cyrene's effect per ally (`cyreneEffect`, `setCyreneEffect`). */
@@ -383,12 +409,14 @@ export class Battle {
         energyRegen: m.stats.energyRegen ?? 0,
       })
       this.damageByMember[m.key] = 0
+      this.damageByAbility[m.key] = {}
     })
     this.enemies = new Enemies(this.timeline, this.party, setup.profile, setup.enemyCount)
     this.primary = this.enemies.ids[Math.floor(setup.enemyCount / 2)]!
     removeDownedFromTimeline(this.timeline)
     this.timeline.bus.on('unitDowned', (e) => {
       this.downed.push(e.unit)
+      this.downedAt.push({ member: e.unit, at: e.at, cycle: this.timeline.cycle })
       // A summon leaves with its owner (Lightning-Lord's text: "when Jing Yuan is knocked down ... disappear").
       for (const summon of [...this.summonMap.values()]) if (summon.owner === e.unit) this.removeSummon(summon.id)
       // A memosprite leaves with its owner. IN-GAME CHECK: assumed, as for the summon.
@@ -665,12 +693,25 @@ export class Battle {
    */
   performAction(actor: string, action: string, kind: EngineEvents['actionUsed']['kind'], body: () => void): void {
     const outer = this.current
-    const mine: ActionInProgress = { serial: ++this.actionSerial, enemiesHit: new Set(), debuffed: new Set(), miss: new Map(), debuffMiss: new Map() }
+    const mine: ActionInProgress = {
+      serial: ++this.actionSerial,
+      at: this.timeline.now,
+      cycle: this.timeline.cycle,
+      skillPointsBefore: this.skillPointCount,
+      damage: 0,
+      enemiesHit: new Set(),
+      debuffed: new Set(),
+      miss: new Map(),
+      debuffMiss: new Map(),
+    }
+    const outerReaction = this.reactingTo
     this.current = mine
+    this.reactingTo = undefined
     try {
       body()
     } finally {
       this.current = outer
+      this.reactingTo = outerReaction
     }
     const hitChance: Record<UnitId, number> = {}
     let expectedEnemiesHit = 0
@@ -688,6 +729,11 @@ export class Battle {
       action,
       kind,
       serial: mine.serial,
+      at: mine.at,
+      cycle: mine.cycle,
+      damage: mine.damage,
+      skillPointsBefore: mine.skillPointsBefore,
+      skillPointsAfter: this.skillPointCount,
       enemiesHit: [...mine.enemiesHit],
       hitChance,
       expectedEnemiesHit,
@@ -695,7 +741,15 @@ export class Battle {
       debuffChance,
     }
     this.actionLog.push(event)
-    this.timeline.bus.emit('actionUsed', event)
+    // K35: damage the listeners book in reaction (Tribbie's Zone, a follow-up's own reactions) is credited to this action. A
+    // reaction to a reaction books while this is still set, so it lands here too. A listener that performs an action of its own
+    // clears it for that body (above) and gets its own line.
+    this.reactingTo = event
+    try {
+      this.timeline.bus.emit('actionUsed', event)
+    } finally {
+      this.reactingTo = outerReaction
+    }
   }
 
   /**
@@ -993,6 +1047,11 @@ export class Battle {
   ): void {
     this.enemies.takeDamage(enemy, damage)
     this.damageByMember[attacker.key]! += damage
+    const byAbility = this.damageByAbility[attacker.key]!
+    byAbility[ability] = (byAbility[ability] ?? 0) + damage
+    if (this.reactingTo) this.reactingTo.damage += damage
+    else if (this.current) this.current.damage += damage
+    else this.unattributed += damage
     const cycleIndex = Math.min(this.timeline.cycle, this.setup.cycles) - 1
     this.damageByCycle[cycleIndex]! += damage
     this.timeline.bus.emit('damageDealt', {
@@ -1178,8 +1237,11 @@ export class Battle {
       totalDamage: this.damageByCycle.reduce((a, b) => a + b, 0),
       damageByCycle: [...this.damageByCycle],
       damageByMember: { ...this.damageByMember },
+      unattributedDamage: this.unattributed,
       actions: [...this.actionLog],
       downed: [...this.downed],
+      downedAt: this.downedAt.map((d) => ({ ...d })),
+      damageByAbility: Object.fromEntries(Object.entries(this.damageByAbility).map(([k, v]) => [k, { ...v }])),
       kernelCalls: this.kernelCalls,
       warnings: [...this.tieWarnings(), ...this.kitWarnings.values()],
     }
@@ -1231,8 +1293,16 @@ export class Battle {
 
   private applies(rule: Rule): boolean {
     if (this.party.get(rule.unit).downed) return false
+    // K36: a rule whose target is downed (or not on the field) does not apply, like an unmet condition.
+    if (rule.target !== undefined && !this.onField(rule.target)) return false
     const action = this.member(rule.unit).instance.actions[rule.use]!
     return action.canUse() && rule.when.every((c) => this.holds(c))
+  }
+
+  /** An enemy, or an ally that is in the party and not downed. */
+  private onField(target: UnitId): boolean {
+    if (this.enemies.has(target)) return true
+    return this.party.has(target) && !this.party.get(target).downed
   }
 
   private holds(condition: Condition): boolean {

@@ -4,8 +4,12 @@
   "private": true,
   "description": "Deterministic action-value timeline simulator for Honkai: Star Rail teams",
   "type": "module",
+  "bin": {
+    "nousr": "dist/cli.js"
+  },
   "scripts": {
     "setup": "git submodule update --init && npm ci --prefix vendor/hsr-optimizer --no-audit --no-fund && npm run update-resources --prefix vendor/hsr-optimizer",
+    "build": "vite build --config vite.config.cli.ts",
     "test": "vitest --no-watch",
     "test:watch": "vitest",
     "test:fribbels": "cd vendor/hsr-optimizer && npx vitest --no-watch --pool=forks --config ../../vitest.fribbels.config.ts",
@@ -14,6 +18,7 @@
   "devDependencies": {
     "@types/node": "^24.19.2",
     "typescript": "^6.0.3",
+    "vite": "8.3.8",
     "vitest": "^4.1.12"
   },
   "dependencies": {

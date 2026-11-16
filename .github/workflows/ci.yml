@@ -45,3 +45,13 @@ jobs:
 
       - name: Tests
         run: npm test
+
+      - name: Build the command
+        run: npm run build
+
+      - name: Smoke run of the built command
+        run: |
+          node dist/cli.js version
+          node dist/cli.js validate examples/acheron-welt-vs-tribbie.scenario.json
+          node dist/cli.js run examples/acheron-welt-vs-tribbie.scenario.json --json --no-log --teams sw_welt_dhpt --enemies 1 > "$RUNNER_TEMP/result.json"
+          node -e "const r = JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP + '/result.json', 'utf8')); if (r.format !== 'nousr-result' || !(r.runs[0].total > 0)) { console.error('bad result'); process.exit(1) }"

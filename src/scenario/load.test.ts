@@ -96,7 +96,7 @@ describe('the example scenario', () => {
     expect(s.battle).toEqual({
       mode: 'moc',
       cycles: 5,
-      period: 'moc-2026-11-survival-of-the-fittest',
+      period: null,
       start: { energy: 0.5, skillPoints: 3, techniques: true },
     })
     expect(s.enemies).toEqual({ profile: 'generic-moc', counts: [1, 3, 5], weaknesses: 'all' })
@@ -136,7 +136,7 @@ describe('the example scenario', () => {
       unit: 'dan_heng',
       use: 'skill',
       target: 'acheron',
-      when: [{ what: 'dan_heng.bondmate_set', is: false }],
+      when: [{ what: 'dan_heng.has_bondmate', is: false }],
     })
   })
 })

@@ -153,6 +153,29 @@ describe('policy', () => {
     expect(() => b.run()).toThrow(/No policy rule applies on a's turn 1 .*0 skill points/)
   })
 
+  it('skips a rule whose target is downed or not on the field, like an unmet condition (K36)', () => {
+    const rules: Rule[] = [
+      { unit: 'a', use: 'skill', target: 'b', when: [] },
+      { unit: 'a', use: 'basic', when: [] },
+    ]
+    const alive = battle({ members: [striker('a'), striker('b', 50)], policy: rules, start: { energy: 0, skillPoints: 3, techniques: true } })
+    expect(alive.b.run().actions[0]!.action).toBe('skill')
+
+    const downedTarget = battle({ members: [striker('a'), striker('b', 50)], policy: rules, start: { energy: 0, skillPoints: 3, techniques: true } })
+    downedTarget.b.party.takeDamage('b', 1e12, 'enemy1')
+    expect(downedTarget.b.party.get('b').downed).toBe(true)
+    expect(downedTarget.b.run().actions.map((x) => x.action)).toEqual(['basic'])
+
+    const gone = battle({ policy: [{ unit: 'a', use: 'skill', target: 'nobody', when: [] }, ...basicOnly] })
+    expect(gone.b.run().actions.map((x) => x.action)).toEqual(['basic'])
+  })
+
+  it('still stops when every rule is skipped for a downed target', () => {
+    const { b } = battle({ members: [striker('a'), striker('b', 50)], policy: [{ unit: 'a', use: 'skill', target: 'b', when: [] }] })
+    b.party.takeDamage('b', 1e12, 'enemy1')
+    expect(() => b.run()).toThrow(/No policy rule applies on a's turn 1/)
+  })
+
   it('rejects an action or quantity that does not exist, before the battle starts', () => {
     expect(() => battle({ policy: [{ unit: 'a', use: 'dance', when: [] }] })).toThrow(/a has no action "dance" \(it has: basic, skill, ultimate\)/)
     expect(() => battle({ policy: [{ unit: 'a', use: 'basic', when: [{ what: 'a.mood', min: 1 }] }] })).toThrow(/Unknown quantity "a.mood"/)
@@ -666,5 +689,95 @@ describe('technique per member (K31)', () => {
       battle({ members, policy: members.map((m) => ({ unit: m.key, use: 'basic' as const, when: [] })), start: { energy: 0, skillPoints: 3, techniques } }).b.run()
       expect(told).toEqual({ a: techniques, b: true, c: false })
     }
+  })
+})
+
+describe('the action log carries when, how much and Skill Points (results format, decision 6)', () => {
+  it('records the action value, cycle, damage and Skill Points before and after each action', () => {
+    const { b } = battle({
+      cycles: 2,
+      start: { energy: 0, skillPoints: 1, techniques: true },
+      policy: [
+        { unit: 'a', use: 'skill', when: [{ what: 'team.skill_points', min: 1 }] },
+        { unit: 'a', use: 'basic', when: [] },
+      ],
+    })
+    const result = b.run()
+    const [first, second] = result.actions
+    // 100 SPD acts at action value 100. Skill: 200% blast, 1,000 per 100% doubled by the mark it applies first = 4,000. It spends the one point.
+    expect(first).toMatchObject({ action: 'skill', kind: 'skill', at: 100, cycle: 1, damage: 4000, skillPointsBefore: 1, skillPointsAfter: 0 })
+    // Basic gains a point and hits for 2,000 (the enemy is marked).
+    expect(second).toMatchObject({ action: 'basic', damage: 2000, skillPointsBefore: 0, skillPointsAfter: 1 })
+    expect(second!.at).toBeGreaterThan(first!.at)
+    for (const a of result.actions) expect(a.cycle).toBe(a.at <= 150 ? 1 : 2)
+    // Everything dealt inside an action is in some action's damage: here, all of it.
+    expect(result.actions.reduce((sum, a) => sum + a.damage, 0)).toBeCloseTo(result.totalDamage, 6)
+  })
+
+  it('damage per ability sums to the member total', () => {
+    const { b } = battle({ cycles: 5, start: { energy: 0, skillPoints: 1, techniques: true }, policy: [{ unit: 'a', use: 'skill', when: [{ what: 'team.skill_points', min: 1 }] }, { unit: 'a', use: 'basic', when: [] }] })
+    const result = b.run()
+    expect(Object.keys(result.damageByAbility.a!).sort()).toEqual(['BASIC', 'SKILL'])
+    const sum = Object.values(result.damageByAbility.a!).reduce((x, y) => x + y, 0)
+    expect(sum).toBeCloseTo(result.damageByMember.a!, 6)
+  })
+
+  it('downedAt lists the same allies as downed, with when', () => {
+    const { b } = battle()
+    const result = b.run()
+    expect(result.downedAt.map((d) => d.member)).toEqual(result.downed)
+  })
+})
+
+describe('reaction damage in the action log (K35)', () => {
+  it('credits damage booked in reaction to an action to that action, and a reaction to a reaction to the original', () => {
+    const { b } = battle({ cycles: 2 })
+    // A made-up Zone: after each of a's actions, 500 Additional DMG; that damage triggers another 250 (a reaction to a reaction).
+    let reacting = false
+    b.timeline.bus.on('actionUsed', () => {
+      b.attack({ attacker: 'a', ability: 'BASIC', parts: [{ shape: 'single', scaling: 0.5, hit: 0 }] })
+    })
+    b.timeline.bus.on('damageDealt', (e) => {
+      if (reacting || e.scaling !== 0.5) return
+      reacting = true
+      b.attack({ attacker: 'a', ability: 'BASIC', parts: [{ shape: 'single', scaling: 0.25, hit: 0 }] })
+      reacting = false
+    })
+    const r = b.run()
+    expect(r.actions).toHaveLength(2)
+    // Each basic: 1000 own + 500 reaction + 250 reaction to the reaction. The log carries all of it.
+    for (const x of r.actions) expect(x.damage).toBeCloseTo(1750, 6)
+    expect(r.actions.reduce((sum, x) => sum + x.damage, 0) + r.unattributedDamage).toBeCloseTo(r.totalDamage, 6)
+    expect(r.unattributedDamage).toBe(0)
+    // Per-member and per-ability totals are what they always were.
+    expect(r.damageByMember.a).toBeCloseTo(3500, 6)
+    expect(r.damageByAbility.a!.BASIC).toBeCloseTo(3500, 6)
+  })
+
+  it('gives a follow-up that a listener performs its own line, with its own reactions', () => {
+    const { b } = battle({ cycles: 1 })
+    let fired = false
+    b.timeline.bus.on('actionUsed', (e) => {
+      if (e.kind === 'followUp') {
+        b.attack({ attacker: 'a', ability: 'BASIC', parts: [{ shape: 'single', scaling: 0.5, hit: 0 }] })
+        return
+      }
+      if (fired) return
+      fired = true
+      b.performAction('a', 'fua', 'followUp', () => b.attack({ attacker: 'a', ability: 'BASIC', parts: [{ shape: 'single', scaling: 1, hit: 0 }] }))
+    })
+    const r = b.run()
+    const fua = r.actions.find((x) => x.kind === 'followUp')!
+    expect(fua.damage).toBeCloseTo(1000 + 500, 6)
+    expect(r.actions.filter((x) => x.kind === 'followUp')).toHaveLength(1)
+    expect(r.actions.reduce((sum, x) => sum + x.damage, 0)).toBeCloseTo(r.totalDamage, 6)
+  })
+
+  it('reports damage that belongs to no action as unattributed', () => {
+    const { b } = battle()
+    b.attack({ attacker: 'a', ability: 'BASIC', parts: [{ shape: 'single', scaling: 1, hit: 0 }] }) // before the battle: a Technique
+    const r = b.run()
+    expect(r.unattributedDamage).toBeCloseTo(1000, 6)
+    expect(r.actions.reduce((sum, x) => sum + x.damage, 0) + r.unattributedDamage).toBeCloseTo(r.totalDamage, 6)
   })
 })

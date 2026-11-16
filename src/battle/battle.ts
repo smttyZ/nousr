@@ -8,6 +8,7 @@ import { Timeline } from '../engine/timeline'
 import type { EnemyProfile } from '../enemy/profile'
 import type { CombatStats, DamageKernel, DamageRequest, DamageResult, ExtraHit, HitResult, InjectedBuff, KernelBuild, KernelTeammate, KernelUnit } from '../kernel/types'
 import type { Kit, KitInstance } from '../kits/kit'
+import type { LevelView } from '../levels/levels'
 import type { RunWarning } from '../run/warnings'
 import type { Condition, Element, Rule } from '../scenario/types'
 import { BREAK_BASE_DELAY, ENTANGLEMENT_DELAY, Enemies, IMPRISONMENT_DELAY, IMPRISONMENT_SLOW } from './enemies'
@@ -77,6 +78,11 @@ export interface MemberSetup {
   kit: Kit
   eidolon: number
   affinitiveEidolon: boolean
+  /**
+   * The member's ability levels and traces (K15) with the character's level table, for a kit that models them. Left out (tests,
+   * hand-built setups): everything at maximum, which a kit reads through `levelsOf`.
+   */
+  levels?: LevelView
   /**
    * Whether this member uses their technique before the battle (K31). Left out, `BattleSetup.start.techniques` decides, which is
    * the default for every member; a scenario run always sets it from the member's resolved `technique`.

@@ -5,6 +5,8 @@ import { ENEMY_PROFILE_DIR, type EnemyProfile, loadEnemyProfile } from '../enemy
 import type { KernelBuild, KernelUnit, ScannedRelic, ScenarioKernel } from '../kernel/types'
 import { KITS, kitFor, type RegisteredKit } from '../kits/index'
 import { PERIODS, type PeriodModule, type PeriodRegistry, resolvePeriod } from '../periods/index'
+import type { Kit } from '../kits/kit'
+import { type AbilityKey, describeBelowMax, LevelView, loadLevelTable, lockedMinorPoints, maxLevels } from '../levels/levels'
 import type { Member, Scenario, Team } from '../scenario/types'
 import { KIT_OPTION_SCHEMAS } from '../scenario/kitOptions'
 import { loadStandardBuild, resolveStandardBuild, type StandardBuildReport, StandardBuildError } from '../standard/index'
@@ -98,6 +100,22 @@ export interface TeamPlan {
   kitOptions: MemberKitOptions[]
   /** One per member: whether the technique was used before the battle (K31). */
   techniques: MemberTechnique[]
+  /** One per member that has levels (K15): the ability levels and traces the battle ran with. */
+  levels: MemberLevelsEcho[]
+}
+
+/** The levels a member ran with (K15), for the result file. */
+export interface MemberLevelsEcho {
+  member: string
+  /** `'scan'`: read from the account scan; `'max'`: everything at maximum; `'scenario'`: the member's `levels` object decided something. */
+  source: 'scan' | 'max' | 'scenario'
+  /** Total in-game level per ability the character has. */
+  abilities: Partial<Record<AbilityKey, number>>
+  /** The same, at maximum for the member's eidolon. */
+  maxAbilities: Partial<Record<AbilityKey, number>>
+  /** B1..B3 and S1..S10, true = unlocked. */
+  majorTraces: boolean[]
+  minorTraces: boolean[]
 }
 
 /** Whether a member used their technique, and whether the scenario said so for this member or the battle default decided. */
@@ -145,6 +163,8 @@ export interface TeamRun {
   kitOptions: MemberKitOptions[]
   /** Which members used their technique before the battle (K31). */
   techniques: MemberTechnique[]
+  /** The ability levels and traces each member with a level table ran with (K15). */
+  levels: MemberLevelsEcho[]
   /** One per member, in team order: the stats and ability version the battle started from. */
   members: MemberRunInfo[]
 }
@@ -186,6 +206,7 @@ export function runScenario(scenario: Scenario, options: RunOptions): TeamRun[] 
       standardBuilds: plan.standardBuilds,
       kitOptions: plan.kitOptions,
       techniques: plan.techniques,
+      levels: plan.levels,
       members: plan.setup.members.map((m): MemberRunInfo => ({
         member: m.key,
         abilityVersion: abilityVersionOf(m.kernel.unit.characterId),
@@ -253,8 +274,9 @@ function buildSetup(
   }
 
   const members: MemberSetup[] = []
+  const levelEchoes: MemberLevelsEcho[] = []
   for (const member of team.members) {
-    const setup = memberSetup(scenario, team, member, options, problems, warnings, standardBuilds)
+    const setup = memberSetup(scenario, team, member, options, problems, warnings, standardBuilds, levelEchoes)
     if (setup) members.push(setup)
   }
   if (period?.check) {
@@ -277,6 +299,7 @@ function buildSetup(
     warnings,
     standardBuilds,
     techniques: team.members.map((m): MemberTechnique => ({ member: m.key, used: m.technique, given: m.techniqueGiven })),
+    levels: levelEchoes,
     kitOptions: team.members.flatMap((m): MemberKitOptions[] => (m.kitOptions === undefined ? [] : [kitOptionsEcho(m)])),
   }
 }
@@ -295,6 +318,7 @@ function memberSetup(
   problems: string[],
   warnings: RunWarnings,
   standardBuilds: MemberStandardBuild[],
+  levelEchoes: MemberLevelsEcho[],
 ): MemberSetup | undefined {
   const at = `team "${team.id}", member "${member.key}"`
   const before = problems.length
@@ -327,6 +351,8 @@ function memberSetup(
     lightConeId: member.lightCone.id,
     superimposition: member.lightCone.superimposition,
   }
+  const levels = levelsFor(member, kit!, abilityVersionOf(characterId!), team, unit, warnings, levelEchoes, at, problems)
+  if (problems.length > before) return undefined
   let build: KernelBuild | undefined
   if (member.relics !== 'standard') {
     const relics = member.relics
@@ -347,6 +373,7 @@ function memberSetup(
     kit: kit!,
     eidolon: member.eidolon,
     affinitiveEidolon: member.affinitiveEidolon,
+    ...(levels !== undefined && { levels }),
     technique: member.technique,
     stats: {
       maxHp: basic.HP,
@@ -359,6 +386,74 @@ function memberSetup(
     kernel: { unit, build },
     equipment,
   }
+}
+
+/**
+ * The member's ability levels and traces (K15) as the view its kit reads. Sets the kernel unit's locked minor traces, echoes the
+ * levels used, and warns for what is below maximum but not followed by the kit (`levels-not-modelled`, K15a) and for a scan that
+ * has no levels for this character (`levels-scan-missing`). Undefined for a member without levels (no table for the character).
+ */
+function levelsFor(
+  member: Member,
+  kit: Kit,
+  abilityVersion: number,
+  team: Team,
+  unit: KernelUnit,
+  warnings: RunWarnings,
+  echoes: MemberLevelsEcho[],
+  at: string,
+  problems: string[],
+): LevelView | undefined {
+  const levels = member.levels
+  if (levels === undefined) return undefined
+  const table = loadLevelTable(member.character, abilityVersion)
+  if (table === undefined || levels.abilityVersion !== table.ability_version) {
+    problems.push(
+      `${at}: the levels were checked against ability version ${levels.abilityVersion} of character ${member.character}, ` +
+        `but the run uses version ${abilityVersion}` + (table === undefined ? ', which has no level table' : ''),
+    )
+    return undefined
+  }
+  const locked = lockedMinorPoints(table, levels)
+  if (locked.length > 0) unit.deactivatedTraces = locked
+
+  const modelled = kit.levelsModelled
+  const unmodelled = describeBelowMax(table, levels, member.eidolon, (kind) => {
+    if (kind === 'minor') return false
+    if (/^B[1-3]$/.test(kind)) return !(modelled?.majorTraces ?? []).includes(Number(kind.slice(1)) as 1 | 2 | 3)
+    return !(modelled?.abilities ?? []).includes(kind as AbilityKey)
+  })
+  if (unmodelled.length > 0) {
+    warnings.push({
+      severity: 'warning',
+      code: 'levels-not-modelled',
+      message:
+        `${unmodelled.join('; ')}. The kit for character ${member.character} does not follow ` +
+        `${unmodelled.length === 1 ? 'this' : 'these'} yet (K15a), so ${unmodelled.length === 1 ? 'it runs' : 'they run'} at full strength` +
+        ' and the damage is overstated.',
+      team: team.id,
+      member: member.key,
+    })
+  }
+  if (levels.scanMissing) {
+    warnings.push({
+      severity: 'info',
+      code: 'levels-scan-missing',
+      message: 'The account scan has no ability or trace levels for this character, so everything runs at maximum. Set "levels" on the member to state them.',
+      team: team.id,
+      member: member.key,
+    })
+  }
+  const max = maxLevels(table, member.eidolon)
+  echoes.push({
+    member: member.key,
+    source: levels.source,
+    abilities: { ...levels.abilities },
+    maxAbilities: { ...max.abilities },
+    majorTraces: [...levels.majorTraces],
+    minorTraces: [...levels.minorTraces],
+  })
+  return new LevelView(table, levels, member.eidolon)
 }
 
 /** The ability version in a kernel character id: '1006b1' is version 1, '1308' is version 0. */

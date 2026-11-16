@@ -114,6 +114,8 @@ describe('the example scenario', () => {
       affinitiveEidolon: true,
       lightCone: { id: '23024', superimposition: 1 },
       relics: 'standard',
+      // No account: everything at maximum (K15).
+      levels: expect.objectContaining({ source: 'max', abilityVersion: 0 }),
       technique: true,
       techniqueGiven: false,
     })

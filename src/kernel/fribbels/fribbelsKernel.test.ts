@@ -371,7 +371,7 @@ describe('injected buffs: bad requests are errors that name the buff (K15a)', ()
   it('a value that is not a finite number, and a target that is neither self nor team', () => {
     expect(withBuff({ stat: 'TRUE_DMG', value: Number.NaN, target: 'team' })).toThrow(/value must be a finite number/)
     expect(withBuff({ stat: 'TRUE_DMG', value: '0.1', target: 'team' })).toThrow(/value must be a finite number/)
-    expect(withBuff({ stat: 'TRUE_DMG', value: 0.1, target: 'enemy' })).toThrow(/target must be 'self' or 'team'/)
+    expect(withBuff({ stat: 'TRUE_DMG', value: 0.1, target: 'enemy' })).toThrow(/target must be 'self', 'team' or 'selfAndMemosprite'/)
   })
 
   it('a stat name that is an Object prototype key is unknown, not a crash', () => {

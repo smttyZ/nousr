@@ -1,6 +1,6 @@
 # Proposal: ability levels and traces per member (K15)
 
-Status: APPROVED by Smitty 2026-11-13 (DESIGN.md K18; mechanism K15a). Built so far: the level tables (K20, `data/levels/`, `schema/level-table.schema.json`). Reading levels from a scan or scenario is not built: every member still runs fully built (DESIGN.md, "Known approximations"). Written as a draft; the text below is left as proposed. Labels: **Searched** (file:line or URL), **Computed** (command), **Recalled** (unverified).
+Status: APPROVED by Smitty (K18, 2026-11-13) and BUILT (2026-11-16): option A (K15a) for the buffs of the kits in his comparisons, D (a `levels-not-modelled` warning) elsewhere; levels are in-game totals; a scan without levels falls back to max with an info warning (`levels-scan-missing`). Original draft follows. Labels: **Searched** (file:line or URL), **Computed** (command), **Recalled** (unverified).
 
 ## What exists today
 

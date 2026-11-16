@@ -34,3 +34,21 @@ Columns:
 | 2026-11-15 | The Herta + Anaxa kits | `claude/practical-khayyam-2c2d55` / b132ce4 | Done; 1,768 tests reported passing (to verify on merge). Hit a usage limit once |
 | 2026-11-15 | Sunday + Dan Heng PT standard builds | `claude/focused-albattani-bf53c3` / e057d91 | Done; lead verified 1,657 pass, 1 environment skip |
 | 2026-11-15 | Results report + CLI draft | `claude/jolly-shannon-4661a4` / 59f10e5 | Draft for review (12 questions) |
+
+## Scorecard per model (Computed from the tables above, 2026-11-16)
+
+![Subagent scorecard: Haiku and Sonnet](agent-scorecard.svg)
+
+| Measure | Haiku | Sonnet |
+|---|---|---|
+| Runs | 5 (1 pilot kit, 3 relic-set runs, 1 test job) | 10 (7 writing, 3 review) |
+| Tokens per run | about 258k (4 runs with a count: 3 at 266k to 342k, taken at 304k, and 120k) | 247k (2,221k over 9 runs with a count) |
+| Minutes per run | 1.7 (1 run with a time) | 15.1 (135.7 over 9 runs with a time) |
+| Errors found later in its own work | 8 in 5 writing runs (6 + 2), 1.6 per run; also 2 over-cautious refusals | 2 in 7 writing runs (both in the Cyrene kit), 0.29 per run |
+| Deliberate breakages caught by its own tests | 4 of 4 (100%, 1 run) | 100 of 102 (98%, 7 runs; the 2 misses were equivalent mutants) |
+| Breakages a separate reviewer ran against the work | not measured | 17 of 22 caught (77%) on the Cyrene kit |
+
+How to read it: the two models did different jobs (Haiku: a pilot kit, pattern modules and a 4-test job; Sonnet: kits,
+reviews, engine and CLI work), and Haiku has 5 runs, one of them timed. So this shows what happened; it is not a
+like-for-like comparison. The Castorice and Hyacine reviews (31 of 41 and about 17 of 34 breakages caught) are left out
+of the last row because the ledger does not say which model wrote those kits.

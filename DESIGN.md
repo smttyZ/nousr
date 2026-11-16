@@ -1,7 +1,8 @@
 # NouSR — design
 
-Status: build order steps 1–5 built (setup, timeline engine, damage kernel adapter, scenario format, generic
-enemy with the HP and aggro pipeline).
+Status: build order steps 1–6 built (setup, timeline engine, damage kernel adapter, scenario format, generic
+enemy with the HP and aggro pipeline, the 14 roster kits), plus the `nousr run` command and results format (K33).
+Step 7 (the period module) is not built. "Where things stand" has the dated detail.
 Pinned target: Honkai: Star Rail 4.7.
 
 NouSR (`nousr`) is a deterministic, action-value timeline simulator for Honkai: Star Rail teams.
@@ -97,7 +98,7 @@ Consequence of S6 to keep in mind: effects that trigger on a kill, overkill, and
   over all enemies (K2), so an action's `enemiesHit` lists all of them, even when a few random hits would on
   average reach fewer. Example: a 3-hit Lightning-Lord action on 5 enemies counts as 5 enemies hit, where the
   expected number of distinct enemies is 5 x (1 - (4/5)^3) = 2.44. Effects keyed on "per enemy hit" are biased
-  upward: Tribbie's Zone instances and Pebble energy, Eternal Calculus's stacks and its 3-enemy SPD buff. Size
+  upward: Tribbie's Zone instances and Pebble energy, Eternal Calculus's stacks and its 3-enemy SPD buff.
   Found by the Jing Yuan review, 2026-11-13. **Fixed by K17:** each action now records each enemy's chance of
   being hit at least once (`actionUsed.hitChance`) and their sum (`expectedEnemiesHit`); `enemiesHit` stays
   "could have been hit". Remaining: Tribbie's highest-HP choice still picks among every enemy a random-target
@@ -323,8 +324,9 @@ Earlier findings these build on:
 
 For step 7, the current period's rule text (Game8, read 2026-11-11): an ally gains 5 Punchlines on using
 their Ultimate; at the start of each cycle Aha takes an extra turn counted at a fixed 20 Punchlines, which
-**Settled by Smitty 2026-11-16** (in-game text: "When an ally target uses their Ultimate, they gain 5 Punchlines. At the start of each Cycle, Aha immediately gains 1 extra turn with a fixed 20 Punchlines taken into account. This turn does not consume Punchlines."): Punchlines and Aha's turn are the Elation path's mechanic (the period's banner is Aha with three Elation characters). For teams with no Elation character the period changes nothing, so the module is a documented no-op for them; a team with an Elation character stops with an error naming it until Elation is modelled.
 does not consume Punchlines. Runs 2026-11-02 to 2026-12-14.
+
+**Settled by Smitty 2026-11-16** (in-game text: "When an ally target uses their Ultimate, they gain 5 Punchlines. At the start of each Cycle, Aha immediately gains 1 extra turn with a fixed 20 Punchlines taken into account. This turn does not consume Punchlines."): Punchlines and Aha's turn are the Elation path's mechanic (the period's banner is Aha with three Elation characters). For teams with no Elation character the period changes nothing, so the module is a documented no-op for them; a team with an Elation character stops with an error naming it until Elation is modelled.
 
 ## Step 6 notes (2026-11-12, in progress)
 

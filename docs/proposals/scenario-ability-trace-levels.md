@@ -1,6 +1,6 @@
 # Proposal: ability levels and traces per member (K15)
 
-Status: DRAFT for Smitty's review. Nothing is applied. Labels: **Searched** (file:line or URL), **Computed** (command), **Recalled** (unverified).
+Status: APPROVED by Smitty 2026-11-13 (DESIGN.md K18; mechanism K15a). Built so far: the level tables (K20, `data/levels/`, `schema/level-table.schema.json`). Reading levels from a scan or scenario is not built: every member still runs fully built (DESIGN.md, "Known approximations"). Written as a draft; the text below is left as proposed. Labels: **Searched** (file:line or URL), **Computed** (command), **Recalled** (unverified).
 
 ## What exists today
 

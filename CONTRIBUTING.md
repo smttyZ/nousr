@@ -1,6 +1,6 @@
 # Contributing to NouSR
 
-Thank you for helping. This file is for people and for AI coding agents alike. Agents should also read
+Thank you for helping! This file is for people and for AI coding agents alike. Agents should also read
 [CLAUDE.md](CLAUDE.md) (working rules) and [AGENTS.md](AGENTS.md) (the short version).
 
 ## What NouSR is, and its rules

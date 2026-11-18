@@ -27,6 +27,14 @@ Other limits to know before reading a number (each is explained in [DESIGN.md](D
 
 See [DESIGN.md](DESIGN.md) for architecture, decisions and open questions.
 
+## What a result looks like
+
+![Mock-up of a NouSR result page: Castorice, Cyrene, Robin Summeretto and Hyacine against 3 enemies over 5 cycles](docs/img/result-mockup.svg)
+
+A **mock-up, not a shipped interface**: NouSR prints tables today, and a web view is on the roadmap. The numbers are a
+real run of [`examples/castorice-premium.scenario.json`](examples/castorice-premium.scenario.json) at 3 enemies, every
+member E0 on standard relics, so they are not a ranking of the team.
+
 ## Getting started
 
 Needs Node 24 or newer, npm and git. From a fresh clone, in this order:

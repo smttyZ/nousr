@@ -1,0 +1,175 @@
+{
+  "$schema": "../schema/scenario.schema.json",
+  "format": "nousr-scenario",
+  "version": 1,
+  "game_version": "4.7",
+  "name": "Castorice premium team on standard relics",
+  "notes": "Castorice / Cyrene / Robin Summeretto / Hyacine, all E0 with the light cones below, every member on standard relics (no account file). Netherwing burns all four Breaths on its first turn. Used for the README mock-up image. The policy follows the guides linked on the team; it is not tuned play.",
+  "battle": {
+    "mode": "moc",
+    "cycles": 5,
+    "period": "moc-2026-11-survival-of-the-fittest",
+    "start": {
+      "energy": 0.5,
+      "skill_points": 3,
+      "techniques": true
+    }
+  },
+  "enemies": {
+    "profile": "generic-moc",
+    "counts": [
+      1,
+      3,
+      5
+    ],
+    "weaknesses": "all"
+  },
+  "teams": [
+    {
+      "id": "castorice_premium",
+      "name": "Castorice / Cyrene / Robin Summeretto / Hyacine",
+      "notes": "Prydwen: burning all four Breaths into the finisher is the generally preferred way. Sources: https://hsr.keqingmains.com/castorice https://hsr.keqingmains.com/cyrene https://www.prydwen.gg/star-rail/characters/castorice https://www.prydwen.gg/star-rail/characters/cyrene https://www.prydwen.gg/star-rail/characters/hyacine https://www.prydwen.gg/star-rail/characters/robin-summeretto",
+      "members": [
+        {
+          "key": "castorice",
+          "character": "1407",
+          "eidolon": 0,
+          "light_cone": {
+            "id": "23040",
+            "superimposition": 1
+          },
+          "relics": "standard",
+          "kit_options": {
+            "netherwing_finish_turn": 1
+          },
+          "notes": "Make Farewells More Beautiful S1"
+        },
+        {
+          "key": "cyrene",
+          "character": "1415",
+          "eidolon": 0,
+          "light_cone": {
+            "id": "23052",
+            "superimposition": 1
+          },
+          "relics": "standard",
+          "kit_options": {
+            "demiurge_order": [
+              "castorice",
+              "robin",
+              "hyacine"
+            ],
+            "after_order": "attack"
+          },
+          "notes": "This Love, Forever S1"
+        },
+        {
+          "key": "robin",
+          "character": "1512",
+          "eidolon": 0,
+          "light_cone": {
+            "id": "24005",
+            "superimposition": 1
+          },
+          "relics": "standard",
+          "notes": "Memory's Curtain Never Falls S1"
+        },
+        {
+          "key": "hyacine",
+          "character": "1409",
+          "eidolon": 0,
+          "light_cone": {
+            "id": "21054",
+            "superimposition": 1
+          },
+          "relics": "standard",
+          "notes": "The Story's Next Page S1"
+        }
+      ],
+      "policy": [
+        {
+          "unit": "cyrene",
+          "use": "ultimate"
+        },
+        {
+          "unit": "robin",
+          "use": "ultimate",
+          "target": "castorice"
+        },
+        {
+          "unit": "hyacine",
+          "use": "ultimate"
+        },
+        {
+          "unit": "castorice",
+          "use": "ultimate"
+        },
+        {
+          "unit": "castorice",
+          "use": "skill",
+          "notes": "Spam the Skill (it costs HP, not Skill Points); Basic ATK is never needed."
+        },
+        {
+          "unit": "hyacine",
+          "use": "skill",
+          "when": [
+            {
+              "what": "team.skill_points",
+              "min": 1
+            }
+          ],
+          "notes": "Always Skill when a point exists (keeps After Rain and Little Ica up)."
+        },
+        {
+          "unit": "hyacine",
+          "use": "basic"
+        },
+        {
+          "unit": "cyrene",
+          "use": "skill",
+          "when": [
+            {
+              "what": "team.skill_points",
+              "min": 1
+            }
+          ],
+          "notes": "Skill until the first Ultimate; once Ripples starts the Skill is locked and the kit uses the enhanced Basic."
+        },
+        {
+          "unit": "cyrene",
+          "use": "basic"
+        },
+        {
+          "unit": "robin",
+          "use": "skill",
+          "when": [
+            {
+              "what": "team.skill_points",
+              "min": 1
+            },
+            {
+              "what": "robin.songbirds",
+              "max": 0
+            }
+          ],
+          "notes": "Summon the Songbirds first."
+        },
+        {
+          "unit": "robin",
+          "use": "skill",
+          "when": [
+            {
+              "what": "team.skill_points",
+              "min": 3
+            }
+          ],
+          "notes": "Then only with spare Skill Points (closest rule; no guide gives a threshold)."
+        },
+        {
+          "unit": "robin",
+          "use": "basic"
+        }
+      ]
+    }
+  ]
+}

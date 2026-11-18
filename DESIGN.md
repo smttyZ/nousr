@@ -2,7 +2,7 @@
 
 Status: build order steps 1–6 built (setup, timeline engine, damage kernel adapter, scenario format, generic
 enemy with the HP and aggro pipeline, the 14 roster kits), plus the `nousr run` command and results format (K33).
-Step 7 (the period module) is not built. "Where things stand" has the dated detail.
+Step 7 (the period module, Survival of the Fittest) is built too. "Where things stand" has the dated detail.
 Pinned target: Honkai: Star Rail 4.7.
 
 NouSR (`nousr`) is a deterministic, action-value timeline simulator for Honkai: Star Rail teams.

@@ -20,8 +20,9 @@ Other limits to know before reading a number (each is explained in [DESIGN.md](D
   account scan's ability and trace levels are not read, so an unfinished character is overstated.
 - **Enemies never die.** A run is a fixed number of Memory of Chaos cycles against one generic floor-12 enemy profile
   (1, 3 and 5 copies); real stage bosses are not modelled.
-- **No Memory of Chaos period rules yet.** `battle.period` must be `null`; a scenario that names a period stops with an
-  error.
+- **One Memory of Chaos period.** `battle.period` is `null` or `moc-2026-11-survival-of-the-fittest`. That period's rule
+  (Punchlines and Aha) is the Elation path's mechanic, which is not modelled: a team without an Elation character runs
+  exactly as with `null`, and a team with one stops with an error naming the member.
 - **Debuffs always land** (Effect Hit Rate is a stat, never a roll), and allies are never crowd-controlled.
 - The team policies in `examples/` are simple placeholders, not tuned play.
 
